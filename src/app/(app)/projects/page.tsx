@@ -19,6 +19,57 @@ function fmtRate(v: number | null) {
   return `${v.toFixed(1)}%`;
 }
 
+/** "₹14.6L" / "14.6 L" -> 14.6  (lakhs). */
+function lakhsFromDisplay(label: string | number | undefined | null): number {
+  if (label === undefined || label === null) return 0;
+  const m = String(label).match(/([0-9]+(\.[0-9]+)?)/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+/** ₹X formatter — auto-scales to K / L for readability. */
+function fmtRupees(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${Math.round(n)}`;
+}
+
+/** Stacked metric cell — primary value above, small subtext below. */
+function MetricStack({
+  value,
+  sub,
+  align = "right",
+  emphasize,
+}: {
+  value: string | number;
+  sub?: string;
+  align?: "left" | "right";
+  emphasize?: boolean;
+}) {
+  return (
+    <div style={{ textAlign: align }}>
+      <div
+        className="tabular-nums"
+        style={{
+          fontSize: 13.5,
+          fontWeight: emphasize ? 600 : 500,
+          lineHeight: 1.2,
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          className="tabular-nums"
+          style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 2 }}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HealthPill({ health }: { health: "on-track" | "needs-attention" | "underperforming" }) {
   const map = {
     "on-track": { label: "On track", cls: "pill-ok" },
@@ -130,19 +181,23 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Portfolio table — column-gap gives each cell breathing room so
-          values never touch the cell next door. Overflow-x scroll is a
-          safety net for very narrow viewports. */}
+      {/* Portfolio table — each lead-tier cell shows count + ratio + cost
+          per unit so admins can spot funnel issues at a glance. */}
       {(() => {
         const COLS =
-          "minmax(200px, 2.4fr) 80px 70px 80px 70px minmax(160px, 1.5fr) 90px 20px";
+          "minmax(200px, 2fr) 90px 120px 120px minmax(150px, 1.4fr) 90px 20px";
         const gridStyle: React.CSSProperties = {
           gridTemplateColumns: COLS,
           columnGap: 18,
         };
+        // Portfolio CPL/CPVL/CPQL (spend in lakhs * 100000)
+        const portfolioSpendRupees = totalSpend * 100000;
+        const portfolioCPL = totalLeads ? portfolioSpendRupees / totalLeads : null;
+        const portfolioCPVL = totalVerified ? portfolioSpendRupees / totalVerified : null;
+        const portfolioCPQL = totalQualified ? portfolioSpendRupees / totalQualified : null;
         return (
           <div className="card-base overflow-x-auto">
-            <div style={{ minWidth: 850 }}>
+            <div style={{ minWidth: 880 }}>
               {/* Table header */}
               <div
                 className="grid items-center px-5 py-2.5 border-b border-border bg-surface-page text-[10px] uppercase tracking-[0.04em] font-semibold text-text-tertiary"
@@ -151,8 +206,8 @@ export default function ProjectsPage() {
                 <span>Project</span>
                 <span className="text-right">Spend</span>
                 <span className="text-right">Leads</span>
-                <span className="text-right">Verif rate</span>
-                <span className="text-right">QL rate</span>
+                <span className="text-right">Verified</span>
+                <span className="text-right">Qualified</span>
                 <span>Goal progress</span>
                 <span className="text-right">Health</span>
                 <span />
@@ -160,6 +215,10 @@ export default function ProjectsPage() {
 
               {rows.map(({ p, d, rollup }, i) => {
                 const last = i === rows.length - 1;
+                const spendRupees = lakhsFromDisplay(rollup.spend) * 100000;
+                const cpl = rollup.totalLeads ? spendRupees / rollup.totalLeads : null;
+                const cpvl = rollup.verifiedLeads ? spendRupees / rollup.verifiedLeads : null;
+                const cpql = rollup.qualifiedLeads ? spendRupees / rollup.qualifiedLeads : null;
                 return (
                   <button
                     key={p.id}
@@ -194,18 +253,30 @@ export default function ProjectsPage() {
                         </div>
                       </div>
                     </div>
-                    <span className="tabular-nums text-right text-[12.5px] font-medium">
-                      {rollup.spend}
-                    </span>
-                    <span className="tabular-nums text-right text-[12.5px]">
-                      {rollup.totalLeads.toLocaleString()}
-                    </span>
-                    <span className="tabular-nums text-right text-[12.5px]">
-                      {fmtRate(rollup.verifRate)}
-                    </span>
-                    <span className="tabular-nums text-right text-[12.5px]">
-                      {fmtRate(rollup.qualRate)}
-                    </span>
+                    <MetricStack value={rollup.spend} sub="total" align="right" emphasize />
+                    <MetricStack
+                      value={rollup.totalLeads.toLocaleString()}
+                      sub={cpl ? `${fmtRupees(cpl)} CPL` : "—"}
+                      align="right"
+                    />
+                    <MetricStack
+                      value={rollup.verifiedLeads.toLocaleString()}
+                      sub={
+                        rollup.verifRate
+                          ? `${rollup.verifRate.toFixed(1)}% · ${cpvl ? fmtRupees(cpvl) : "—"} CPVL`
+                          : "—"
+                      }
+                      align="right"
+                    />
+                    <MetricStack
+                      value={rollup.qualifiedLeads.toLocaleString()}
+                      sub={
+                        rollup.qualRate
+                          ? `${rollup.qualRate.toFixed(1)}% · ${cpql ? fmtRupees(cpql) : "—"} CPQL`
+                          : "—"
+                      }
+                      align="right"
+                    />
                     <GoalProgress goal={rollup.goal} />
                     <div className="flex justify-end">
                       <HealthPill health={p.health} />
@@ -217,21 +288,35 @@ export default function ProjectsPage() {
 
               {/* Footer totals */}
               <div
-                className="grid items-center px-5 py-2.5 border-t border-border bg-surface-page text-[12px] font-medium"
+                className="grid items-center px-5 py-3 border-t border-border bg-surface-page text-[12px] font-medium"
                 style={gridStyle}
               >
                 <span>Portfolio total</span>
-                <span className="tabular-nums text-right">₹{totalSpend.toFixed(1)}L</span>
-                <span className="tabular-nums text-right">{totalLeads.toLocaleString()}</span>
-                <span className="tabular-nums text-right">
-                  {totalVerifRate ? `${totalVerifRate.toFixed(1)}%` : "—"}
-                </span>
-                <span className="tabular-nums text-right">
-                  {totalQualRate ? `${totalQualRate.toFixed(1)}%` : "—"}
-                </span>
-                <span className="text-[11px] text-text-tertiary font-normal">
-                  across {rows.length} projects
-                </span>
+                <MetricStack value={`₹${totalSpend.toFixed(1)}L`} sub={`${rows.length} projects`} align="right" emphasize />
+                <MetricStack
+                  value={totalLeads.toLocaleString()}
+                  sub={portfolioCPL ? `${fmtRupees(portfolioCPL)} CPL` : "—"}
+                  align="right"
+                />
+                <MetricStack
+                  value={totalVerified.toLocaleString()}
+                  sub={
+                    totalVerifRate
+                      ? `${totalVerifRate.toFixed(1)}% · ${portfolioCPVL ? fmtRupees(portfolioCPVL) : "—"} CPVL`
+                      : "—"
+                  }
+                  align="right"
+                />
+                <MetricStack
+                  value={totalQualified.toLocaleString()}
+                  sub={
+                    totalQualRate
+                      ? `${totalQualRate.toFixed(1)}% · ${portfolioCPQL ? fmtRupees(portfolioCPQL) : "—"} CPQL`
+                      : "—"
+                  }
+                  align="right"
+                />
+                <span />
                 <span />
                 <span />
               </div>

@@ -95,11 +95,9 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-sidebar bg-white border-r border-border flex flex-col z-50">
-      {/* Brand + workspace switcher */}
-      <div className="px-2 pt-3 pb-1.5 flex items-center gap-2 border-b border-border-subtle">
-        <RevspotLogo />
-      </div>
-      <div className="px-2 pt-2 pb-2 border-b border-border-subtle">
+      {/* Workspace switcher — sits in the brand row; the workspace mark IS
+          the brand mark in this product (Revspot is implicit). */}
+      <div className="px-2 pt-3 pb-2 border-b border-border-subtle">
         <WorkspaceSwitcher />
       </div>
 

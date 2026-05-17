@@ -26,6 +26,13 @@ function lakhFromSpend(label: string) {
   return m ? parseFloat(m[1]) : 0;
 }
 
+function fmtRupees(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${Math.round(n)}`;
+}
+
 function WorkspaceRow({ ws }: { ws: Workspace }) {
   const router = useRouter();
   const setScope = useWorkspaceStore((s) => s.setScope);
@@ -45,7 +52,12 @@ function WorkspaceRow({ ws }: { ws: Workspace }) {
     { spendL: 0, totalLeads: 0, verified: 0, qualified: 0, target: 0, achieved: 0 },
   );
   const verifRate = totals.totalLeads ? (totals.verified / totals.totalLeads) * 100 : 0;
+  const qualRate = totals.totalLeads ? (totals.qualified / totals.totalLeads) * 100 : 0;
   const goalPct = totals.target ? (totals.achieved / totals.target) * 100 : 0;
+  const spendRupees = totals.spendL * 100000;
+  const cpl = totals.totalLeads ? spendRupees / totals.totalLeads : null;
+  const cpvl = totals.verified ? spendRupees / totals.verified : null;
+  const cpql = totals.qualified ? spendRupees / totals.qualified : null;
   // Rough pace from project goal data (weighted average of paceDelta sign)
   const avgPaceDelta =
     projects.reduce((s, p) => {
@@ -90,14 +102,23 @@ function WorkspaceRow({ ws }: { ws: Workspace }) {
           {ws.region} · {ws.memberCount} members · {projects.length} project
           {projects.length === 1 ? "" : "s"}
         </div>
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}
-        >
-          <Metric label="Spend" value={`₹${totals.spendL.toFixed(1)}L`} />
-          <Metric label="Total leads" value={totals.totalLeads.toLocaleString()} />
-          <Metric label="Verified" value={`${totals.verified}`} sub={`${verifRate.toFixed(1)}%`} />
-          <Metric label="Qualified" value={`${totals.qualified}`} />
+        <div className="grid" style={{ gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+          <Metric label="Spend" value={`₹${totals.spendL.toFixed(1)}L`} sub={`${projects.length} projects`} />
+          <Metric
+            label="Leads"
+            value={totals.totalLeads.toLocaleString()}
+            sub={cpl ? `${fmtRupees(cpl)} CPL` : "—"}
+          />
+          <Metric
+            label="Verified"
+            value={totals.verified.toLocaleString()}
+            sub={`${verifRate.toFixed(1)}% · ${cpvl ? fmtRupees(cpvl) : "—"} CPVL`}
+          />
+          <Metric
+            label="Qualified"
+            value={totals.qualified.toLocaleString()}
+            sub={`${qualRate.toFixed(1)}% · ${cpql ? fmtRupees(cpql) : "—"} CPQL`}
+          />
           <Metric
             label="Goal progress"
             value={`${goalPct.toFixed(0)}%`}
@@ -119,7 +140,7 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
       <div className="tabular-nums" style={{ fontSize: 17, fontWeight: 600, marginTop: 1 }}>
         {value}
       </div>
-      {sub && <div className="text-[10px] text-text-tertiary tabular-nums">{sub}</div>}
+      {sub && <div className="text-[10px] text-text-tertiary tabular-nums leading-tight">{sub}</div>}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { GuidedKind, GuidedPayload, SpotMessage, SpotScope } from "./types"
 
 type PanelState = {
   open: boolean;
+  maximized: boolean;
   scope: SpotScope;
   // Bumped each time the host calls askSpot(query) so the panel knows to
   // reset its thread and seed a reply for the new question.
@@ -29,6 +30,8 @@ type PanelState = {
   openPanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
+  toggleMaximize: () => void;
+  setMaximized: (v: boolean) => void;
   openPalette: () => void;
   closePalette: () => void;
   openGuided: (payload: GuidedPayload) => void;
@@ -41,6 +44,7 @@ const WORKSPACE_SCOPE: SpotScope = { kind: "workspace", label: "Workspace" };
 
 export const useSpotStore = create<PanelState>((set) => ({
   open: false,
+  maximized: false,
   scope: WORKSPACE_SCOPE,
   pendingQuery: null,
   thread: [],
@@ -62,8 +66,10 @@ export const useSpotStore = create<PanelState>((set) => ({
     set((s) => ({ thread: typeof m === "function" ? m(s.thread) : m })),
 
   openPanel: () => set({ open: true }),
-  closePanel: () => set({ open: false }),
-  togglePanel: () => set((s) => ({ open: !s.open })),
+  closePanel: () => set({ open: false, maximized: false }),
+  togglePanel: () => set((s) => ({ open: !s.open, maximized: s.open ? false : s.maximized })),
+  toggleMaximize: () => set((s) => ({ maximized: !s.maximized, open: true })),
+  setMaximized: (v) => set({ maximized: v }),
 
   openPalette: () => set({ paletteOpen: true }),
   closePalette: () => set({ paletteOpen: false }),
