@@ -1,4 +1,5 @@
-import { ComponentType, ReactNode } from "react";
+import { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
 
 export function SectionHeader({
@@ -9,7 +10,7 @@ export function SectionHeader({
   onAsk,
   askLabel = "Refine with Spot",
 }: {
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   title: string;
   subtitle?: string;
   actions?: ReactNode;

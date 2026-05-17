@@ -367,10 +367,13 @@ const adsetConfig: GuidedConfig<AdsetDraft> = {
   onFinishToast: "Ad set draft saved",
 };
 
+// Cast through unknown — each per-kind draft is heterogeneous at the
+// type level but always a string-record at runtime, which is all the
+// shared GuidedFlow shell consumes.
 export const GUIDED_CONFIGS: Record<GuidedKind, GuidedConfig<Record<string, string>>> = {
-  "new-persona": personaConfig as GuidedConfig<Record<string, string>>,
-  "new-angle": angleConfig as GuidedConfig<Record<string, string>>,
-  "launch-creative": launchConfig as GuidedConfig<Record<string, string>>,
-  "new-campaign": campaignConfig as GuidedConfig<Record<string, string>>,
-  "new-adset": adsetConfig as GuidedConfig<Record<string, string>>,
+  "new-persona": personaConfig as unknown as GuidedConfig<Record<string, string>>,
+  "new-angle": angleConfig as unknown as GuidedConfig<Record<string, string>>,
+  "launch-creative": launchConfig as unknown as GuidedConfig<Record<string, string>>,
+  "new-campaign": campaignConfig as unknown as GuidedConfig<Record<string, string>>,
+  "new-adset": adsetConfig as unknown as GuidedConfig<Record<string, string>>,
 };
