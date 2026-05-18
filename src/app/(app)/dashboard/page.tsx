@@ -20,6 +20,7 @@ import { GettingStartedChecklist } from "@/components/dashboard/getting-started"
 import { IllustrationCampaigns, IllustrationAgents, IllustrationProjects, IllustrationLeads } from "@/components/illustrations/empty-states";
 import { useDemoMode } from "@/lib/demo-mode";
 import { useAppStore } from "@/lib/store";
+import { useCurrentWorkspaceLabel } from "@/lib/workspace-store";
 
 const stagger: Variants = {
   hidden: {},
@@ -148,6 +149,7 @@ export default function DashboardPage() {
   const { isEmpty } = useDemoMode();
   const projects = useAppStore((s) => s.projects);
   const hasProjects = projects.length > 0;
+  const wsLabel = useCurrentWorkspaceLabel();
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState("30");
 
@@ -168,7 +170,9 @@ export default function DashboardPage() {
       {/* Header */}
       <motion.div variants={fadeUp} className="flex items-start justify-between mb-6">
         <div>
-          <div className="text-meta text-text-secondary mb-1">Lead Generation</div>
+          <div className="text-meta text-text-secondary mb-1">
+            {wsLabel} · Lead Generation
+          </div>
           <h1 className="text-page-title text-text-primary">Dashboard</h1>
         </div>
         <DateRangeSelector onChange={setDateRange} />

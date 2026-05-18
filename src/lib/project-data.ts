@@ -1129,6 +1129,30 @@ export function projectsForWorkspace(workspaceId?: string): ProjectDetail[] {
   return Object.values(projectDetails).filter((p) => p.workspaceId === workspaceId);
 }
 
+/**
+ * Legacy /campaigns data uses `proj-1..proj-4` IDs (defined in
+ * `campaign-data.ts`). The new workspace concept only lives on the
+ * project-data shape. This map bridges the two so we can filter the
+ * legacy campaigns list by current workspace scope.
+ *
+ * proj-1 = Whitefield Luxury Villas → Godrej South (Bengaluru)
+ * proj-2 = Godrej Air Phase 3       → Godrej NCR  (Noida)
+ * proj-3 = Godrej Eternity          → Godrej MMR  (Pune-MMR cluster)
+ * proj-4 = Godrej Summit            → Godrej South
+ */
+export const LEGACY_PROJECT_WORKSPACE: Record<string, string> = {
+  "proj-1": "ws-south",
+  "proj-2": "ws-ncr",
+  "proj-3": "ws-mmr",
+  "proj-4": "ws-south",
+};
+
+/** Resolve a workspaceId for a legacy campaign by walking project link. */
+export function workspaceIdForLegacyProject(projectId: string | null | undefined): string | null {
+  if (!projectId) return null;
+  return LEGACY_PROJECT_WORKSPACE[projectId] || null;
+}
+
 /** Rollup metrics for the projects-list table. */
 export function projectRollup(id: string) {
   const d = projectDetails[id];

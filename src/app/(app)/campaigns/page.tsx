@@ -28,6 +28,8 @@ import { agentsList } from "@/lib/voice-agent-data";
 import { EmptyState } from "@/components/layout/empty-state";
 import { IllustrationCampaigns, IllustrationSearchEmpty } from "@/components/illustrations/empty-states";
 import { useDemoMode } from "@/lib/demo-mode";
+import { useCurrentScope, useCurrentWorkspaceLabel } from "@/lib/workspace-store";
+import { workspaceIdForLegacyProject } from "@/lib/project-data";
 
 // ── Metric column definitions ──────────────────────────────
 
@@ -118,6 +120,8 @@ const PAGE_SIZE = 15;
 export default function CampaignsPage() {
   const router = useRouter();
   const { isEmpty } = useDemoMode();
+  const scope = useCurrentScope();
+  const wsLabel = useCurrentWorkspaceLabel();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
   const [projectFilter, setProjectFilter] = useState("all");
@@ -159,9 +163,19 @@ export default function CampaignsPage() {
     return ["all", ...Array.from(names).sort()];
   }, []);
 
+  // Filter by current workspace scope before any other filter so the
+  // status / project / search dropdowns only ever operate on the
+  // workspace the user is in.
+  const scopeFiltered = useMemo(() => {
+    if (scope.kind === "all") return campaignsList;
+    return campaignsList.filter(
+      (c) => workspaceIdForLegacyProject(c.projectId) === scope.id,
+    );
+  }, [scope]);
+
   const filtered = useMemo(() => {
     if (isEmpty) return [];
-    return campaignsList.filter((c) => {
+    return scopeFiltered.filter((c) => {
       if (deletedIds.has(c.id)) return false;
       if (statusFilter !== "all" && getStatus(c) !== statusFilter) return false;
       if (projectFilter !== "all" && c.client !== projectFilter) return false;
@@ -173,7 +187,7 @@ export default function CampaignsPage() {
         return false;
       return true;
     });
-  }, [search, statusFilter, projectFilter, isEmpty, deletedIds]);
+  }, [scopeFiltered, search, statusFilter, projectFilter, isEmpty, deletedIds]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -185,7 +199,9 @@ export default function CampaignsPage() {
       {/* Header */}
       <motion.div variants={fadeUp} className="flex items-center justify-between mb-6">
         <div>
-          <div className="text-meta text-text-secondary mb-1">Lead Generation</div>
+          <div className="text-meta text-text-secondary mb-1">
+            {wsLabel} · Lead Generation
+          </div>
           <h1 className="text-page-title text-text-primary">Campaigns</h1>
         </div>
         <div className="flex items-center gap-2">

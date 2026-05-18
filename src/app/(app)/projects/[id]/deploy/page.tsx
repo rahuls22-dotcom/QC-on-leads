@@ -19,6 +19,7 @@ import {
 import { getProject } from "@/lib/project-data";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
+import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 
 type Step = "campaign" | "creatives" | "adsets" | "form" | "deploy";
 
@@ -519,6 +520,20 @@ export default function DeployMediaPlanPage() {
   const project = getProject(id);
   const [step, setStep] = useState<Step>("campaign");
   const askSpot = useSpotStore((s) => s.askSpot);
+
+  const guard = useScopeGuard(
+    project?.workspaceId,
+    project?.name.split(" · ")[0] || "This project",
+  );
+  if (guard.access === "forbidden") {
+    return (
+      <ForbiddenState
+        workspaceName={guard.workspaceName}
+        resourceLabel={guard.resourceLabel}
+      />
+    );
+  }
+  if (guard.access === "wrong-scope") return null;
 
   if (!project) {
     return (

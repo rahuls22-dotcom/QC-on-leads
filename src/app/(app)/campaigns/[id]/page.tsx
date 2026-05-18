@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -15,7 +15,9 @@ import {
   Play,
   X,
 } from "lucide-react";
-import { campaignDetail, leadDistributionData } from "@/lib/campaign-data";
+import { campaignDetail, campaignsList, leadDistributionData } from "@/lib/campaign-data";
+import { workspaceIdForLegacyProject } from "@/lib/project-data";
+import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 import { campaignDiagnosisPayload } from "@/lib/diagnosis-data";
 import { LeadsTab } from "@/components/campaigns/leads-tab";
 import { AnalysisTab } from "@/components/campaigns/analysis-tab";
@@ -38,6 +40,21 @@ type Tab = "analysis" | "leads" | "insights" | "diagnosis" | "brief" | "settings
 
 export default function CampaignDetailPage() {
   const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const urlId = (params?.id || "").toString();
+
+  // Scope guard: derive the workspace from the URL campaign id by
+  // walking campaignsList → projectId → workspace. If the URL id isn't
+  // in our list (legacy detail singleton case), the guard skips.
+  // ALL hooks must run unconditionally, so the guard hook runs here and
+  // its conditional branch is deferred until after every other hook.
+  const urlCampaign = campaignsList.find((c) => c.id === urlId);
+  const resourceWorkspaceId = workspaceIdForLegacyProject(urlCampaign?.projectId);
+  const guard = useScopeGuard(
+    resourceWorkspaceId,
+    urlCampaign?.name || campaignDetail.name,
+  );
+
   const [activeTab, setActiveTab] = useState<Tab>("analysis");
   const [campaignStatus, setCampaignStatus] = useState<"enabled" | "paused">(
     campaignDetail.status === "paused" ? "paused" : "enabled"
@@ -53,6 +70,18 @@ export default function CampaignDetailPage() {
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Now safe to short-circuit on guard verdict — every hook above has run.
+  if (guard.access === "forbidden") {
+    return (
+      <ForbiddenState
+        workspaceName={guard.workspaceName}
+        resourceLabel={guard.resourceLabel}
+        backHref="/campaigns"
+      />
+    );
+  }
+  if (guard.access === "wrong-scope") return null;
 
   const handleStatusConfirm = () => {
     if (!statusConfirm) return;

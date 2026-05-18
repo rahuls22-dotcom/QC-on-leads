@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronsUpDown, UserPlus } from "lucide-react";
 import { InviteUserModal } from "@/components/invite/invite-user-modal";
 import { RevspotLogo } from "@/components/layout/revspot-logo";
 import {
+  redirectAfterScopeSwitch,
   useAccessibleWorkspaces,
   useCurrentScope,
   useCurrentUser,
@@ -35,6 +36,7 @@ function AllMark({ size = 26 }: { size?: number }) {
 
 export function WorkspaceSwitcher() {
   const router = useRouter();
+  const pathname = usePathname();
   const user = useCurrentUser();
   const accessible = useAccessibleWorkspaces();
   const scope = useCurrentScope();
@@ -44,6 +46,20 @@ export function WorkspaceSwitcher() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Switch scope, then route per the spec: stay on list/admin pages,
+   * fall back to parent list for workspace-specific resources.
+   */
+  const switchTo = (newScope: string) => {
+    setScope(newScope);
+    setOpen(false);
+    const next = redirectAfterScopeSwitch({
+      newScope,
+      currentPath: pathname || "/",
+    });
+    if (next) router.push(next);
+  };
 
   // Close on outside click
   useEffect(() => {
@@ -107,11 +123,7 @@ export function WorkspaceSwitcher() {
             <>
               <button
                 type="button"
-                onClick={() => {
-                  setScope("all");
-                  setOpen(false);
-                  router.push("/admin");
-                }}
+                onClick={() => switchTo("all")}
                 className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[7px] hover:bg-surface-page text-left"
                 style={{ background: isAll ? "var(--bg-page)" : "transparent" }}
               >
@@ -140,11 +152,7 @@ export function WorkspaceSwitcher() {
               <button
                 key={w.id}
                 type="button"
-                onClick={() => {
-                  setScope(w.id);
-                  setOpen(false);
-                  router.push("/projects");
-                }}
+                onClick={() => switchTo(w.id)}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] hover:bg-surface-page text-left"
                 style={{ background: active ? "var(--bg-page)" : "transparent" }}
               >

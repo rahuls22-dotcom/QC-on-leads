@@ -325,40 +325,58 @@ export default function ProjectsPage() {
         );
       })()}
 
-      {/* Spot ambient strip (workspace) */}
-      <div className="spot-reply mt-6 p-4 flex items-start gap-3">
-        <SpotMark size={20} />
-        <div className="flex-1">
-          <div className="uplabel mb-1">Spot · portfolio read</div>
-          <div className="text-[13.5px] leading-[1.5] text-text-primary">
-            <strong>Banerghatta</strong> is 21% behind pace; <strong>Kukatpally</strong> is 56%
-            behind and the audience can&apos;t afford the price band. I can model a budget
-            reallocation toward Banerghatta — but Kukatpally may need a re-positioning, not
-            more spend.
+      {/* Spot ambient strip — copy + chips re-template by current scope.
+          When there are no projects (members in an empty workspace, or
+          aggregating with zero) we skip the strip entirely. */}
+      {rows.length > 0 && (() => {
+        const behind = rows.filter((r) => r.rollup.goal.pace === "behind");
+        const ahead = rows.filter((r) => r.rollup.goal.pace === "ahead");
+        const onPace = rows.length - behind.length - ahead.length;
+        const scopeQualifier =
+          scope.kind === "all"
+            ? `across ${rows.length} projects in all workspaces`
+            : `across ${wsLabel}'s ${rows.length} project${rows.length === 1 ? "" : "s"}`;
+        const summary =
+          behind.length === 0
+            ? `Everything's holding pace ${scopeQualifier}. I'll flag if anything starts slipping.`
+            : behind.length === rows.length
+            ? `Every project ${scopeQualifier} is behind pace. The portfolio needs attention — start with the worst goal-gap.`
+            : `${behind.length} of ${rows.length} ${scopeQualifier} ${behind.length === 1 ? "is" : "are"} behind pace${ahead.length ? `, ${ahead.length} ahead` : ""}. ${onPace ? `The rest ${onPace === 1 ? "is" : "are"} on pace.` : ""}`;
+        const worstName = behind[0]?.p.name.split(" · ")[0];
+        const chips = [
+          worstName ? `Why is ${worstName} behind pace?` : null,
+          rows.length > 1 ? "Compare all projects on CPVL" : null,
+          "Model a reallocation",
+          scope.kind === "all"
+            ? "Which workspace is pulling weight?"
+            : `Audit ${wsLabel}'s portfolio`,
+        ].filter((q): q is string => !!q);
+        return (
+          <div className="spot-reply mt-6 p-4 flex items-start gap-3">
+            <SpotMark size={20} />
+            <div className="flex-1">
+              <div className="uplabel mb-1">Spot · portfolio read</div>
+              <div className="text-[13.5px] leading-[1.5] text-text-primary">{summary}</div>
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {chips.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() =>
+                      askSpot(q, {
+                        kind: "workspace",
+                        label: wsLabel,
+                      })
+                    }
+                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] hover:border-border-hover hover:bg-surface-page"
+                  >
+                    <ArrowUpRight size={11} /> {q}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 mt-2.5">
-            {[
-              "Why is Banerghatta behind pace?",
-              "Should I pause Kukatpally?",
-              "Model a reallocation",
-              "Compare all projects on CPVL",
-            ].map((q) => (
-              <button
-                key={q}
-                onClick={() =>
-                  askSpot(q, {
-                    kind: "workspace",
-                    label: "Workspace",
-                  })
-                }
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] hover:border-border-hover hover:bg-surface-page"
-              >
-                <ArrowUpRight size={11} /> {q}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {createOpen && (
         <CreateProjectFlow

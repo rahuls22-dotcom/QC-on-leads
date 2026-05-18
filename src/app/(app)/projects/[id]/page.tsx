@@ -13,6 +13,7 @@ import { ExperimentsSection } from "@/components/project/experiments-section";
 import { SetupSection } from "@/components/project/setup-section";
 import { ProjectAskBar } from "@/components/project/project-ask-bar";
 import { useSpotStore } from "@/lib/spot/store";
+import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 
 type Tab = "personas" | "plan" | "experiments" | "setup";
 
@@ -31,12 +32,30 @@ export default function ProjectDetailPage() {
   const [tab, setTab] = useState<Tab>("personas");
   const askSpot = useSpotStore((s) => s.askSpot);
 
+  // Scope guard: auto-switch if user has access; show forbidden state if not.
+  const guard = useScopeGuard(
+    project?.workspaceId,
+    project?.name.split(" · ")[0] || "This project",
+  );
+
   const askProject = (q: string) =>
     askSpot(q, {
       kind: "project",
       label: project?.name.split(" · ")[0] || "Project",
       target: id,
     });
+
+  if (guard.access === "forbidden") {
+    return (
+      <ForbiddenState
+        workspaceName={guard.workspaceName}
+        resourceLabel={guard.resourceLabel}
+      />
+    );
+  }
+  // Mid-switch: scope is being updated; render nothing to avoid a flash
+  // of stale (wrong-workspace) content.
+  if (guard.access === "wrong-scope") return null;
 
   if (!project) {
     return (
