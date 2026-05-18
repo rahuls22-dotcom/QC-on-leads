@@ -33,14 +33,7 @@ function AllMark({ size = 26 }: { size?: number }) {
   );
 }
 
-export function WorkspaceSwitcher({
-  popoverPlacement = "below",
-}: {
-  /** Where the popover opens relative to the trigger. Default opens
-   *  downward; use "above" when the switcher sits at the bottom of a
-   *  container. */
-  popoverPlacement?: "below" | "above";
-} = {}) {
+export function WorkspaceSwitcher() {
   const router = useRouter();
   const user = useCurrentUser();
   const accessible = useAccessibleWorkspaces();
@@ -101,9 +94,7 @@ export function WorkspaceSwitcher({
             position: "absolute",
             left: 8,
             right: 8,
-            ...(popoverPlacement === "above"
-              ? { bottom: "calc(100% + 6px)" }
-              : { top: "calc(100% + 6px)" }),
+            top: "calc(100% + 6px)",
             background: "#FFF",
             border: "1px solid var(--border)",
             borderRadius: 10,

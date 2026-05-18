@@ -76,8 +76,14 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-sidebar bg-white border-r border-border flex flex-col z-50">
+      {/* Workspace switcher — sits in the brand row; the workspace mark IS
+          the brand mark in this product (Revspot is implicit). */}
+      <div className="px-2 pt-3 pb-2 border-b border-border-subtle">
+        <WorkspaceSwitcher />
+      </div>
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pt-3 pb-2">
+      <nav className="flex-1 overflow-y-auto px-3 py-1 pb-2">
         {/* Dashboard + Spot — standalone at top */}
         <div className="mb-3 space-y-0.5">
           <Link href={dashboardItem.href} className={navLinkClass(dashboardItem.href)} style={{ fontSize: "13.5px" }}>
@@ -155,14 +161,8 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Workspace switcher — sits at the bottom alongside the account
-          controls; popover opens upward so it never falls off-screen. */}
-      <div className="border-t border-border px-2 pt-2 pb-2">
-        <WorkspaceSwitcher popoverPlacement="above" />
-      </div>
-
       {/* User section */}
-      <div className="border-t border-border-subtle px-3 py-2">
+      <div className="border-t border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <div className="w-[26px] h-[26px] rounded-full bg-surface-secondary flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-medium text-text-secondary">
