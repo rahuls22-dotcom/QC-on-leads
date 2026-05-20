@@ -1,9 +1,11 @@
 "use client";
 
-import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload } from "lucide-react";
-import { ProjectDetail } from "@/lib/project-data";
+import { useState } from "react";
+import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload, Bot } from "lucide-react";
+import { ProjectDetail, MediaRow } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
 import { RichText } from "@/components/spot/rich-text";
+import { AgentPicker, getAgentName } from "./agent-picker";
 
 function BulletBlock({
   title,
@@ -255,6 +257,103 @@ export function SetupSection({
           <span className="text-[11.5px] mt-1">Upload more</span>
         </button>
       </div>
+
+      {/* CAMPAIGN AGENTS */}
+      <SectionHeader
+        icon={Bot}
+        title="Campaign agents"
+        subtitle="Per-campaign voice / WhatsApp agents · each campaign can override"
+        onAsk={() =>
+          onAsk("Which campaigns should have a voice or WhatsApp agent connected?")
+        }
+      />
+      <CampaignAgentsPanel project={project} />
     </>
+  );
+}
+
+function CampaignAgentsPanel({ project }: { project: ProjectDetail }) {
+  const liveRows = project.mediaPlan.rows.filter(
+    (r) => r.status === "live" || r.status === "paused",
+  );
+  // Track per-campaign agent override locally (overrides the data-source default)
+  const [overrides, setOverrides] = useState<Record<string, string | null>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const currentAgent = (row: MediaRow) =>
+    row.id in overrides ? overrides[row.id] : row.agentId ?? null;
+
+  if (liveRows.length === 0) {
+    return (
+      <div className="card-base px-6 py-8 text-center mb-6">
+        <div className="text-[13px] font-medium mb-1">No live campaigns yet</div>
+        <div className="text-[11.5px] text-text-tertiary">
+          Once you launch a campaign, you&apos;ll be able to connect or change its agent here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-base overflow-hidden mb-6">
+      {liveRows.map((row, i) => {
+        const agentId = currentAgent(row);
+        const agentName = getAgentName(agentId);
+        const isOpen = openId === row.id;
+        return (
+          <div
+            key={row.id}
+            className={i > 0 ? "border-t border-border-subtle" : ""}
+          >
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div
+                className="inline-flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  background:
+                    row.channel === "Meta" ? "#EAF1FF" : "#FEF6E7",
+                  color: row.channel === "Meta" ? "#1E5BFF" : "#9C6D00",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                }}
+              >
+                {row.channel === "Meta" ? "MTA" : "GGL"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] font-semibold truncate">{row.campaign}</div>
+                <div className="text-[10.5px] text-text-tertiary mt-0.5">
+                  {agentName ? (
+                    <span style={{ color: "var(--text-2)" }}>
+                      Agent: <strong>{agentName}</strong>
+                    </span>
+                  ) : (
+                    "No agent connected · leads go straight to CRM"
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenId(isOpen ? null : row.id)}
+                className="inline-flex items-center h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] text-text-secondary"
+              >
+                {isOpen ? "Done" : agentName ? "Change" : "Connect agent"}
+              </button>
+            </div>
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 border-t border-border-subtle bg-surface-page">
+                <AgentPicker
+                  value={agentId}
+                  onChange={(next) => {
+                    setOverrides({ ...overrides, [row.id]: next });
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

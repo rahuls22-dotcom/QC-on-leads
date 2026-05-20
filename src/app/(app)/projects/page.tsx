@@ -10,6 +10,8 @@ import {
   projectRollup,
 } from "@/lib/project-data";
 import { CreateProjectFlow } from "@/components/project/create-project-flow";
+import { CreativesFlow } from "@/components/project/creatives-flow";
+import { CampaignCreationFlow } from "@/components/project/campaign-creation-flow";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
 import { useCurrentScope, useCurrentWorkspaceLabel } from "@/lib/workspace-store";
@@ -124,6 +126,8 @@ function GoalProgress({
 export default function ProjectsPage() {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [creativesFlow, setCreativesFlow] = useState<{ projectId: string } | null>(null);
+  const [campaignFlow, setCampaignFlow] = useState<{ projectId: string } | null>(null);
   const askSpot = useSpotStore((s) => s.askSpot);
   const scope = useCurrentScope();
   const wsLabel = useCurrentWorkspaceLabel();
@@ -381,9 +385,40 @@ export default function ProjectsPage() {
       {createOpen && (
         <CreateProjectFlow
           onClose={() => setCreateOpen(false)}
-          onComplete={(id) => {
+          onComplete={(id, action) => {
             setCreateOpen(false);
-            router.push(`/projects/${id}/deploy`);
+            if (action === "creatives") {
+              // Hand off to the creatives flow next.
+              setCreativesFlow({ projectId: id });
+            } else {
+              router.push(`/projects/${id}`);
+            }
+          }}
+        />
+      )}
+
+      {creativesFlow && (
+        <CreativesFlow
+          projectId={creativesFlow.projectId}
+          onClose={() => setCreativesFlow(null)}
+          onComplete={(id, action) => {
+            setCreativesFlow(null);
+            if (action === "campaign") {
+              setCampaignFlow({ projectId: id });
+            } else {
+              router.push(`/projects/${id}`);
+            }
+          }}
+        />
+      )}
+
+      {campaignFlow && (
+        <CampaignCreationFlow
+          projectId={campaignFlow.projectId}
+          onClose={() => setCampaignFlow(null)}
+          onLaunched={(id) => {
+            setCampaignFlow(null);
+            router.push(`/projects/${id}`);
           }}
         />
       )}

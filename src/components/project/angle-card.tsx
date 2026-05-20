@@ -221,11 +221,13 @@ export function AngleCard({
   persona,
   projectId,
   onAsk,
+  onGenerateCreatives,
 }: {
   angle: Angle;
   persona: Persona;
   projectId: string;
   onAsk: (q: string) => void;
+  onGenerateCreatives?: (angleId?: string) => void;
 }) {
   const openGuided = useSpotStore((s) => s.openGuided);
 
@@ -283,8 +285,23 @@ export function AngleCard({
       {/* Creatives */}
       <div className="px-3.5 py-3 space-y-1.5">
         {angle.concept.creatives.length === 0 ? (
-          <div className="text-[11.5px] text-text-tertiary italic py-2">
-            No creatives yet for this angle.
+          <div className="flex items-center gap-3 py-1">
+            <div className="text-[11.5px] text-text-tertiary italic flex-1">
+              No creatives yet for this angle.
+            </div>
+            {onGenerateCreatives && (
+              <button
+                type="button"
+                onClick={() => onGenerateCreatives(angle.id)}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11.5px] font-medium"
+                style={{
+                  background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+                  color: "#FFF",
+                }}
+              >
+                <Sparkles size={11} /> Generate creatives
+              </button>
+            )}
           </div>
         ) : (
           angle.concept.creatives.map((c) => <CreativeRow key={c.id} c={c} angle={angle} />)

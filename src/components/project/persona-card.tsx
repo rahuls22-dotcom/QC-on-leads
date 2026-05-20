@@ -60,11 +60,13 @@ export function PersonaCard({
   projectId,
   onAsk,
   onGuidedFlow,
+  onGenerateCreatives,
 }: {
   persona: Persona;
   projectId: string;
   onAsk: (q: string) => void;
   onGuidedFlow: (kind: "new-angle", persona: Persona) => void;
+  onGenerateCreatives?: (angleId?: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const visibleAngles = showAll ? persona.angles : persona.angles.slice(0, MAX_ANGLES_VISIBLE);
@@ -160,6 +162,7 @@ export function PersonaCard({
               persona={persona}
               projectId={projectId}
               onAsk={onAsk}
+              onGenerateCreatives={onGenerateCreatives}
             />
           ))}
         </div>

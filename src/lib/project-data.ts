@@ -147,6 +147,9 @@ export type MediaRow = {
   status: "live" | "paused" | "proposed" | "draft";
   spotChange: string | null;
   adSets: MediaAdSet[];
+  /** Optional voice/WhatsApp agent attached to this campaign. */
+  agentId?: string;
+  agentName?: string;
 };
 
 export type MediaPlan = {
@@ -521,6 +524,8 @@ const ARISTOCRAT: ProjectDetail = {
         cpvl: 5200,
         status: "live",
         spotChange: null,
+        agentId: "agent-qualifier",
+        agentName: "Lead Qualifier",
         adSets: [
           {
             id: "as-m1-a",
@@ -595,6 +600,8 @@ const ARISTOCRAT: ProjectDetail = {
         cpvl: 7000,
         status: "live",
         spotChange: null,
+        agentId: "agent-site-visit",
+        agentName: "Site-Visit Booker",
         adSets: [
           {
             id: "as-m3-a",
@@ -1117,16 +1124,33 @@ export const projectsList: ProjectSummary[] = Object.values(projectDetails).map(
   ({ id, name, category, status, health }) => ({ id, name, category, status, health }),
 );
 
+/**
+ * Runtime store for projects created through the in-app flow. Lives in
+ * module memory only — refreshing the page resets it. Reads merge with
+ * the static seed data.
+ */
+const runtimeProjects: Map<string, ProjectDetail> = new Map();
+
+export function addRuntimeProject(p: ProjectDetail): void {
+  runtimeProjects.set(p.id, p);
+}
+
+export function mutateRuntimeProject(id: string, mutator: (p: ProjectDetail) => void): void {
+  const p = runtimeProjects.get(id);
+  if (p) mutator(p);
+}
+
 export function getProject(id: string): ProjectDetail | undefined {
-  return projectDetails[id];
+  return runtimeProjects.get(id) || projectDetails[id];
 }
 
 /** Projects scoped to a workspace, or all if `workspaceId` is undefined / "all". */
 export function projectsForWorkspace(workspaceId?: string): ProjectDetail[] {
+  const all = [...Object.values(projectDetails), ...runtimeProjects.values()];
   if (!workspaceId || workspaceId === "all") {
-    return Object.values(projectDetails);
+    return all;
   }
-  return Object.values(projectDetails).filter((p) => p.workspaceId === workspaceId);
+  return all.filter((p) => p.workspaceId === workspaceId);
 }
 
 /**
@@ -1155,7 +1179,7 @@ export function workspaceIdForLegacyProject(projectId: string | null | undefined
 
 /** Rollup metrics for the projects-list table. */
 export function projectRollup(id: string) {
-  const d = projectDetails[id];
+  const d = getProject(id);
   if (!d) return null;
   const spendStr =
     d.secondary.find((s) => s.label === "Spend to date")?.value?.toString() ||

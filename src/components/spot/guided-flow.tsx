@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Check, Sparkles, RotateCcw } from "lucide-react";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "./spot-mark";
@@ -261,7 +262,11 @@ export function GuidedFlowModal() {
     }
   }, [stepIdx, refining]);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   if (!guided || !cfg) return null;
+  if (!mounted || typeof document === "undefined") return null;
 
   const steps = cfg.steps;
   const done = stepIdx >= steps.length;
@@ -284,7 +289,7 @@ export function GuidedFlowModal() {
     closeGuided();
   };
 
-  return (
+  return createPortal(
     <>
       <div className="scrim" onClick={closeGuided} />
       <div
@@ -428,6 +433,7 @@ export function GuidedFlowModal() {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
