@@ -46,17 +46,6 @@ function slug(s: string): string {
     .slice(0, 40);
 }
 
-function parseDays(window: string): number {
-  // Accept formats like "180 days", "6 months", "12 weeks". Default 90.
-  const m = window.match(/(\d+)\s*(day|week|month)/i);
-  if (!m) return 90;
-  const n = Number(m[1]);
-  const unit = m[2].toLowerCase();
-  if (unit.startsWith("day")) return n;
-  if (unit.startsWith("week")) return n * 7;
-  return n * 30;
-}
-
 export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
   const id = `proj-${slug(input.name)}-${Date.now().toString(36)}`;
   const today = new Date().toLocaleDateString("en-US", {
@@ -64,8 +53,9 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
     day: "numeric",
     year: "numeric",
   });
-  const target = Number(input.goalTarget) || 0;
-  const daysTotal = parseDays(input.goalWindow);
+  // goalKind / goalTarget / goalWindow / budgetTotal are intentionally
+  // unused — the goal stage was removed from project creation. The user
+  // sets the goal manually on the project page after creation.
 
   const personas: Persona[] = input.personas.map((p) => ({
     id: p.id,
@@ -122,17 +112,21 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
       avoid: [],
       attachments: [],
     },
+    // Projects created from the new flow do not have a goal set yet — the
+    // user is expected to configure it later from the project page. Target=0
+    // signals "no goal configured" everywhere downstream.
     goal: {
-      kind: input.goalKind,
-      target,
+      kind: "verified",
+      target: 0,
       achieved: 0,
-      window: input.goalWindow,
-      daysTotal,
+      window: "",
+      daysTotal: 0,
       daysElapsed: 0,
       pace: "on-pace",
       paceDelta: "new",
       forecast: 0,
-      spotRead: `Just launched. No data yet — once campaigns gather a few days of spend, I'll start projecting pace toward your ${target} ${input.goalKind} lead goal.`,
+      spotRead:
+        "No goal set yet. When you set one — number of leads + window — I'll start projecting your pace and flagging the gap.",
     },
     secondary: [
       { label: "Spend to date", value: "₹0", sub: "no spend yet" },
@@ -156,7 +150,7 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
         liveDaily: 0,
         proposedDaily: 0,
         weeklyExpected: { leads: 0, verified: 0 },
-        gapToGoal: `${target} ${input.goalKind} leads to go`,
+        gapToGoal: "No goal set yet",
       },
     },
     experiments: [],

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload, Bot } from "lucide-react";
+import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload, Bot, Target } from "lucide-react";
 import { ProjectDetail, MediaRow } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
 import { RichText } from "@/components/spot/rich-text";
 import { AgentPicker, getAgentName } from "./agent-picker";
+import { GoalEditor } from "./goal-editor";
 
 function BulletBlock({
   title,
@@ -61,6 +62,9 @@ export function SetupSection({
 }) {
   return (
     <>
+      {/* GOAL */}
+      <GoalSettingsBlock project={project} onAsk={onAsk} />
+
       {/* BRIEF */}
       <SectionHeader
         icon={FileText}
@@ -134,7 +138,7 @@ export function SetupSection({
             </div>
           </div>
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1.5">We're not</div>
+            <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1.5">We&apos;re not</div>
             <div className="flex flex-wrap gap-1.5">
               {project.strategy.tone.isNot.map((t) => (
                 <span key={t} className="pill pill-err" style={{ fontSize: 11 }}>
@@ -355,5 +359,111 @@ function CampaignAgentsPanel({ project }: { project: ProjectDetail }) {
         );
       })}
     </div>
+  );
+}
+
+// ─── Goal settings block ───────────────────────────────────────────────
+
+function GoalSettingsBlock({
+  project,
+  onAsk,
+}: {
+  project: ProjectDetail;
+  onAsk: (q: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  // Force re-render after saving so we read the freshly-mutated goal
+  const [, tick] = useState(0);
+  const goal = project.goal;
+  const goalSet = goal.target > 0;
+
+  return (
+    <>
+      <SectionHeader
+        icon={Target}
+        title="Goal"
+        subtitle={goalSet ? `${goal.kind} leads · ${goal.window}` : "Not set yet"}
+        onAsk={() => onAsk("Help me decide what goal to set for this project")}
+      />
+      <div className="card-base p-5 mb-4">
+        {editing ? (
+          <GoalEditor
+            project={project}
+            onCancel={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              tick((t) => t + 1);
+            }}
+            compact
+          />
+        ) : goalSet ? (
+          <div className="flex items-center gap-5">
+            <div className="flex-1 min-w-0">
+              <div className="uplabel mb-1">Current goal</div>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="tabular-nums"
+                  style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}
+                >
+                  {goal.target}
+                </span>
+                <span className="text-[13px] text-text-secondary capitalize">
+                  {goal.kind} leads
+                </span>
+                <span className="text-[12px] text-text-tertiary">· {goal.window}</span>
+              </div>
+              <div className="text-[11.5px] text-text-tertiary mt-1">
+                Day {goal.daysElapsed} of {goal.daysTotal} · {goal.achieved} achieved so far.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button border border-border bg-white text-[12px]"
+            >
+              Edit goal
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div
+              className="inline-flex items-center justify-center flex-shrink-0"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background:
+                  "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)",
+                color: "#7C3AED",
+              }}
+            >
+              <Target size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] font-semibold mb-0.5">
+                No goal configured
+              </div>
+              <div className="text-[11.5px] text-text-tertiary leading-[1.5]">
+                Set a target (e.g. 240 verified leads in 180 days). Spot uses it to
+                project pace and surface gaps as data rolls in.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="apply-btn"
+              style={{
+                height: 32,
+                fontSize: 12.5,
+                padding: "0 12px",
+                background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+              }}
+            >
+              <Target size={12} /> Set goal
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

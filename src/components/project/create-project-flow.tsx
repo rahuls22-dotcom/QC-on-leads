@@ -8,7 +8,6 @@ import {
   Sparkles,
   FileText,
   Upload,
-  Edit3,
   ArrowRight,
   Trash2,
   Plus,
@@ -25,14 +24,13 @@ import { addRuntimeProject } from "@/lib/project-data";
 import { buildProjectFromDraft } from "@/lib/build-project";
 import { PersonaAvatar } from "@/components/project/deploy-steps";
 
-type Stage = "intent" | "brief" | "goal" | "personas" | "images" | "ready";
+type Stage = "intent" | "brief" | "personas" | "images" | "ready";
 
 type ProjectImage = { id: string; url: string; name: string; kind: "image" | "video" };
 
 const STAGES: { key: Stage; label: string }[] = [
   { key: "intent", label: "Intent" },
   { key: "brief", label: "Brief" },
-  { key: "goal", label: "Goal" },
   { key: "personas", label: "Personas" },
   { key: "images", label: "Images" },
   { key: "ready", label: "Ready" },
@@ -52,7 +50,7 @@ type PersonaDraft = {
 };
 
 type Draft = {
-  source: "pdf" | "url" | "manual" | "deep-research";
+  source: "pdf" | "url" | "deep-research";
   sourceLabel: string;
   name: string;
   rera: string;
@@ -280,92 +278,87 @@ function SpotBubble({ children }: { children: React.ReactNode }) {
 function DraftCard({
   children,
   label = "Spot's draft",
+  hideLabel,
 }: {
   children: React.ReactNode;
   label?: string;
+  hideLabel?: boolean;
 }) {
   return (
     <div
-      className="rounded-[10px] p-4 mb-3 fadeUp"
-      style={{ background: "#FFFDF6", border: "1px solid #E8C97A" }}
+      className="rounded-[12px] p-4 mb-3 fadeUp"
+      style={{
+        background: "#FFFEFA",
+        border: "1px solid #EFE3C2",
+      }}
     >
-      <div className="uplabel mb-3 flex items-center gap-1.5" style={{ fontSize: 10 }}>
-        <Sparkles size={11} style={{ color: "#9C6D00" }} />
-        {label}
-      </div>
+      {!hideLabel && (
+        <div
+          className="uplabel mb-3 flex items-center gap-1.5"
+          style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+        >
+          <Sparkles size={10.5} style={{ color: "#B98A14" }} />
+          {label}
+        </div>
+      )}
       {children}
     </div>
   );
 }
 
-function Field({
+/**
+ * Tighter field for dense grids — the input has a soft underline on hover
+ * rather than the heavier framed look. Used in the brief stage where many
+ * facts share one card.
+ */
+function CompactField({
   label,
   value,
   onChange,
-  long,
-  rows,
+  span = 1,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  long?: boolean;
-  rows?: number;
+  span?: number;
 }) {
   return (
-    <div className="mb-3">
-      <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1">
+    <div style={{ gridColumn: `span ${span} / span ${span}`, minWidth: 0 }}>
+      <div
+        className="uplabel mb-1"
+        style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+      >
         {label}
       </div>
-      {long ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={rows || 2}
-          className="w-full text-[13px] outline-none rounded px-2 py-1.5"
-          style={{ border: "1px solid #C9A86A", background: "#FFFEF8" }}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full text-[13px] outline-none rounded px-2 py-1.5"
-          style={{ border: "1px solid #C9A86A", background: "#FFFEF8" }}
-        />
-      )}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full outline-none rounded-[6px] px-2 py-1.5 text-[12.5px]"
+        style={{
+          border: "1px solid transparent",
+          background: "#FFF",
+          boxShadow: "inset 0 0 0 1px #EFE3C2",
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow = "inset 0 0 0 1.5px #C9A86A";
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = "inset 0 0 0 1px #EFE3C2";
+        }}
+      />
     </div>
   );
 }
 
-function DerivedCostCard({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-[8px] p-2.5"
-      style={{
-        border: highlight ? "1px solid #1A1A1A" : "1px solid var(--border)",
-        background: highlight ? "#FAF7FF" : "#FFF",
-      }}
-    >
-      <div className="text-[9.5px] uppercase tracking-[0.4px] text-text-tertiary font-semibold mb-1">
-        {label}
-      </div>
-      <div className="text-[16px] font-semibold tabular-nums leading-tight">{value}</div>
-      <div className="text-[10.5px] text-text-tertiary mt-0.5 tabular-nums">{sub}</div>
-    </div>
-  );
-}
-
-function ListField({
+/**
+ * Compact chip-style editable list. Used in the Brief stage's positioning
+ * section so three lists can sit side-by-side without overwhelming.
+ *
+ * Each value is a one-line input with a tiny "x" remove. New rows are
+ * added via the bottom "Add…" field that commits on Enter.
+ */
+function ChipList({
   label,
   values,
   onChange,
@@ -376,17 +369,28 @@ function ListField({
   onChange: (next: string[]) => void;
   placeholder?: string;
 }) {
+  const [draftText, setDraftText] = useState("");
+  const commit = () => {
+    const v = draftText.trim();
+    if (!v) return;
+    onChange([...values, v]);
+    setDraftText("");
+  };
   return (
-    <div className="mb-2.5">
-      <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1">
+    <div className="min-w-0">
+      <div
+        className="uplabel mb-1.5"
+        style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+      >
         {label}
       </div>
-      <div
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
-      >
+      <div className="space-y-1">
         {values.map((v, i) => (
-          <div key={i} className="group relative">
+          <div
+            key={i}
+            className="flex items-center gap-1 group rounded-[6px] px-2 py-1"
+            style={{ background: "#FFF", border: "1px solid #EFE3C2" }}
+          >
             <input
               type="text"
               value={v}
@@ -395,27 +399,37 @@ function ListField({
                 next[i] = e.target.value;
                 onChange(next);
               }}
-              className="w-full text-[12px] outline-none rounded pl-2 pr-6 py-1 leading-tight"
-              style={{ border: "1px solid #C9A86A", background: "#FFFEF8", height: 26 }}
+              className="flex-1 outline-none bg-transparent text-[11.5px] leading-[1.35] min-w-0"
             />
             <button
               type="button"
               onClick={() => onChange(values.filter((_, j) => j !== i))}
-              className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-5 w-5 rounded text-text-tertiary opacity-0 group-hover:opacity-100 hover:bg-white"
+              className="inline-flex items-center justify-center h-4 w-4 rounded-button text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-text-secondary transition-opacity"
               title="Remove"
             >
-              <Trash2 size={10} />
+              <X size={10} />
             </button>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={() => onChange([...values, ""])}
-          className="inline-flex items-center justify-center gap-1 rounded text-[11px] text-text-tertiary hover:text-text-secondary border border-dashed border-border bg-white/40 hover:bg-white"
-          style={{ height: 26 }}
-        >
-          <Plus size={10} /> Add {placeholder || "item"}
-        </button>
+        <input
+          type="text"
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          onBlur={commit}
+          placeholder={placeholder}
+          className="w-full outline-none rounded-[6px] px-2 py-1 text-[11.5px]"
+          style={{
+            border: "1px dashed #E0CC95",
+            background: "transparent",
+            color: "var(--text-1)",
+          }}
+        />
       </div>
     </div>
   );
@@ -910,6 +924,7 @@ export function CreateProjectFlow({
   onComplete: (id: string, action: "view" | "creatives") => void;
 }) {
   const [stage, setStage] = useState<Stage>("intent");
+  const [autoMode, setAutoMode] = useState(false);
   const [draft, setDraft] = useState<Draft>(SEED);
   const [researching, setResearching] = useState(false);
   const [researchFindings, setResearchFindings] = useState<string[]>([]);
@@ -972,6 +987,51 @@ export function CreateProjectFlow({
 
   const personaCount = draft.personas.length;
 
+  // Auto mode: when enabled, the agent advances stages without waiting for
+  // a click. We stop at the Ready screen and then auto-trigger the "Build
+  // creative angles" CTA — after that, CreativesFlow runs its own generation
+  // and stops at its ready screen, where manual approval kicks in again.
+  //
+  // We hold the running timer on a ref so toggling Auto off mid-stride
+  // (or unmounting) cancels cleanly.
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autoTimerRef.current) {
+      clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
+    if (!autoMode) return;
+    if (researching) return; // wait for deep research to finish first
+    if (stage === "intent") return; // user picks the source manually
+    if (stage === "personas" && personaCount === 0) return; // wait for reveals
+
+    const advance = () => {
+      const idx = STAGES.findIndex((s) => s.key === stage);
+      if (stage === "ready") {
+        // Trigger the "Build creative angles" CTA programmatically
+        const id = persistProject();
+        showToast("Auto mode — drafting creative angles next");
+        onComplete(id, "creatives");
+        return;
+      }
+      if (idx >= 0 && idx < STAGES.length - 1) {
+        setStage(STAGES[idx + 1].key);
+      }
+    };
+
+    // Personas needs longer because seeded reveal takes 600 + 1100ms × N
+    const delay = stage === "personas" ? 4500 : stage === "images" ? 1500 : 2200;
+    autoTimerRef.current = setTimeout(advance, delay);
+
+    return () => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+        autoTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, stage, researching, personaCount]);
+
   const startDeepResearch = () => {
     setDraft({ ...draft, source: "deep-research", sourceLabel: "Deep research · web + RERA + builder pages" });
     setResearching(true);
@@ -1007,10 +1067,11 @@ export function CreateProjectFlow({
           inset: 0,
           zIndex: 100,
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "5vh 16px",
+          padding: "4vh 16px",
           pointerEvents: "none",
+          overflowY: "auto",
         }}
       >
       <div
@@ -1038,6 +1099,7 @@ export function CreateProjectFlow({
               Set up a new project knowledge base
             </div>
           </div>
+          <AutoModeToggle value={autoMode} onChange={setAutoMode} />
           <button
             type="button"
             onClick={onClose}
@@ -1056,55 +1118,116 @@ export function CreateProjectFlow({
           {stage === "intent" && (
             <>
               <SpotBubble>
-                Let&apos;s set up your new project. The fastest path: <strong>Deep research</strong> —
-                I&apos;ll scan the web, builder pages, the RERA registry, and comparable launches. Or
-                drop a PDF, paste a URL, or fill it in yourself.
+                Let&apos;s set up your new project. Name it, then pick how I should pull together
+                the brief — Deep research, a PDF, or a listing URL.
               </SpotBubble>
-              <DraftCard>
-                <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+              <DraftCard hideLabel>
+                {/* Project name — always asked, lives above the source picker */}
+                <div className="mb-4">
+                  <div
+                    className="uplabel mb-1.5"
+                    style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+                  >
+                    Project name
+                  </div>
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    placeholder="e.g. Godrej Sky Gardens · Pune"
+                    className="w-full outline-none rounded-[8px] px-3 py-2.5"
+                    style={{
+                      border: "1px solid #E0CC95",
+                      background: "#FFF",
+                      fontSize: 15,
+                      fontWeight: 500,
+                    }}
+                  />
+                </div>
+
+                {/* Source picker */}
+                <div
+                  className="uplabel mb-2"
+                  style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+                >
+                  How should I gather the brief?
+                </div>
+                <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
                   {[
-                    { k: "deep-research", label: "Deep research", sub: "Spot scans the web for you", Icon: Globe },
-                    { k: "pdf", label: "Upload PDF", sub: "Brand book or sales deck", Icon: Upload },
-                    { k: "url", label: "Paste URL", sub: "Project listing page", Icon: FileText },
-                    { k: "manual", label: "Manual fill", sub: "Type it in yourself", Icon: Edit3 },
+                    { k: "deep-research", label: "Deep research", sub: "Spot scans the web", Icon: Globe },
+                    { k: "pdf", label: "Upload PDF", sub: "Brand book or deck", Icon: Upload },
+                    { k: "url", label: "Paste URL", sub: "Project listing", Icon: FileText },
                   ].map(({ k, label, sub, Icon }) => (
                     <button
                       key={k}
                       type="button"
-                      onClick={() => setDraft({ ...draft, source: k as Draft["source"] })}
+                      onClick={() => {
+                        const nextSource = k as Draft["source"];
+                        const defaultLabel =
+                          nextSource === "pdf"
+                            ? "Sky Gardens — Brand Book v2.pdf"
+                            : nextSource === "url"
+                            ? ""
+                            : draft.sourceLabel;
+                        setDraft({
+                          ...draft,
+                          source: nextSource,
+                          sourceLabel:
+                            draft.source !== nextSource ? defaultLabel : draft.sourceLabel,
+                        });
+                      }}
                       disabled={researching}
-                      className="card-base text-left p-3 flex flex-col items-start gap-1"
+                      className="text-left p-2.5 rounded-[8px] flex flex-col items-start gap-0.5 transition-colors"
                       style={{
                         background: draft.source === k ? "#1A1A1A" : "#FFF",
                         color: draft.source === k ? "#FFF" : "var(--text-1)",
-                        borderColor: draft.source === k ? "#1A1A1A" : "var(--border)",
+                        border: `1px solid ${draft.source === k ? "#1A1A1A" : "#E0CC95"}`,
                         opacity: researching ? 0.6 : 1,
                       }}
                     >
-                      <Icon size={15} />
-                      <span className="text-[12.5px] font-medium">{label}</span>
+                      <Icon size={14} />
+                      <span className="text-[12px] font-semibold mt-0.5">{label}</span>
                       <span
-                        className="text-[10.5px]"
-                        style={{ color: draft.source === k ? "rgba(255,255,255,0.7)" : "var(--text-tertiary)" }}
+                        className="text-[10px]"
+                        style={{
+                          color:
+                            draft.source === k ? "rgba(255,255,255,0.7)" : "var(--text-tertiary)",
+                        }}
                       >
                         {sub}
                       </span>
                     </button>
                   ))}
                 </div>
-                {draft.source !== "deep-research" && (
-                  <Field
-                    label="Source label"
-                    value={draft.sourceLabel}
-                    onChange={(v) => setDraft({ ...draft, sourceLabel: v })}
-                  />
-                )}
-                {draft.source === "deep-research" && (
-                  <Field
-                    label="Project name or URL to research"
-                    value={draft.name}
-                    onChange={(v) => setDraft({ ...draft, name: v })}
-                  />
+
+                {/* Conditional secondary input — only when the source needs more info.
+                    Deep research takes the project name alone; PDF asks for filename;
+                    URL asks for the listing URL. */}
+                {(draft.source === "pdf" || draft.source === "url") && (
+                  <div className="mt-3">
+                    <div
+                      className="uplabel mb-1.5"
+                      style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+                    >
+                      {draft.source === "pdf" ? "PDF filename" : "Project listing URL"}
+                    </div>
+                    <input
+                      type="text"
+                      value={draft.sourceLabel}
+                      onChange={(e) => setDraft({ ...draft, sourceLabel: e.target.value })}
+                      placeholder={
+                        draft.source === "pdf"
+                          ? "brand-book.pdf"
+                          : "https://godrejproperties.com/projects/sky-gardens"
+                      }
+                      className="w-full outline-none rounded-[8px] px-3 py-2"
+                      style={{
+                        border: "1px solid #E0CC95",
+                        background: "#FFF",
+                        fontSize: 13,
+                      }}
+                    />
+                  </div>
                 )}
               </DraftCard>
 
@@ -1168,85 +1291,85 @@ export function CreateProjectFlow({
                 {draft.source === "deep-research" ? (
                   <>
                     Synthesized from the web — builder microsite, RERA registry, locality reports,
-                    and 4 comparable launches in <strong>{draft.micromarket}</strong>. Tap any value
-                    to edit.
+                    and comparable launches in <strong>{draft.micromarket}</strong>. Tap any value to
+                    edit.
                   </>
                 ) : (
-                  <>Pulled from <strong>{draft.sourceLabel}</strong>. Tap any value to edit.</>
+                  <>
+                    Pulled from <strong>{draft.sourceLabel || draft.name}</strong>. Tap any value to
+                    edit.
+                  </>
                 )}
               </SpotBubble>
-              <DraftCard label="Extracted brief">
-                <div className="space-y-5">
-                  <div>
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-secondary font-semibold mb-2">
-                      Project basics
-                    </div>
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1fr" }}>
-                      <Field
-                        label="Project name"
-                        value={draft.name}
-                        onChange={(v) => setDraft({ ...draft, name: v })}
-                      />
-                      <Field
-                        label="RERA"
-                        value={draft.rera}
-                        onChange={(v) => setDraft({ ...draft, rera: v })}
-                      />
-                    </div>
-                    <Field
-                      label="Micromarket"
-                      value={draft.micromarket}
-                      onChange={(v) => setDraft({ ...draft, micromarket: v })}
-                    />
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                      <Field
-                        label="Typology"
-                        value={draft.typology}
-                        onChange={(v) => setDraft({ ...draft, typology: v })}
-                      />
-                      <Field
-                        label="Possession"
-                        value={draft.possession}
-                        onChange={(v) => setDraft({ ...draft, possession: v })}
-                      />
-                    </div>
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                      <Field
-                        label="Price band"
-                        value={draft.priceBand}
-                        onChange={(v) => setDraft({ ...draft, priceBand: v })}
-                      />
-                      <Field
-                        label="Price per sqft"
-                        value={draft.pricePerSqft}
-                        onChange={(v) => setDraft({ ...draft, pricePerSqft: v })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-1 border-t border-[#E8C97A]">
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-secondary font-semibold mt-3 mb-2">
-                      Positioning
-                    </div>
-                    <ListField
-                      label="Key USPs"
-                      values={draft.keyUSPs}
-                      onChange={(next) => setDraft({ ...draft, keyUSPs: next })}
-                      placeholder="USP"
-                    />
-                    <ListField
-                      label="Location proximity"
-                      values={draft.locationProximity}
-                      onChange={(next) => setDraft({ ...draft, locationProximity: next })}
-                      placeholder="landmark"
-                    />
-                    <ListField
-                      label="Key benefits"
-                      values={draft.keyBenefits}
-                      onChange={(next) => setDraft({ ...draft, keyBenefits: next })}
-                      placeholder="benefit"
-                    />
-                  </div>
+              <DraftCard label="Project facts">
+                <div
+                  className="grid gap-x-3 gap-y-2.5"
+                  style={{ gridTemplateColumns: "repeat(6, minmax(0,1fr))" }}
+                >
+                  <CompactField
+                    span={4}
+                    label="Project name"
+                    value={draft.name}
+                    onChange={(v) => setDraft({ ...draft, name: v })}
+                  />
+                  <CompactField
+                    span={2}
+                    label="RERA"
+                    value={draft.rera}
+                    onChange={(v) => setDraft({ ...draft, rera: v })}
+                  />
+                  <CompactField
+                    span={3}
+                    label="Micromarket"
+                    value={draft.micromarket}
+                    onChange={(v) => setDraft({ ...draft, micromarket: v })}
+                  />
+                  <CompactField
+                    span={3}
+                    label="Typology"
+                    value={draft.typology}
+                    onChange={(v) => setDraft({ ...draft, typology: v })}
+                  />
+                  <CompactField
+                    span={2}
+                    label="Price band"
+                    value={draft.priceBand}
+                    onChange={(v) => setDraft({ ...draft, priceBand: v })}
+                  />
+                  <CompactField
+                    span={2}
+                    label="Price / sqft"
+                    value={draft.pricePerSqft}
+                    onChange={(v) => setDraft({ ...draft, pricePerSqft: v })}
+                  />
+                  <CompactField
+                    span={2}
+                    label="Possession"
+                    value={draft.possession}
+                    onChange={(v) => setDraft({ ...draft, possession: v })}
+                  />
+                </div>
+              </DraftCard>
+              <DraftCard label="Positioning">
+                <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                  <ChipList
+                    label="Key USPs"
+                    values={draft.keyUSPs}
+                    onChange={(next) => setDraft({ ...draft, keyUSPs: next })}
+                    placeholder="Add a USP…"
+                  />
+                  <ChipList
+                    label="Location proximity"
+                    values={draft.locationProximity}
+                    onChange={(next) => setDraft({ ...draft, locationProximity: next })}
+                    placeholder="Add a landmark…"
+                  />
+                  <ChipList
+                    label="Key benefits"
+                    values={draft.keyBenefits}
+                    onChange={(next) => setDraft({ ...draft, keyBenefits: next })}
+                    placeholder="Add a benefit…"
+                  />
                 </div>
               </DraftCard>
               <div className="flex justify-between">
@@ -1258,142 +1381,11 @@ export function CreateProjectFlow({
                   Back
                 </button>
                 <button type="button" className="apply-btn" onClick={next}>
-                  Looks right — set the goal →
+                  Looks right — draft personas →
                 </button>
               </div>
             </>
           )}
-
-          {stage === "goal" && (() => {
-            const VERIF_RATE = 0.5; // ~50% of leads verify (industry typical)
-            const QUAL_RATE = 0.55; // qual as % of verified
-            const target = Number(draft.goalTarget) || 0;
-            const budget = Number(draft.budgetTotal) || 0;
-            let leadsTarget = 0;
-            let verifTarget = 0;
-            let qualTarget = 0;
-            if (draft.goalKind === "leads") {
-              leadsTarget = target;
-              verifTarget = target * VERIF_RATE;
-              qualTarget = verifTarget * QUAL_RATE;
-            } else if (draft.goalKind === "verified") {
-              verifTarget = target;
-              leadsTarget = target / VERIF_RATE;
-              qualTarget = target * QUAL_RATE;
-            } else {
-              qualTarget = target;
-              verifTarget = target / QUAL_RATE;
-              leadsTarget = verifTarget / VERIF_RATE;
-            }
-            const cpl = leadsTarget ? budget / leadsTarget : 0;
-            const cpvl = verifTarget ? budget / verifTarget : 0;
-            const cpql = qualTarget ? budget / qualTarget : 0;
-            const fmt = (n: number) => {
-              if (!isFinite(n) || n <= 0) return "—";
-              return "₹" + Math.round(n).toLocaleString("en-IN");
-            };
-            return (
-              <>
-                <SpotBubble>
-                  Goal: <strong>{target || "—"} {draft.goalKind} leads</strong> in{" "}
-                  <strong>{draft.goalWindow}</strong>. At a <strong>{fmt(budget)}</strong> budget
-                  that lands you at ~<strong>{fmt(cpvl)} per verified lead</strong>, ~
-                  <strong>{fmt(cpql)} per qualified</strong>. Recheck the budget if any of those
-                  look off.
-                </SpotBubble>
-                <DraftCard label="Goal proposal">
-                  <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-2">
-                    Goal kind
-                  </div>
-                  <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                    {(["leads", "verified", "qualified"] as const).map((k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, goalKind: k })}
-                        className="card-base text-left p-2.5"
-                        style={{
-                          background: draft.goalKind === k ? "#1A1A1A" : "#FFF",
-                          color: draft.goalKind === k ? "#FFF" : "var(--text-1)",
-                          borderColor: draft.goalKind === k ? "#1A1A1A" : "var(--border)",
-                        }}
-                      >
-                        <div className="text-[12.5px] font-medium capitalize">{k} leads</div>
-                        {k === "verified" && (
-                          <div
-                            className="text-[10.5px] mt-0.5"
-                            style={{
-                              color:
-                                draft.goalKind === k
-                                  ? "rgba(255,255,255,0.7)"
-                                  : "var(--text-tertiary)",
-                            }}
-                          >
-                            Spot recommends
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                    <Field
-                      label="Target count"
-                      value={draft.goalTarget}
-                      onChange={(v) => setDraft({ ...draft, goalTarget: v })}
-                    />
-                    <Field
-                      label="Window"
-                      value={draft.goalWindow}
-                      onChange={(v) => setDraft({ ...draft, goalWindow: v })}
-                    />
-                  </div>
-                  <Field
-                    label="Total budget (₹)"
-                    value={draft.budgetTotal}
-                    onChange={(v) =>
-                      setDraft({ ...draft, budgetTotal: v.replace(/[^0-9]/g, "") })
-                    }
-                  />
-                  <div className="mt-3 pt-3 border-t border-[#E8C97A]">
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-2">
-                      Derived costs
-                    </div>
-                    <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                      <DerivedCostCard
-                        label="CPL"
-                        value={fmt(cpl)}
-                        sub={`${Math.round(leadsTarget).toLocaleString("en-IN")} leads`}
-                      />
-                      <DerivedCostCard
-                        label="CPVL"
-                        value={fmt(cpvl)}
-                        sub={`${Math.round(verifTarget).toLocaleString("en-IN")} verified`}
-                        highlight={draft.goalKind === "verified"}
-                      />
-                      <DerivedCostCard
-                        label="CPQL"
-                        value={fmt(cpql)}
-                        sub={`${Math.round(qualTarget).toLocaleString("en-IN")} qualified`}
-                        highlight={draft.goalKind === "qualified"}
-                      />
-                    </div>
-                  </div>
-                </DraftCard>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    className="inline-flex items-center h-8 px-3 rounded-button border border-border bg-white text-[12.5px]"
-                    onClick={prev}
-                  >
-                    Back
-                  </button>
-                  <button type="button" className="apply-btn" onClick={next}>
-                    Set goal — draft personas →
-                  </button>
-                </div>
-              </>
-            );
-          })()}
 
           {stage === "personas" && (
             <>
@@ -1455,17 +1447,6 @@ export function CreateProjectFlow({
           )}
 
           {stage === "ready" && (() => {
-            const VERIF_RATE = 0.5;
-            const target = Number(draft.goalTarget) || 0;
-            const budget = Number(draft.budgetTotal) || 0;
-            const verifTarget =
-              draft.goalKind === "verified"
-                ? target
-                : draft.goalKind === "leads"
-                ? target * VERIF_RATE
-                : target / 0.55;
-            const cpvl = verifTarget ? Math.round(budget / verifTarget) : 0;
-            const cpvlStr = cpvl ? `₹${cpvl.toLocaleString("en-IN")}` : "—";
             const projectShort = draft.name.split(" · ")[0] || draft.name;
             const personaNames = draft.personas.slice(0, 2).map((p) => p.name).join(", ");
             const personaSummary =
@@ -1486,10 +1467,6 @@ export function CreateProjectFlow({
                 imageCount={projectImages.length}
                 uspCount={draft.keyUSPs.length}
                 proximityCount={draft.locationProximity.length}
-                goalTarget={target}
-                goalKind={draft.goalKind}
-                goalWindow={draft.goalWindow}
-                cpvlStr={cpvlStr}
                 onView={() => {
                   const id = persistProject();
                   showToast("Project saved — opening project page");
@@ -1521,10 +1498,6 @@ function ReadyCelebration({
   imageCount,
   uspCount,
   proximityCount,
-  goalTarget,
-  goalKind,
-  goalWindow,
-  cpvlStr,
   onView,
   onContinue,
 }: {
@@ -1535,10 +1508,6 @@ function ReadyCelebration({
   imageCount: number;
   uspCount: number;
   proximityCount: number;
-  goalTarget: number;
-  goalKind: "leads" | "verified" | "qualified";
-  goalWindow: string;
-  cpvlStr: string;
   onView: () => void;
   onContinue: () => void;
 }) {
@@ -1609,8 +1578,8 @@ function ReadyCelebration({
       <div
         className="grid gap-3 mx-auto mb-7"
         style={{
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          maxWidth: 720,
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          maxWidth: 520,
         }}
       >
         <SummaryChip
@@ -1625,12 +1594,12 @@ function ReadyCelebration({
           value={`${personaCount} persona${personaCount === 1 ? "" : "s"}`}
           sub={personaSummary}
         />
-        <SummaryChip
-          icon={<Target size={14} />}
-          label="Goal"
-          value={`${goalTarget} ${goalKind === "leads" ? "leads" : `${goalKind} leads`}`}
-          sub={`${goalWindow} · ~${cpvlStr} per verified`}
-        />
+      </div>
+
+      {/* Goal hint */}
+      <div className="text-center text-[11.5px] text-text-tertiary mb-6">
+        <Target size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
+        No goal set yet — you can add one later from the project page.
       </div>
 
       {/* What's next */}
@@ -1752,5 +1721,61 @@ function SummaryChip({
       <div className="text-[13px] font-semibold tabular-nums leading-tight mb-0.5">{value}</div>
       <div className="text-[10.5px] text-text-tertiary leading-[1.4] truncate">{sub}</div>
     </div>
+  );
+}
+
+// ─── Auto mode toggle ──────────────────────────────────────────────────
+
+function AutoModeToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      title={
+        value
+          ? "Auto mode is on — Spot advances through to creatives"
+          : "Auto mode is off — you click through each step"
+      }
+      className="inline-flex items-center gap-2 h-8 px-2.5 rounded-button"
+      style={{
+        background: value ? "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)" : "#FFF",
+        border: `1px solid ${value ? "#C8A8FF" : "var(--border)"}`,
+        color: value ? "#7C3AED" : "var(--text-2)",
+      }}
+    >
+      <span className="text-[11.5px] font-medium">Auto mode</span>
+      <span
+        className="inline-block relative"
+        style={{
+          width: 26,
+          height: 14,
+          borderRadius: 7,
+          background: value
+            ? "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)"
+            : "var(--bg-secondary)",
+          transition: "background 160ms",
+        }}
+      >
+        <span
+          className="absolute"
+          style={{
+            top: 2,
+            left: value ? 14 : 2,
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: "#FFF",
+            transition: "left 160ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+          }}
+        />
+      </span>
+    </button>
   );
 }

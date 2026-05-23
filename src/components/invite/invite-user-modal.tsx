@@ -70,10 +70,11 @@ export function InviteUserModal({
           inset: 0,
           zIndex: 100,
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "8vh 16px",
+          padding: "4vh 16px",
           pointerEvents: "none",
+          overflowY: "auto",
         }}
       >
         <div

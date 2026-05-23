@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   ChevronRight,
   Monitor,
@@ -11,6 +12,8 @@ import {
   Rocket,
   Settings,
   Maximize2,
+  Download,
+  X as XIcon,
 } from "lucide-react";
 import { ProjectDetail, MediaRow } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
@@ -254,6 +257,68 @@ function DetailedMediaPlanView({
   const stagedNetDelta = mp.rows
     .filter((r) => approved[r.id])
     .reduce((s, r) => s + (r.budgetDaily || 0) * 7, 0);
+
+  // ─── Empty state — no media plan yet ─────────────────────────────────
+  if (mp.rows.length === 0) {
+    return (
+      <div>
+        <SectionHeader
+          icon={Monitor}
+          title="Media plan"
+          subtitle="No plan yet · ready to draft"
+          onAsk={() =>
+            onAsk("Walk me through what a starting media plan should look like for this project")
+          }
+        />
+        <div
+          className="rounded-[14px] p-8 text-center"
+          style={{
+            background: "linear-gradient(135deg, #FBF7FF 0%, #FFF 60%)",
+            border: "1px solid #C8A8FF",
+          }}
+        >
+          <div
+            className="inline-flex items-center justify-center mb-3"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+              color: "#FFF",
+              boxShadow: "0 6px 18px rgba(124,58,237,0.3)",
+            }}
+          >
+            <Monitor size={22} />
+          </div>
+          <div className="text-[15px] font-semibold mb-1">No media plan yet</div>
+          <div
+            className="text-[12.5px] text-text-secondary leading-[1.5] mx-auto mb-4"
+            style={{ maxWidth: 460 }}
+          >
+            I&apos;ll draft a starting plan from your project — 4 canonical campaigns
+            (Experiment, Scaling, Cost/Bid Cap, Advantage+) with ad sets, creatives, and a lead
+            form. You review and tweak before anything goes live.
+          </div>
+          <button
+            type="button"
+            onClick={onNewCampaign}
+            className="apply-btn"
+            style={{
+              height: 38,
+              fontSize: 13,
+              padding: "0 18px",
+              background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+            }}
+          >
+            <Sparkles size={13} /> Create media plan with Spot
+          </button>
+          <div className="text-[10.5px] text-text-tertiary mt-3">
+            Or open the Campaigns tab to import campaigns you&apos;re already running.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -916,6 +981,7 @@ function CampaignsPerformanceView({
     [rows[0]?.id || ""]: true,
   }));
   const [expandedAdSets, setExpandedAdSets] = useState<Record<string, boolean>>({});
+  const [importOpen, setImportOpen] = useState(false);
 
   const visibleMetrics = METRIC_DEFS.filter((m) => visibleKeys.has(m.key));
   const resetColumns = () =>
@@ -993,6 +1059,14 @@ function CampaignsPerformanceView({
             </button>
             <button
               type="button"
+              onClick={() => setImportOpen(true)}
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-button border border-border bg-white text-[12px] mr-1.5"
+              title="Import campaigns from connected ad accounts"
+            >
+              <Download size={11} /> Import campaigns
+            </button>
+            <button
+              type="button"
               onClick={onNewCampaign}
               className="apply-btn"
               style={{ background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)" }}
@@ -1004,24 +1078,60 @@ function CampaignsPerformanceView({
       />
 
       {rows.length === 0 ? (
-        <div className="card-base px-6 py-10 text-center">
-          <div className="text-[14px] font-semibold mb-1">No live campaigns yet</div>
-          <div className="text-[12px] text-text-tertiary mb-4 max-w-md mx-auto leading-[1.5]">
-            Once you launch a campaign from your media plan, it shows up here.
+        <div className="card-base px-6 py-10">
+          <div className="text-center mb-6">
+            <div className="text-[14px] font-semibold mb-1">No live campaigns yet</div>
+            <div className="text-[12px] text-text-tertiary max-w-md mx-auto leading-[1.5]">
+              Launch a new campaign from your media plan, or pull in existing campaigns
+              from a connected ad account.
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onNewCampaign}
-            className="apply-btn"
-            style={{
-              height: 36,
-              fontSize: 13,
-              padding: "0 16px",
-              background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
-            }}
+          <div
+            className="grid gap-3 max-w-2xl mx-auto"
+            style={{ gridTemplateColumns: "1fr 1fr" }}
           >
-            <Sparkles size={12} /> Set up first campaign
-          </button>
+            {/* Primary — launch new */}
+            <button
+              type="button"
+              onClick={onNewCampaign}
+              className="text-left rounded-[10px] p-4 transition-shadow"
+              style={{
+                background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+                color: "#FFF",
+                border: "1px solid transparent",
+                boxShadow: "0 6px 18px rgba(124,58,237,0.25)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-[13px] font-semibold mb-1">
+                <Sparkles size={13} /> Launch new campaign
+              </div>
+              <div
+                className="text-[11.5px] leading-[1.5]"
+                style={{ color: "rgba(255,255,255,0.85)" }}
+              >
+                Spot drafts a media plan from your project — settings, ad sets, lead form —
+                then you launch.
+              </div>
+            </button>
+            {/* Secondary — import existing */}
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="text-left rounded-[10px] p-4 transition-colors hover:border-border-hover"
+              style={{
+                background: "#FFF",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-[13px] font-semibold mb-1">
+                <Download size={13} /> Import existing campaigns
+              </div>
+              <div className="text-[11.5px] text-text-tertiary leading-[1.5]">
+                Already running campaigns in Meta or Google? Connect the account and pull
+                them into this project for tracking + optimization.
+              </div>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="card-base overflow-x-auto">
@@ -1215,6 +1325,13 @@ function CampaignsPerformanceView({
           </div>
         </div>
       )}
+
+      {importOpen && (
+        <ImportCampaignsModal
+          projectName={project.name.split(" · ")[0]}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1301,5 +1418,159 @@ function ColumnsPickerPopover({
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Import campaigns modal ────────────────────────────────────────────
+
+function ImportCampaignsModal({
+  projectName,
+  onClose,
+}: {
+  projectName: string;
+  onClose: () => void;
+}) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "min(560px, 94vw)",
+          maxHeight: "90vh",
+          background: "#FFF",
+          borderRadius: 14,
+          boxShadow: "0 24px 80px rgba(0,0,0,0.18)",
+          zIndex: 100,
+          overflow: "auto",
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border">
+          <div
+            className="inline-flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              background: "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)",
+              color: "#7C3AED",
+            }}
+          >
+            <Download size={14} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="uplabel" style={{ fontSize: 10 }}>
+              Import campaigns
+            </div>
+            <div className="text-[15px] font-semibold truncate">
+              Pull existing campaigns into {projectName}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-button hover:bg-surface-secondary"
+          >
+            <XIcon size={15} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4">
+          <div className="text-[12.5px] text-text-secondary leading-[1.55] mb-4">
+            Connect an ad account, pick the campaigns you want to track here, and Spot
+            will start watching their performance like any campaign you launched from
+            inside RevSpot.
+          </div>
+
+          <div className="space-y-2">
+            <ConnectAccountRow
+              channel="Meta"
+              brand="#1E5BFF"
+              description="Meta Ads — Facebook & Instagram lead generation campaigns"
+            />
+            <ConnectAccountRow
+              channel="Google"
+              brand="#9C6D00"
+              description="Google Ads — Search, Display, Performance Max"
+            />
+          </div>
+
+          <div
+            className="mt-4 p-3 rounded-[8px] flex items-start gap-2.5"
+            style={{
+              background: "var(--spot-tint)",
+              border: "1px solid var(--spot-stroke)",
+            }}
+          >
+            <SpotMark size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div className="text-[11.5px] leading-[1.5]">
+              Once connected, I&apos;ll map each imported campaign to a persona — you can
+              edit the mapping before it shows up on the Campaigns tab. Historical metrics
+              get backfilled, and recommendations start within ~24 hours.
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-border-subtle flex justify-end items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center h-8 px-3 rounded-button border border-border bg-white text-[12px]"
+          >
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+function ConnectAccountRow({
+  channel,
+  brand,
+  description,
+}: {
+  channel: "Meta" | "Google";
+  brand: string;
+  description: string;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-[8px]"
+      style={{ border: "1px solid var(--border)", background: "#FFF" }}
+    >
+      <div
+        className="inline-flex items-center justify-center flex-shrink-0"
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          background: brand + "14",
+          color: brand,
+          fontWeight: 700,
+          fontSize: 13,
+        }}
+      >
+        {channel.slice(0, 1)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[12.5px] font-semibold">{channel} Ads</div>
+        <div className="text-[10.5px] text-text-tertiary leading-[1.4]">{description}</div>
+      </div>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px]"
+      >
+        Connect →
+      </button>
+    </div>
   );
 }

@@ -21,7 +21,7 @@ import {
   LeadFormCard,
   StagePill,
   autoDraftCreatives,
-  DEFAULT_DISCLAIMER,
+  DEFAULT_LEAD_FORM_STATE,
   type CampaignSettings,
   type CreativesState,
   type LeadFormState,
@@ -147,8 +147,7 @@ export default function DeployMediaPlanPage() {
   );
 
   const [leadForm, setLeadForm] = useState<LeadFormState>(() => ({
-    enabled: { name: true, phone: true, email: true, budget: true, timeline: true, units: false },
-    disclaimer: DEFAULT_DISCLAIMER,
+    ...DEFAULT_LEAD_FORM_STATE,
   }));
 
   const [stageIdx, setStageIdx] = useState(0);
