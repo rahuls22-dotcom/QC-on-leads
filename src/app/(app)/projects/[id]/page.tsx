@@ -3,14 +3,14 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Users, Monitor, FlaskConical, Settings, Radio, Layers } from "lucide-react";
+import { ArrowLeft, Users, Settings, Radio, Layers, BarChart3 } from "lucide-react";
 import { getProject } from "@/lib/project-data";
 import { ProjectHero } from "@/components/project/project-hero";
 import { GoalPanel } from "@/components/project/goal-panel";
+import { DashboardSection } from "@/components/project/dashboard-section";
 import { PersonasSection } from "@/components/project/personas-section";
-import { CreativesSection } from "@/components/project/creatives-section";
 import { MediaPlanSection } from "@/components/project/media-plan-section";
-import { ExperimentsSection } from "@/components/project/experiments-section";
+import { LibrarySection } from "@/components/project/library-section";
 import { SetupSection } from "@/components/project/setup-section";
 import { ProjectAskBar } from "@/components/project/project-ask-bar";
 import { CampaignCreationFlow } from "@/components/project/campaign-creation-flow";
@@ -18,15 +18,14 @@ import { CreativesFlow } from "@/components/project/creatives-flow";
 import { useSpotStore } from "@/lib/spot/store";
 import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 
-type Tab = "personas" | "creatives" | "plan" | "campaigns" | "experiments" | "setup";
+type Tab = "dashboard" | "personas" | "campaigns" | "library" | "settings";
 
 const TABS: { key: Tab; label: string; icon: typeof Users; sub: string }[] = [
-  { key: "personas", label: "Personas", icon: Users, sub: "who we're selling to" },
-  { key: "creatives", label: "Creatives", icon: Layers, sub: "library · tested vs untested" },
-  { key: "plan", label: "Media plan", icon: Monitor, sub: "drafts you're building" },
-  { key: "campaigns", label: "Campaigns", icon: Radio, sub: "what's actually live" },
-  { key: "experiments", label: "Experiments", icon: FlaskConical, sub: "what we're testing" },
-  { key: "setup", label: "Settings", icon: Settings, sub: "brief · strategy · images · agents" },
+  { key: "dashboard", label: "Dashboard", icon: BarChart3, sub: "how we're doing" },
+  { key: "personas", label: "Personas", icon: Users, sub: "angles · concepts · winners" },
+  { key: "campaigns", label: "Campaigns", icon: Radio, sub: "draft · live · optimize" },
+  { key: "library", label: "Library", icon: Layers, sub: "creatives + images" },
+  { key: "settings", label: "Settings", icon: Settings, sub: "context · goal · agents" },
 ];
 
 export default function ProjectDetailPage() {
@@ -34,7 +33,10 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const id = (params?.id || "").toString();
   const project = getProject(id);
-  const [tab, setTab] = useState<Tab>("personas");
+  const [tab, setTab] = useState<Tab>("dashboard");
+  // PR 1 keeps both legacy Media-plan modes accessible via a small in-tab
+  // switcher. PR 3 unifies the views and removes this.
+  const [campaignsMode, setCampaignsMode] = useState<"drafts" | "campaigns">("campaigns");
   const [campaignFlowOpen, setCampaignFlowOpen] = useState(false);
   const [creativesFlow, setCreativesFlow] = useState<{ angleId?: string } | null>(null);
   const askSpot = useSpotStore((s) => s.askSpot);
@@ -111,7 +113,7 @@ export default function ProjectDetailPage() {
       <GoalPanel project={project} onAsk={askProject} />
 
       {/* Tabs */}
-      <div className="flex gap-1 mt-6 border-b border-border">
+      <div className="flex gap-1 mt-2 border-b border-border">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -143,6 +145,9 @@ export default function ProjectDetailPage() {
 
       {/* Tab body */}
       <div className="mt-2">
+        {tab === "dashboard" && (
+          <DashboardSection project={project} onAsk={askProject} />
+        )}
         {tab === "personas" && (
           <PersonasSection
             project={project}
@@ -150,31 +155,61 @@ export default function ProjectDetailPage() {
             onGenerateCreatives={(angleId) => setCreativesFlow({ angleId })}
           />
         )}
-        {tab === "creatives" && (
-          <CreativesSection
+        {tab === "campaigns" && (
+          <>
+            <div className="flex items-center gap-1.5 mt-3 mb-1">
+              <button
+                type="button"
+                onClick={() => setCampaignsMode("campaigns")}
+                className="inline-flex items-center h-7 px-2.5 rounded-button text-[11.5px] font-medium transition-colors"
+                style={{
+                  background: campaignsMode === "campaigns" ? "#1A1A1A" : "#FFF",
+                  color: campaignsMode === "campaigns" ? "#FFF" : "var(--text-2)",
+                  border: `1px solid ${campaignsMode === "campaigns" ? "#1A1A1A" : "var(--border)"}`,
+                }}
+              >
+                Live
+              </button>
+              <button
+                type="button"
+                onClick={() => setCampaignsMode("drafts")}
+                className="inline-flex items-center h-7 px-2.5 rounded-button text-[11.5px] font-medium transition-colors"
+                style={{
+                  background: campaignsMode === "drafts" ? "#1A1A1A" : "#FFF",
+                  color: campaignsMode === "drafts" ? "#FFF" : "var(--text-2)",
+                  border: `1px solid ${campaignsMode === "drafts" ? "#1A1A1A" : "var(--border)"}`,
+                }}
+              >
+                Plan & drafts
+              </button>
+              <span className="text-[10.5px] text-text-tertiary ml-1">
+                {campaignsMode === "campaigns"
+                  ? "what's actually running"
+                  : "drafts you're building"}
+              </span>
+            </div>
+            <MediaPlanSection
+              project={project}
+              onAsk={askProject}
+              mode={campaignsMode}
+              onNewCampaign={() => setCampaignFlowOpen(true)}
+            />
+          </>
+        )}
+        {tab === "library" && (
+          <LibrarySection
             project={project}
             onAsk={askProject}
             onGenerateCreatives={() => setCreativesFlow({})}
           />
         )}
-        {tab === "plan" && (
-          <MediaPlanSection
+        {tab === "settings" && (
+          <SetupSection
             project={project}
             onAsk={askProject}
-            mode="drafts"
-            onNewCampaign={() => setCampaignFlowOpen(true)}
+            onOpenLibrary={() => setTab("library")}
           />
         )}
-        {tab === "campaigns" && (
-          <MediaPlanSection
-            project={project}
-            onAsk={askProject}
-            mode="campaigns"
-            onNewCampaign={() => setCampaignFlowOpen(true)}
-          />
-        )}
-        {tab === "experiments" && <ExperimentsSection project={project} onAsk={askProject} />}
-        {tab === "setup" && <SetupSection project={project} onAsk={askProject} />}
       </div>
 
       <ProjectAskBar projectName={project.name} onAsk={askProject} />

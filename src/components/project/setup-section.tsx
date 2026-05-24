@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload, Bot, Target } from "lucide-react";
+import { FileText, Palette, ImageIcon, Plus, Bot, Target } from "lucide-react";
 import { ProjectDetail, MediaRow } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
 import { RichText } from "@/components/spot/rich-text";
@@ -56,9 +56,15 @@ function PaletteSwatch({ color }: { color: string }) {
 export function SetupSection({
   project,
   onAsk,
+  onOpenLibrary,
 }: {
   project: ProjectDetail;
   onAsk: (q: string) => void;
+  /**
+   * Called when the user clicks "Manage in Library" — lets the project page
+   * switch the active tab without forcing a route change.
+   */
+  onOpenLibrary?: () => void;
 }) {
   return (
     <>
@@ -185,81 +191,76 @@ export function SetupSection({
         </div>
       </div>
 
-      {/* IMAGES */}
+      {/* IMAGES — read-only mirror; primary editing happens in Library tab */}
       <SectionHeader
         icon={ImageIcon}
-        title="Project images"
-        subtitle={`${project.images.length} uploaded · creative generator pulls from here`}
-        onAsk={() => onAsk("Audit my image gallery — what's missing?")}
+        title="Image library"
+        subtitle={`${project.images.length} images in Spot's visual memory · used as creative source material`}
         actions={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px]"
-          >
-            <Upload size={11} /> Upload
-          </button>
+          onOpenLibrary ? (
+            <button
+              type="button"
+              onClick={onOpenLibrary}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] hover:border-border-hover"
+            >
+              Manage in Library →
+            </button>
+          ) : null
         }
       />
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-        {project.images.map((img) => (
-          <div key={img.id} className="card-base overflow-hidden hover-row">
+      <div className="card-base p-3">
+        <div className="text-[11px] text-text-tertiary mb-2.5">
+          A read-only mirror so the project brief is self-contained. Add, remove, or
+          retag images from the Library tab.
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {project.images.slice(0, 8).map((img) => (
             <div
+              key={img.id}
+              className="flex-shrink-0 rounded-[7px] overflow-hidden"
               style={{
-                aspectRatio: "4 / 3",
+                width: 92,
+                height: 68,
                 background: `repeating-linear-gradient(135deg, oklch(0.9 0.05 ${img.hue}) 0 6px, oklch(0.82 0.06 ${(img.hue + 30) % 360}) 6px 12px)`,
+                border: "1px solid var(--border-subtle)",
                 position: "relative",
               }}
+              title={`${img.name} · ${img.kind}`}
             >
               <span
-                className="pill"
                 style={{
                   position: "absolute",
-                  top: 8,
-                  left: 8,
-                  background: "rgba(255,255,255,0.85)",
-                  backdropFilter: "blur(4px)",
-                  fontSize: 10,
+                  bottom: 4,
+                  left: 4,
+                  padding: "1px 5px",
+                  borderRadius: 3,
+                  background: "rgba(255,255,255,0.9)",
+                  backdropFilter: "blur(3px)",
+                  fontSize: 9,
+                  fontWeight: 600,
                   textTransform: "uppercase",
-                  letterSpacing: 0.4,
+                  letterSpacing: "0.3px",
+                  color: "var(--text-2)",
                 }}
               >
                 {img.kind}
               </span>
-              {img.usedIn > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 8,
-                    right: 8,
-                    background: "#111",
-                    color: "#FAFAF8",
-                    padding: "2px 7px",
-                    borderRadius: 4,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <Sparkles size={9} /> {img.usedIn} ads
-                </span>
-              )}
             </div>
-            <div className="px-2.5 py-2">
-              <div className="text-[11.5px] font-medium truncate">{img.name}</div>
+          ))}
+          {project.images.length > 8 && (
+            <div
+              className="flex-shrink-0 flex items-center justify-center rounded-[7px] text-[11px] text-text-tertiary"
+              style={{
+                width: 64,
+                height: 68,
+                border: "1px dashed var(--border)",
+                background: "var(--bg-page)",
+              }}
+            >
+              +{project.images.length - 8}
             </div>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => onAsk("Upload more project images")}
-          className="card-base flex flex-col items-center justify-center p-6 text-text-secondary hover:border-border-hover hover:bg-surface-page"
-          style={{ borderStyle: "dashed" }}
-        >
-          <Upload size={18} />
-          <span className="text-[11.5px] mt-1">Upload more</span>
-        </button>
+          )}
+        </div>
       </div>
 
       {/* CAMPAIGN AGENTS */}
