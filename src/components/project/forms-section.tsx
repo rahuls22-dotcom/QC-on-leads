@@ -184,10 +184,22 @@ function EmptyFormsState({
           <div className="text-[12px] text-text-secondary leading-[1.55] mb-3 max-w-[640px]">
             Meta won&apos;t let lead-gen campaigns run without a form
             attached. Build a <strong>default form</strong> for the project
-            here — Spot can draft one based on your brief and personas. You
-            can also add <strong>persona-specific forms</strong> later if
-            different personas need different qualification questions
-            (NRI investor vs local family, for example).
+            here — Spot can draft one based on your brief and personas.
+          </div>
+          <div
+            className="rounded-[8px] p-2.5 mb-3 max-w-[640px] text-[11.5px] leading-[1.55] text-text-secondary"
+            style={{
+              background: "rgba(255,255,255,0.7)",
+              border: "1px solid #E0CC95",
+            }}
+          >
+            <strong className="text-text-primary">Recommendation:</strong>{" "}
+            start with a single default form for the whole project — that&apos;s
+            what works for most real-estate launches and keeps lead routing
+            simple. Add <strong>persona-specific variants</strong> only when
+            qualification questions genuinely diverge (e.g. an NRI investor
+            needs a different budget band + a residence-country dropdown
+            that a local family buyer doesn&apos;t).
           </div>
           <div className="flex items-center gap-2">
             <button
