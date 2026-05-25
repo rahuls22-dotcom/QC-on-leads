@@ -501,16 +501,16 @@ function FormsRequiredBanner({ project }: { project: ProjectDetail }) {
         )}
       </div>
       <a
-        href={`/projects/${project.id}?tab=forms`}
+        href={`/projects/${project.id}?tab=library&sub=forms`}
         onClick={(e) => {
-          // Soft client-side: route the parent tab to forms without a
-          // full reload. The page reads tab from local state, so a hash
-          // wouldn't help here; the safest cross-tab signal is a small
-          // custom event the project page can hook later. For now, we
-          // fall back to a regular link if needed.
+          // Soft client-side: dispatch the project page's tab-switch
+          // event with the library/forms target so the parent doesn't
+          // need a full reload.
           e.preventDefault();
           window.dispatchEvent(
-            new CustomEvent("revspot:tab-switch", { detail: { tab: "forms" } }),
+            new CustomEvent("revspot:tab-switch", {
+              detail: { tab: "library", sub: "forms" },
+            }),
           );
         }}
         className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11.5px] font-medium flex-shrink-0"

@@ -10,21 +10,25 @@ import { GoalPanel } from "@/components/project/goal-panel";
 import { DashboardSection } from "@/components/project/dashboard-section";
 import { PersonasSection } from "@/components/project/personas-section";
 import { CampaignsTab } from "@/components/project/campaigns-tab";
-import { LibrarySection } from "@/components/project/library-section";
+import {
+  LibrarySection,
+  type LibrarySubTab,
+} from "@/components/project/library-section";
 import { SetupSection } from "@/components/project/setup-section";
-import { FormsSection } from "@/components/project/forms-section";
 import { ProjectAskBar } from "@/components/project/project-ask-bar";
 import { useSpotStore } from "@/lib/spot/store";
 import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
+import { hasAnyProjectActivity } from "@/lib/project-data";
 
-type Tab = "dashboard" | "personas" | "forms" | "campaigns" | "library" | "settings";
+type Tab = "dashboard" | "personas" | "campaigns" | "library" | "settings";
 
-const TABS: { key: Tab; label: string; icon: typeof Users; sub: string }[] = [
+type TabDef = { key: Tab; label: string; icon: typeof Users; sub: string };
+
+const ALL_TABS: TabDef[] = [
   { key: "dashboard", label: "Dashboard", icon: BarChart3, sub: "how we're doing" },
   { key: "personas", label: "Personas", icon: Users, sub: "angles · concepts · winners" },
-  { key: "forms", label: "Forms", icon: FileText, sub: "lead capture · required" },
   { key: "campaigns", label: "Campaigns", icon: Radio, sub: "draft · live · optimize" },
-  { key: "library", label: "Library", icon: Layers, sub: "creatives + images" },
+  { key: "library", label: "Library", icon: Layers, sub: "creatives · images · forms" },
   { key: "settings", label: "Settings", icon: Settings, sub: "context · goal · agents" },
 ];
 
@@ -33,29 +37,63 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const id = (params?.id || "").toString();
   const project = getProject(id);
-  const [tab, setTab] = useState<Tab>("dashboard");
+
+  // Dashboard is only meaningful when the project has actual activity
+  // (live campaigns or recorded spend / leads). New projects land on
+  // Personas instead so the user starts where they can take action.
+  const hasActivity = project ? hasAnyProjectActivity(project) : false;
+  const visibleTabs: TabDef[] = ALL_TABS.filter(
+    (t) => t.key !== "dashboard" || hasActivity,
+  );
+  const defaultTab: Tab = hasActivity ? "dashboard" : "personas";
+  const [tab, setTab] = useState<Tab>(defaultTab);
+
+  // Library sub-tab — used by the Forms-readiness banner to deeplink
+  // straight into the Forms sub-section without forcing the user to
+  // click through Creatives / Images first.
+  const [librarySub, setLibrarySub] = useState<LibrarySubTab | undefined>(
+    undefined,
+  );
+
+  // If the project transitions from no-activity → activity (e.g. user
+  // launches the first ad set), the tab list grows. Keep the current
+  // selection valid; nothing to do here unless the user was on Dashboard
+  // when activity disappeared, which the data model doesn't support.
 
   // Listen for child-component tab-switch requests (e.g. the Campaigns
   // tab's "Go to Forms →" banner). Strongly-typed via the Tab union so
   // unknown tabs are ignored.
   useEffect(() => {
     const onSwitch = (e: Event) => {
-      const detail = (e as CustomEvent<{ tab: string }>).detail;
+      const detail = (e as CustomEvent<{ tab: string; sub?: string }>).detail;
       const allowed: Tab[] = [
         "dashboard",
         "personas",
-        "forms",
         "campaigns",
         "library",
         "settings",
       ];
-      if (detail && allowed.includes(detail.tab as Tab)) {
-        setTab(detail.tab as Tab);
+      if (!detail) return;
+      // Legacy "forms" target → re-route to library/forms.
+      if (detail.tab === "forms") {
+        setLibrarySub("forms");
+        setTab("library");
+        return;
       }
+      if (!allowed.includes(detail.tab as Tab)) return;
+      if (detail.tab === "library" && detail.sub === "forms") {
+        setLibrarySub("forms");
+      }
+      // Block Dashboard switch when it's hidden — fall back to Personas.
+      if (detail.tab === "dashboard" && !hasActivity) {
+        setTab("personas");
+        return;
+      }
+      setTab(detail.tab as Tab);
     };
     window.addEventListener("revspot:tab-switch", onSwitch);
     return () => window.removeEventListener("revspot:tab-switch", onSwitch);
-  }, []);
+  }, [hasActivity]);
   const askSpot = useSpotStore((s) => s.askSpot);
 
   // Scope guard: auto-switch if user has access; show forbidden state if not.
@@ -128,11 +166,17 @@ export default function ProjectDetailPage() {
 
       <ProjectHero project={project} onAsk={askProject} />
       <GoalPanel project={project} onAsk={askProject} />
-      <FormsReadinessBanner project={project} onGoToForms={() => setTab("forms")} />
+      <FormsReadinessBanner
+        project={project}
+        onGoToForms={() => {
+          setLibrarySub("forms");
+          setTab("library");
+        }}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 mt-2 border-b border-border">
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
           return (
@@ -169,9 +213,6 @@ export default function ProjectDetailPage() {
         {tab === "personas" && (
           <PersonasSection project={project} onAsk={askProject} />
         )}
-        {tab === "forms" && (
-          <FormsSection project={project} onAsk={askProject} />
-        )}
         {tab === "campaigns" && (
           <CampaignsTab project={project} onAsk={askProject} />
         )}
@@ -180,6 +221,7 @@ export default function ProjectDetailPage() {
             project={project}
             onAsk={askProject}
             onGoToPersonas={() => setTab("personas")}
+            initialSub={librarySub}
           />
         )}
         {tab === "settings" && (

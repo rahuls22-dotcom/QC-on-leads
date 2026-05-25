@@ -1,25 +1,37 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Layers, Images, Upload, X, Check, ArrowUpRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Layers,
+  Images,
+  Upload,
+  X,
+  Check,
+  ArrowUpRight,
+  FileText,
+} from "lucide-react";
 import type { ProjectDetail, ProjectImage } from "@/lib/project-data";
 import { mutateRuntimeProject } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
 import { CreativesSection } from "./creatives-section";
+import { FormsSection } from "./forms-section";
 
-type SubTab = "creatives" | "images";
+export type LibrarySubTab = "creatives" | "images" | "forms";
 
 /**
- * Library tab — single home for the project's visual assets.
- *  · Creatives: every drafted creative across personas/angles (wraps the
- *    existing CreativesSection unchanged for PR 1).
- *  · Images: the project's image memory — extracted from research +
- *    laptop uploads — with kind/source filters and an upload tile.
+ * Library tab — single home for the project's reusable assets.
+ *  · Creatives: every drafted creative across personas/angles.
+ *  · Images:    project's image memory (research + uploads).
+ *  · Forms:     lead-capture forms (default + persona variants). These
+ *               were a top-level tab in PR 27 but really belong here as
+ *               the third reusable-asset class — campaigns reference
+ *               them, but they don't have their own runtime metrics.
  */
 export function LibrarySection({
   project,
   onAsk,
   onGoToPersonas,
+  initialSub,
 }: {
   project: ProjectDetail;
   onAsk: (q: string) => void;
@@ -28,18 +40,31 @@ export function LibrarySection({
    * (PR 2 removed the standalone CreativesFlow modal).
    */
   onGoToPersonas?: () => void;
+  /**
+   * Optional initial sub-tab. Used when a banner deeplinks into the
+   * library at a specific section (e.g. the FormsReadinessBanner jumps
+   * straight to Forms).
+   */
+  initialSub?: LibrarySubTab;
 }) {
-  const [sub, setSub] = useState<SubTab>("creatives");
+  const [sub, setSub] = useState<LibrarySubTab>(initialSub ?? "creatives");
+
+  // If the parent updates the deeplink target (e.g. user clicks the
+  // banner twice in a row), reflect that.
+  useEffect(() => {
+    if (initialSub) setSub(initialSub);
+  }, [initialSub]);
 
   const creativeCount = project.personas.reduce(
     (n, p) => n + p.angles.reduce((m, a) => m + a.concept.creatives.length, 0),
     0,
   );
   const imageCount = project.images.length;
+  const formCount = (project.forms ?? []).length;
 
   return (
     <div>
-      {/* Segmented control — Creatives | Images */}
+      {/* Segmented control — Creatives | Images | Forms */}
       <div className="flex items-center gap-1 mb-4 pt-6">
         <SubTabButton
           active={sub === "creatives"}
@@ -55,6 +80,13 @@ export function LibrarySection({
           label="Images"
           count={imageCount}
         />
+        <SubTabButton
+          active={sub === "forms"}
+          onClick={() => setSub("forms")}
+          icon={<FileText size={13} />}
+          label="Forms"
+          count={formCount}
+        />
         <a
           href={`/projects/${project.id}/deep/library`}
           className="ml-auto inline-flex items-center gap-1 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] hover:border-border-hover"
@@ -63,15 +95,15 @@ export function LibrarySection({
         </a>
       </div>
 
-      {sub === "creatives" ? (
+      {sub === "creatives" && (
         <CreativesSection
           project={project}
           onAsk={onAsk}
           onGoToPersonas={onGoToPersonas}
         />
-      ) : (
-        <ImageBrowser project={project} onAsk={onAsk} />
       )}
+      {sub === "images" && <ImageBrowser project={project} onAsk={onAsk} />}
+      {sub === "forms" && <FormsSection project={project} onAsk={onAsk} />}
     </div>
   );
 }

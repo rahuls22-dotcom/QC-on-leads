@@ -1423,6 +1423,33 @@ export function getProject(id: string): ProjectDetail | undefined {
   return runtimeProjects.get(id) || projectDetails[id];
 }
 
+/**
+ * Has this project produced any signal yet? Used to decide whether the
+ * Dashboard tab is worth showing — a brand-new project has no spend,
+ * no impressions, no leads, and no live campaigns, so the Dashboard
+ * would just render zeros. We hide it in that state and let the user
+ * land on Personas instead.
+ *
+ * Activity = any live campaign row OR any ad-level recorded spend /
+ * leads / impressions OR an achieved-leads count > 0 on the goal.
+ */
+export function hasAnyProjectActivity(p: ProjectDetail): boolean {
+  if (p.goal.achieved > 0) return true;
+  for (const row of p.mediaPlan.rows) {
+    if (row.status === "live") return true;
+    if (typeof row.spend === "number" && row.spend > 0) return true;
+    if (typeof row.leads === "number" && row.leads > 0) return true;
+    for (const set of row.adSets) {
+      for (const ad of set.ads) {
+        if (ad.status === "live") return true;
+        if (typeof ad.spend === "number" && ad.spend > 0) return true;
+        if (typeof ad.leads === "number" && ad.leads > 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** Projects scoped to a workspace, or all if `workspaceId` is undefined / "all". */
 export function projectsForWorkspace(workspaceId?: string): ProjectDetail[] {
   const all = [...Object.values(projectDetails), ...runtimeProjects.values()];

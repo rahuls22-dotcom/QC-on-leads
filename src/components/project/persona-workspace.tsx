@@ -85,14 +85,6 @@ export function PersonaWorkspace({
   };
 
   const showToast = useSpotStore((s) => s.showToast);
-  const unapprove = () => {
-    mutateRuntimeProject(project.id, (p) => {
-      const target = p.personas.find((x) => x.id === persona.id);
-      if (!target) return;
-      target.approved = false;
-      target.draft = true;
-    });
-  };
 
   const approve = () => {
     mutateRuntimeProject(project.id, (p) => {
@@ -341,13 +333,11 @@ export function PersonaWorkspace({
         </div>
       )}
 
-      {/* Approval state — draft surfaces a checklist; approved surfaces a
-          confirmation strip with an unapprove option so the user always
-          knows where the persona stands and can move it back if needed. */}
-      {persona.draft ? (
+      {/* Approval state — draft surfaces a checklist + Approve CTA.
+          The approved state is conveyed by the chip next to the persona
+          name in the header; no extra strip needed here. */}
+      {persona.draft && (
         <ApprovalCard persona={persona} onApprove={approve} />
-      ) : (
-        <ApprovedStrip persona={persona} onUnapprove={unapprove} />
       )}
 
       {/* Angles */}
@@ -680,64 +670,6 @@ function ApprovalCheckRow({
       </span>
       <span className="text-text-secondary flex-1 truncate">{value}</span>
     </li>
-  );
-}
-
-/**
- * Confirmation strip rendered when a persona has been approved. Mirrors
- * the ApprovalCard's visual weight (sits in the same slot, picks up the
- * positive-state green accent) so the user always knows where the
- * persona stands. The "Move back to draft" action returns it to the
- * approval flow without losing any data.
- */
-function ApprovedStrip({
-  persona,
-  onUnapprove,
-}: {
-  persona: Persona;
-  onUnapprove: () => void;
-}) {
-  const angleCount = persona.angles.length;
-  const liveAngles = persona.angles.filter((a) => a.status === "live").length;
-  return (
-    <div
-      className="rounded-[10px] px-3.5 py-2.5 flex items-center gap-3"
-      style={{
-        background: "var(--ok-bg, #ECFDF5)",
-        border: "1px solid var(--ok-fg, #10B981)",
-      }}
-    >
-      <span
-        className="inline-flex items-center justify-center flex-shrink-0"
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 7,
-          background: "var(--ok-fg, #10B981)",
-          color: "#FFF",
-        }}
-      >
-        <Check size={13} strokeWidth={3} />
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="text-[12.5px] font-semibold leading-tight">
-          Approved · in active allocation
-        </div>
-        <div className="text-[11px] text-text-secondary mt-0.5">
-          {angleCount > 0
-            ? `${angleCount} angle${angleCount === 1 ? "" : "s"} · ${liveAngles} live · Spot will rebalance budget on next deploy`
-            : "Spot will allocate budget on next deploy"}
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onUnapprove}
-        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] text-text-secondary hover:text-text-primary"
-        title="Pause Spot's allocation on this persona while you make changes"
-      >
-        Move back to draft
-      </button>
-    </div>
   );
 }
 
