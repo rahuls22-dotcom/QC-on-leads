@@ -4,6 +4,10 @@
 // filter at top, two slices of LeadProfile[] in flight at once: the
 // active range and the prior-equal-length range (for the success-rate
 // delta KPI).
+//
+// The header filters (time + source) are rendered by the page wrapper
+// via DataPageShell.headerAction. State is owned here and exposed via
+// onHeaderFiltersChange so the wrapper can mirror it.
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -29,19 +33,46 @@ import { IllustrationEnrichment } from "@/components/illustrations/empty-states"
 import { DashboardTimeFilter } from "./dashboard-time-filter";
 import { ReliabilitySection } from "./reliability-section";
 import { LeadExplorer } from "./lead-explorer";
+import type { SourceFilter } from "./source-filter-pills";
 
-// Suppress unused param warning on the inherited shell prop signature.
-type Props = { onOpenRun?: (r: RunRecord) => void; forceEmpty?: boolean };
+interface Props {
+  onOpenRun?: (r: RunRecord) => void;
+  forceEmpty?: boolean;
 
-export function EnrichmentDashboard({ forceEmpty = false }: Props) {
+  // Controlled header filters. When provided, the dashboard does NOT render
+  // its own time/source pills — the page wrapper does that via headerAction.
+  range?: TimeRange;
+  customStart?: Date | null;
+  customEnd?: Date | null;
+  onRangeChange?: (range: TimeRange, customStart: Date | null, customEnd: Date | null) => void;
+  sourceFilter?: SourceFilter;
+  onSourceFilterChange?: (v: SourceFilter) => void;
+}
+
+export function EnrichmentDashboard({
+  forceEmpty = false,
+  range: rangeProp,
+  customStart: customStartProp,
+  customEnd: customEndProp,
+  onRangeChange,
+  sourceFilter: sourceFilterProp,
+  onSourceFilterChange: _onSourceFilterChange,
+}: Props) {
   const runs = useEnrichmentCrmStore((s) => s.runs);
   const { isEmpty: demoEmpty } = useDemoMode();
   const isEmpty = forceEmpty || demoEmpty;
 
-  // Page-level state — range/filters do NOT persist, chart cards + saved views DO.
-  const [range, setRange] = useState<TimeRange>("30d");
-  const [customStart, setCustomStart] = useState<Date | null>(null);
-  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+  // Internal fallback state — used if the parent doesn't control the filters.
+  const [internalRange, setInternalRange] = useState<TimeRange>("30d");
+  const [internalCustomStart, setInternalCustomStart] = useState<Date | null>(null);
+  const [internalCustomEnd, setInternalCustomEnd] = useState<Date | null>(null);
+
+  const range = rangeProp ?? internalRange;
+  const customStart = customStartProp ?? internalCustomStart;
+  const customEnd = customEndProp ?? internalCustomEnd;
+  const sourceFilter: SourceFilter = sourceFilterProp ?? "all";
+  const isControlled = onRangeChange != null;
+
   const [filters, setFilters] = useState<FilterClause[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [chartCards, setChartCards] = useState<ChartCardId[]>([...DEFAULT_CHART_CARDS]);
@@ -78,27 +109,42 @@ export function EnrichmentDashboard({ forceEmpty = false }: Props) {
   // Empty-mode override: treat the demo's "empty" state as no runs.
   const effectiveRuns = isEmpty ? [] : runs;
 
-  const profiles: LeadProfile[] = useMemo(
+  // All profiles in the active time range (unfiltered by source).
+  const allProfiles: LeadProfile[] = useMemo(
     () => flattenRunsToLeadProfiles(effectiveRuns, { bounds }),
     [effectiveRuns, bounds],
   );
-  const prevProfiles: LeadProfile[] = useMemo(
+  // Source-filtered slice. Drives KPIs, trend, lead explorer.
+  const profiles: LeadProfile[] = useMemo(
+    () => (sourceFilter === "all" ? allProfiles : allProfiles.filter((p) => p.source === sourceFilter)),
+    [allProfiles, sourceFilter],
+  );
+  const allPrevProfiles: LeadProfile[] = useMemo(
     () => flattenRunsToLeadProfiles(effectiveRuns, { bounds: prevBounds }),
     [effectiveRuns, prevBounds],
   );
+  const prevProfiles: LeadProfile[] = useMemo(
+    () =>
+      sourceFilter === "all"
+        ? allPrevProfiles
+        : allPrevProfiles.filter((p) => p.source === sourceFilter),
+    [allPrevProfiles, sourceFilter],
+  );
 
-  // Time filter is always visible.
-  const timeFilter = (
-    <DashboardTimeFilter
-      range={range}
-      customStart={customStart}
-      customEnd={customEnd}
-      onChange={(r, s, e) => {
-        setRange(r);
-        setCustomStart(s);
-        setCustomEnd(e);
-      }}
-    />
+  // Fallback time-filter row when this component renders its own header.
+  const fallbackTimeFilter = !isControlled && (
+    <div className="flex justify-end mb-6">
+      <DashboardTimeFilter
+        range={range}
+        customStart={customStart}
+        customEnd={customEnd}
+        onChange={(r, s, e) => {
+          setInternalRange(r);
+          setInternalCustomStart(s);
+          setInternalCustomEnd(e);
+        }}
+      />
+    </div>
   );
 
   // Empty state — no enriched leads in the active range.
@@ -107,11 +153,13 @@ export function EnrichmentDashboard({ forceEmpty = false }: Props) {
     const description =
       allTime.length === 0
         ? "Connect your CRM or upload a CSV to start enriching."
-        : "No enriched leads in the selected range. Try a wider window.";
+        : sourceFilter !== "all"
+          ? `No enriched leads from ${sourceFilter.toUpperCase()} in this window.`
+          : "No enriched leads in the selected range. Try a wider window.";
 
     return (
       <div>
-        <div className="flex justify-end mb-6">{timeFilter}</div>
+        {fallbackTimeFilter}
         <EmptyState
           illustration={allTime.length === 0 ? <IllustrationEnrichment /> : <Sparkles size={36} strokeWidth={1.25} className="text-text-tertiary" />}
           title={allTime.length === 0 ? "No enriched leads yet" : "No leads in this window"}
@@ -123,10 +171,12 @@ export function EnrichmentDashboard({ forceEmpty = false }: Props) {
 
   return (
     <div>
-      <div className="flex justify-end mb-6">{timeFilter}</div>
+      {fallbackTimeFilter}
       <ReliabilitySection
         profiles={profiles}
         prevProfiles={prevProfiles}
+        donutProfiles={allProfiles}
+        sourceFilter={sourceFilter}
         range={range}
         bounds={bounds}
       />

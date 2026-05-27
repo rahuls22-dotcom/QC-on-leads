@@ -1,20 +1,35 @@
 "use client";
 
-// Top half: section heading + KPI row + (trend | donut) two-column grid.
+// Top half: KPI row + (trend | donut) two-column grid.
+//
+// Note: `profiles` is the source-filtered slice (drives KPIs + trend).
+// `donutProfiles` is the full source mix in the time window — donut
+// always renders the full mix, dimming non-active slices when the
+// header source filter is set.
 
 import { ReliabilityKpis } from "./reliability-kpis";
 import { EnrichedTrendChart } from "./enriched-trend-chart";
 import { SourceDonut } from "./source-donut";
 import type { LeadProfile, RangeBounds, TimeRange } from "@/lib/dashboard/types";
+import type { SourceFilter } from "./source-filter-pills";
 
 interface Props {
   profiles: LeadProfile[];
   prevProfiles: LeadProfile[];
+  donutProfiles: LeadProfile[];
+  sourceFilter: SourceFilter;
   range: TimeRange;
   bounds: RangeBounds;
 }
 
-export function ReliabilitySection({ profiles, prevProfiles, range, bounds }: Props) {
+export function ReliabilitySection({
+  profiles,
+  prevProfiles,
+  donutProfiles,
+  sourceFilter,
+  range,
+  bounds,
+}: Props) {
   return (
     <section className="mb-8">
       <ReliabilityKpis profiles={profiles} prevProfiles={prevProfiles} />
@@ -41,7 +56,7 @@ export function ReliabilitySection({ profiles, prevProfiles, range, bounds }: Pr
           <div className="text-[13px] font-semibold text-text-primary mt-0.5 mb-3">
             Volume mix
           </div>
-          <SourceDonut profiles={profiles} />
+          <SourceDonut profiles={donutProfiles} activeSource={sourceFilter} />
         </div>
       </div>
     </section>

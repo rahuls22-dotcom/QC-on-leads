@@ -1,12 +1,19 @@
 "use client";
 
 // Donut + side legend for the source split (CRM / Bulk / Single).
+//
+// `activeSource` reflects the top-level source filter. When set, the
+// donut keeps the full mix but dims non-active slices and rings the
+// active one — the donut becomes the visual cue for "you've isolated
+// this source out of the whole."
 
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { LeadProfile } from "@/lib/dashboard/types";
+import type { SourceFilter } from "./source-filter-pills";
 
 interface Props {
   profiles: LeadProfile[];
+  activeSource?: SourceFilter;
 }
 
 const SOURCE_META = {
@@ -17,7 +24,7 @@ const SOURCE_META = {
 
 const ORDER: (keyof typeof SOURCE_META)[] = ["crm", "bulk", "single"];
 
-export function SourceDonut({ profiles }: Props) {
+export function SourceDonut({ profiles, activeSource = "all" }: Props) {
   const counts: Record<keyof typeof SOURCE_META, number> = { crm: 0, bulk: 0, single: 0 };
   for (const p of profiles) counts[p.source]++;
   const total = profiles.length;
@@ -27,6 +34,8 @@ export function SourceDonut({ profiles }: Props) {
     value: counts[k],
     color: SOURCE_META[k].color,
     key: k,
+    dimmed: activeSource !== "all" && activeSource !== k,
+    active: activeSource !== "all" && activeSource === k,
   })).filter((d) => d.value > 0);
 
   if (total === 0 || data.length === 0) {
@@ -50,9 +59,16 @@ export function SourceDonut({ profiles }: Props) {
               paddingAngle={1}
               stroke="white"
               strokeWidth={2}
+              isAnimationActive={false}
             >
               {data.map((d) => (
-                <Cell key={d.key} fill={d.color} />
+                <Cell
+                  key={d.key}
+                  fill={d.color}
+                  fillOpacity={d.dimmed ? 0.25 : 1}
+                  stroke={d.active ? d.color : "white"}
+                  strokeWidth={d.active ? 3 : 2}
+                />
               ))}
             </Pie>
           </PieChart>
@@ -70,10 +86,20 @@ export function SourceDonut({ profiles }: Props) {
           const meta = SOURCE_META[k];
           const c = counts[k];
           const pct = total === 0 ? 0 : Math.round((c / total) * 100);
+          const dimmed = activeSource !== "all" && activeSource !== k;
+          const active = activeSource !== "all" && activeSource === k;
           return (
-            <div key={k} className="flex items-center gap-2 text-[12px] py-0.5">
+            <div
+              key={k}
+              className={[
+                "flex items-center gap-2 text-[12px] py-0.5 transition-opacity",
+                dimmed ? "opacity-40" : "opacity-100",
+              ].join(" ")}
+            >
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: meta.color }} />
-              <span className="text-text-primary">{meta.label}</span>
+              <span className={active ? "text-text-primary font-semibold" : "text-text-primary"}>
+                {meta.label}
+              </span>
               <span className="text-text-tertiary tabular-nums ml-auto">
                 {pct}% · {c.toLocaleString("en-IN")}
               </span>
