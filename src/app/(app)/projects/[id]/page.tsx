@@ -1,32 +1,36 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Users, Monitor, FlaskConical, Settings, Radio, Layers } from "lucide-react";
+import { ArrowLeft, Users, Settings, Radio, Layers, BarChart3 } from "lucide-react";
 import { getProject } from "@/lib/project-data";
 import { ProjectHero } from "@/components/project/project-hero";
 import { GoalPanel } from "@/components/project/goal-panel";
+import { DashboardSection } from "@/components/project/dashboard-section";
 import { PersonasSection } from "@/components/project/personas-section";
-import { CreativesSection } from "@/components/project/creatives-section";
-import { MediaPlanSection } from "@/components/project/media-plan-section";
-import { ExperimentsSection } from "@/components/project/experiments-section";
+import { CampaignsTab } from "@/components/project/campaigns-tab";
+import {
+  LibrarySection,
+  type LibrarySubTab,
+} from "@/components/project/library-section";
 import { SetupSection } from "@/components/project/setup-section";
+import { SetupChecklist } from "@/components/project/setup-checklist";
 import { ProjectAskBar } from "@/components/project/project-ask-bar";
-import { CampaignCreationFlow } from "@/components/project/campaign-creation-flow";
-import { CreativesFlow } from "@/components/project/creatives-flow";
 import { useSpotStore } from "@/lib/spot/store";
 import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
+import { hasAnyProjectActivity } from "@/lib/project-data";
 
-type Tab = "personas" | "creatives" | "plan" | "campaigns" | "experiments" | "setup";
+type Tab = "dashboard" | "personas" | "campaigns" | "library" | "settings";
 
-const TABS: { key: Tab; label: string; icon: typeof Users; sub: string }[] = [
-  { key: "personas", label: "Personas", icon: Users, sub: "who we're selling to" },
-  { key: "creatives", label: "Creatives", icon: Layers, sub: "library · tested vs untested" },
-  { key: "plan", label: "Media plan", icon: Monitor, sub: "drafts you're building" },
-  { key: "campaigns", label: "Campaigns", icon: Radio, sub: "what's actually live" },
-  { key: "experiments", label: "Experiments", icon: FlaskConical, sub: "what we're testing" },
-  { key: "setup", label: "Settings", icon: Settings, sub: "brief · strategy · images · agents" },
+type TabDef = { key: Tab; label: string; icon: typeof Users; sub: string };
+
+const ALL_TABS: TabDef[] = [
+  { key: "dashboard", label: "Dashboard", icon: BarChart3, sub: "how we're doing" },
+  { key: "personas", label: "Personas", icon: Users, sub: "angles · concepts · winners" },
+  { key: "campaigns", label: "Campaigns", icon: Radio, sub: "draft · live · optimize" },
+  { key: "library", label: "Library", icon: Layers, sub: "creatives · images · forms" },
+  { key: "settings", label: "Settings", icon: Settings, sub: "context · goal · agents" },
 ];
 
 export default function ProjectDetailPage() {
@@ -34,9 +38,63 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const id = (params?.id || "").toString();
   const project = getProject(id);
-  const [tab, setTab] = useState<Tab>("personas");
-  const [campaignFlowOpen, setCampaignFlowOpen] = useState(false);
-  const [creativesFlow, setCreativesFlow] = useState<{ angleId?: string } | null>(null);
+
+  // Dashboard is only meaningful when the project has actual activity
+  // (live campaigns or recorded spend / leads). New projects land on
+  // Personas instead so the user starts where they can take action.
+  const hasActivity = project ? hasAnyProjectActivity(project) : false;
+  const visibleTabs: TabDef[] = ALL_TABS.filter(
+    (t) => t.key !== "dashboard" || hasActivity,
+  );
+  const defaultTab: Tab = hasActivity ? "dashboard" : "personas";
+  const [tab, setTab] = useState<Tab>(defaultTab);
+
+  // Library sub-tab — used by the Forms-readiness banner to deeplink
+  // straight into the Forms sub-section without forcing the user to
+  // click through Creatives / Images first.
+  const [librarySub, setLibrarySub] = useState<LibrarySubTab | undefined>(
+    undefined,
+  );
+
+  // If the project transitions from no-activity → activity (e.g. user
+  // launches the first ad set), the tab list grows. Keep the current
+  // selection valid; nothing to do here unless the user was on Dashboard
+  // when activity disappeared, which the data model doesn't support.
+
+  // Listen for child-component tab-switch requests (e.g. the Campaigns
+  // tab's "Go to Forms →" banner). Strongly-typed via the Tab union so
+  // unknown tabs are ignored.
+  useEffect(() => {
+    const onSwitch = (e: Event) => {
+      const detail = (e as CustomEvent<{ tab: string; sub?: string }>).detail;
+      const allowed: Tab[] = [
+        "dashboard",
+        "personas",
+        "campaigns",
+        "library",
+        "settings",
+      ];
+      if (!detail) return;
+      // Legacy "forms" target → re-route to library/forms.
+      if (detail.tab === "forms") {
+        setLibrarySub("forms");
+        setTab("library");
+        return;
+      }
+      if (!allowed.includes(detail.tab as Tab)) return;
+      if (detail.tab === "library" && detail.sub === "forms") {
+        setLibrarySub("forms");
+      }
+      // Block Dashboard switch when it's hidden — fall back to Personas.
+      if (detail.tab === "dashboard" && !hasActivity) {
+        setTab("personas");
+        return;
+      }
+      setTab(detail.tab as Tab);
+    };
+    window.addEventListener("revspot:tab-switch", onSwitch);
+    return () => window.removeEventListener("revspot:tab-switch", onSwitch);
+  }, [hasActivity]);
   const askSpot = useSpotStore((s) => s.askSpot);
 
   // Scope guard: auto-switch if user has access; show forbidden state if not.
@@ -109,10 +167,17 @@ export default function ProjectDetailPage() {
 
       <ProjectHero project={project} onAsk={askProject} />
       <GoalPanel project={project} onAsk={askProject} />
+      <SetupChecklist
+        project={project}
+        onGoTo={(target, sub) => {
+          if (target === "library" && sub) setLibrarySub(sub);
+          setTab(target);
+        }}
+      />
 
       {/* Tabs */}
-      <div className="flex gap-1 mt-6 border-b border-border">
-        {TABS.map((t) => {
+      <div className="flex gap-1 mt-2 border-b border-border">
+        {visibleTabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
           return (
@@ -143,67 +208,34 @@ export default function ProjectDetailPage() {
 
       {/* Tab body */}
       <div className="mt-2">
+        {tab === "dashboard" && (
+          <DashboardSection project={project} onAsk={askProject} />
+        )}
         {tab === "personas" && (
-          <PersonasSection
-            project={project}
-            onAsk={askProject}
-            onGenerateCreatives={(angleId) => setCreativesFlow({ angleId })}
-          />
-        )}
-        {tab === "creatives" && (
-          <CreativesSection
-            project={project}
-            onAsk={askProject}
-            onGenerateCreatives={() => setCreativesFlow({})}
-          />
-        )}
-        {tab === "plan" && (
-          <MediaPlanSection
-            project={project}
-            onAsk={askProject}
-            mode="drafts"
-            onNewCampaign={() => setCampaignFlowOpen(true)}
-          />
+          <PersonasSection project={project} onAsk={askProject} />
         )}
         {tab === "campaigns" && (
-          <MediaPlanSection
+          <CampaignsTab project={project} onAsk={askProject} />
+        )}
+        {tab === "library" && (
+          <LibrarySection
             project={project}
             onAsk={askProject}
-            mode="campaigns"
-            onNewCampaign={() => setCampaignFlowOpen(true)}
+            onGoToPersonas={() => setTab("personas")}
+            initialSub={librarySub}
           />
         )}
-        {tab === "experiments" && <ExperimentsSection project={project} onAsk={askProject} />}
-        {tab === "setup" && <SetupSection project={project} onAsk={askProject} />}
+        {tab === "settings" && (
+          <SetupSection
+            project={project}
+            onAsk={askProject}
+            onOpenLibrary={() => setTab("library")}
+          />
+        )}
       </div>
 
       <ProjectAskBar projectName={project.name} onAsk={askProject} />
-
-      {creativesFlow && (
-        <CreativesFlow
-          projectId={id}
-          initialAngleId={creativesFlow.angleId}
-          onClose={() => setCreativesFlow(null)}
-          onComplete={(_, action) => {
-            setCreativesFlow(null);
-            if (action === "campaign") {
-              setCampaignFlowOpen(true);
-            }
-            // "view" stays on the current project page (no nav needed)
-          }}
-        />
-      )}
-
-      {campaignFlowOpen && (
-        <CampaignCreationFlow
-          projectId={id}
-          onClose={() => setCampaignFlowOpen(false)}
-          onLaunched={() => {
-            setCampaignFlowOpen(false);
-            setTab("campaigns");
-          }}
-        />
-      )}
     </motion.div>
   );
 }
+

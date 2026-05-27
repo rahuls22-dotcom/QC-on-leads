@@ -229,3 +229,10 @@
 .fadeInScale { animation: fadeInScale 160ms ease-out forwards; }
 .slideInRight { animation: slideInRight 240ms ease-out forwards; }
 .spot-pulse { animation: spotPulse 1.6s ease-in-out infinite; }
+
+/* Deep-dive overlay — hide global app chrome while the deep-dive shell
+   covers the viewport with its own header + full-width body. */
+body[data-deep-dive] aside,
+body[data-deep-dive] [data-app-sidebar] {
+  visibility: hidden !important;
+}

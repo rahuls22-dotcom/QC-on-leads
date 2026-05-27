@@ -88,8 +88,22 @@ function GoalProgress({
   goal: ReturnType<typeof projectRollup> extends infer R ? R extends { goal: infer G } ? G : never : never;
 }) {
   if (!goal) return <span className="text-[11px] text-text-tertiary">no goal</span>;
+  // A target of 0 means the user hasn't set a goal — show a quiet placeholder
+  // instead of dividing by zero and rendering NaN%.
+  if (!goal.target || goal.target <= 0) {
+    return (
+      <div className="text-[11px] text-text-tertiary leading-[1.4]">
+        No goal set
+        <div className="text-[10px] text-text-tertiary opacity-70 mt-0.5">
+          Open project to add one
+        </div>
+      </div>
+    );
+  }
   const pct = Math.min(100, Math.round((goal.achieved / goal.target) * 100));
-  const expectedPct = Math.round((goal.daysElapsed / goal.daysTotal) * 100);
+  const expectedPct = goal.daysTotal
+    ? Math.round((goal.daysElapsed / goal.daysTotal) * 100)
+    : 0;
   const paceCls =
     goal.pace === "ahead"
       ? "pill-ok"

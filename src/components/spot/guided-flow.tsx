@@ -296,11 +296,11 @@ export function GuidedFlowModal() {
         className="fadeInScale"
         style={{
           position: "fixed",
-          top: "7vh",
+          top: "50%",
           left: "50%",
-          transform: "translateX(-50%)",
+          transform: "translate(-50%, -50%)",
           width: "min(880px, 94vw)",
-          maxHeight: "86vh",
+          maxHeight: "90vh",
           background: "#FFF",
           borderRadius: 14,
           boxShadow: "0 24px 80px rgba(0,0,0,0.18)",

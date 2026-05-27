@@ -6,36 +6,78 @@ import {
   X,
   Check,
   Sparkles,
-  FileText,
   Upload,
-  Edit3,
+  UploadCloud,
   ArrowRight,
-  Trash2,
   Plus,
-  Globe,
-  Image as ImageIcon,
+  Trash2,
   BookOpen,
   Users,
   Target,
+  Info,
+  Images,
+  Brain,
 } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
-import { useCurrentScope, useCurrentWorkspaceLabel } from "@/lib/workspace-store";
+import { useCurrentScope } from "@/lib/workspace-store";
 import { addRuntimeProject } from "@/lib/project-data";
 import { buildProjectFromDraft } from "@/lib/build-project";
 import { PersonaAvatar } from "@/components/project/deploy-steps";
 
-type Stage = "intent" | "brief" | "goal" | "personas" | "images" | "ready";
+type Stage = "intent" | "brief" | "personas" | "ready";
 
-type ProjectImage = { id: string; url: string; name: string; kind: "image" | "video" };
+/**
+ * Items living in Spot's visual-memory knowledge base. Two flavours:
+ *
+ * - `source: "extracted"` — surfaced by deep research. No real URL; we
+ *   render a hue-tinted gradient placeholder.
+ * - `source: "uploaded"` — the user dropped from their laptop. A blob
+ *   URL is set and we render the real preview.
+ */
+type ProjectImage = {
+  id: string;
+  source: "extracted" | "uploaded";
+  /** Blob URL for uploaded media. Undefined for extracted. */
+  url?: string;
+  name: string;
+  kind: "exterior" | "interior" | "amenity" | "floorplan" | "location";
+  /** Display tint for extracted placeholders + the builder's hash fallback. */
+  hue?: number;
+  /** "image" | "video" for uploaded items. Extracted items are all images. */
+  mediaKind?: "image" | "video";
+};
+
+type UploadedFile = {
+  id: string;
+  name: string;
+  size: string;
+  kind: "pdf" | "image" | "video" | "doc" | "other";
+};
 
 const STAGES: { key: Stage; label: string }[] = [
   { key: "intent", label: "Intent" },
   { key: "brief", label: "Brief" },
-  { key: "goal", label: "Goal" },
   { key: "personas", label: "Personas" },
-  { key: "images", label: "Images" },
   { key: "ready", label: "Ready" },
+];
+
+const IMAGE_KINDS: ProjectImage["kind"][] = [
+  "exterior",
+  "interior",
+  "amenity",
+  "floorplan",
+  "location",
+];
+
+/** Seed shape for the 6 mock images Spot "extracts" after Continue. */
+const EXTRACTED_IMAGE_SEEDS: Array<{ name: string; kind: ProjectImage["kind"]; hue: number }> = [
+  { name: "Tower exterior · golden hour", kind: "exterior", hue: 35 },
+  { name: "Living room mockup · 3 BHK", kind: "interior", hue: 200 },
+  { name: "Lobby render · ground floor", kind: "interior", hue: 280 },
+  { name: "Amenity deck · pool view", kind: "amenity", hue: 160 },
+  { name: "Site plan · master layout", kind: "floorplan", hue: 60 },
+  { name: "Kharadi locality map", kind: "location", hue: 320 },
 ];
 
 type PersonaDraft = {
@@ -52,8 +94,10 @@ type PersonaDraft = {
 };
 
 type Draft = {
-  source: "pdf" | "url" | "manual" | "deep-research";
-  sourceLabel: string;
+  /** Files the user dropped in Step 1. Spot pretends to "read" these. */
+  uploadedFiles: UploadedFile[];
+  /** Optional listing URL the user pasted in Step 1. */
+  sourceUrl: string;
   name: string;
   rera: string;
   micromarket: string;
@@ -120,8 +164,8 @@ const SEED_PERSONAS: PersonaDraft[] = [
 ];
 
 const SEED: Draft = {
-  source: "pdf",
-  sourceLabel: "Sky Gardens — Brand Book v2.pdf",
+  uploadedFiles: [],
+  sourceUrl: "",
   name: "Godrej Sky Gardens · Pune",
   rera: "PRM/MH/RERA/...",
   micromarket: "Kharadi · Pune East",
@@ -156,7 +200,243 @@ const SEED: Draft = {
 
 // ─── Atoms ────────────────────────────────────────────────────────────
 
-function ImageUploadPanel({
+// ─── Step 1: File drop area ────────────────────────────────────────────
+
+function inferFileKind(filename: string, mime: string): UploadedFile["kind"] {
+  const lower = filename.toLowerCase();
+  if (mime === "application/pdf" || lower.endsWith(".pdf")) return "pdf";
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (/\.(docx?|key|pptx?|pages)$/.test(lower)) return "doc";
+  return "other";
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileDropArea({
+  files,
+  onChange,
+  disabled,
+}: {
+  files: UploadedFile[];
+  onChange: (next: UploadedFile[]) => void;
+  disabled?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const ingest = (list: FileList | null) => {
+    if (!list || disabled) return;
+    const additions: UploadedFile[] = Array.from(list).map((f) => ({
+      id: `file-${Date.now()}-${f.name}`,
+      name: f.name,
+      size: formatSize(f.size),
+      kind: inferFileKind(f.name, f.type),
+    }));
+    onChange([...files, ...additions]);
+  };
+
+  const openPicker = () => {
+    if (disabled) return;
+    fileRef.current?.click();
+  };
+
+  const isEmpty = files.length === 0;
+
+  return (
+    <div>
+      <div
+        className="uplabel mb-1.5"
+        style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+      >
+        Attach anything <span className="text-text-tertiary normal-case">(optional)</span>
+      </div>
+
+      {/* The whole zone is the dropzone — empty state is a tall, obvious target;
+          once files are added it shrinks to a compact list with a footer rail. */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!disabled) setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          ingest(e.dataTransfer.files);
+        }}
+        role={isEmpty ? "button" : undefined}
+        tabIndex={isEmpty ? 0 : undefined}
+        onClick={isEmpty ? openPicker : undefined}
+        onKeyDown={
+          isEmpty
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openPicker();
+                }
+              }
+            : undefined
+        }
+        className="rounded-[10px] transition-all"
+        style={{
+          border: `${dragOver ? 2 : 1.5}px dashed ${
+            dragOver ? "#7C3AED" : isEmpty ? "#D4B870" : "#E0CC95"
+          }`,
+          background: dragOver
+            ? "#FAF5FF"
+            : isEmpty
+              ? "#FFFCF2"
+              : "#FFFDF6",
+          opacity: disabled ? 0.6 : 1,
+          cursor: isEmpty && !disabled ? "pointer" : "default",
+        }}
+      >
+        {isEmpty ? (
+          <div
+            className="flex flex-col items-center justify-center text-center px-4 py-7"
+            style={{ minHeight: 132 }}
+          >
+            <span
+              className="inline-flex items-center justify-center mb-2.5"
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: dragOver
+                  ? "linear-gradient(135deg, #EDE0FF 0%, #FBEFFF 100%)"
+                  : "#FFF6D9",
+                color: dragOver ? "#7C3AED" : "#9C6D00",
+                boxShadow: dragOver
+                  ? "0 4px 14px rgba(124,58,237,0.18)"
+                  : "0 1px 2px rgba(156,109,0,0.08)",
+                transition: "background 120ms, color 120ms, box-shadow 120ms",
+              }}
+            >
+              <UploadCloud size={20} strokeWidth={2} />
+            </span>
+            <div className="text-[13px] font-semibold leading-tight mb-1">
+              {dragOver ? "Release to attach" : "Drop files here"}
+            </div>
+            <div className="text-[11.5px] text-text-tertiary leading-[1.5] max-w-[320px]">
+              Brand book, brochure deck, site plan, listing PDF — anything you
+              have. Or{" "}
+              <span
+                className="font-medium"
+                style={{ color: "#7C3AED", textDecoration: "underline" }}
+              >
+                click to browse
+              </span>
+              .
+            </div>
+          </div>
+        ) : (
+          <div className="p-2.5">
+            <div className="space-y-1.5">
+              {files.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-[6px] group"
+                  style={{ background: "#FFF", border: "1px solid #EFE3C2" }}
+                >
+                  <FileKindIcon kind={f.kind} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-medium truncate">{f.name}</div>
+                    <div className="text-[10px] text-text-tertiary">
+                      <span className="uppercase">{f.kind}</span> · {f.size}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(files.filter((x) => x.id !== f.id))}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded-button text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-text-secondary"
+                    title="Remove"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={openPicker}
+              className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-[11.5px] text-text-secondary hover:text-text-primary py-1.5 rounded-[6px]"
+              style={{
+                border: "1px dashed #E0CC95",
+                background: "transparent",
+              }}
+            >
+              <Plus size={12} /> Drop more or click to add
+            </button>
+          </div>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          onChange={(e) => {
+            ingest(e.target.files);
+            e.target.value = "";
+          }}
+          style={{ display: "none" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FileKindIcon({ kind }: { kind: UploadedFile["kind"] }) {
+  const cfg = {
+    pdf: { label: "PDF", bg: "#FEE2E2", fg: "#B91C1C" },
+    image: { label: "IMG", bg: "#DBEAFE", fg: "#1D4ED8" },
+    video: { label: "MOV", bg: "#FCE7F3", fg: "#9D174D" },
+    doc: { label: "DOC", bg: "#DCFCE7", fg: "#15803D" },
+    other: { label: "FILE", bg: "var(--bg-secondary)", fg: "var(--text-2)" },
+  }[kind];
+  return (
+    <span
+      className="inline-flex items-center justify-center flex-shrink-0"
+      style={{
+        width: 30,
+        height: 30,
+        borderRadius: 5,
+        background: cfg.bg,
+        color: cfg.fg,
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.3px",
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Step 2: Knowledge base grid ───────────────────────────────────────
+
+const IMAGE_KIND_LABELS: Record<ProjectImage["kind"], string> = {
+  exterior: "exterior",
+  interior: "interior",
+  amenity: "amenity",
+  floorplan: "floorplan",
+  location: "location",
+};
+
+const IMAGE_KIND_COLORS: Record<ProjectImage["kind"], { bg: string; fg: string }> = {
+  exterior: { bg: "#FEF3C7", fg: "#92400E" },
+  interior: { bg: "#DBEAFE", fg: "#1E40AF" },
+  amenity: { bg: "#DCFCE7", fg: "#15803D" },
+  floorplan: { bg: "#FCE7F3", fg: "#9D174D" },
+  location: { bg: "#E0E7FF", fg: "#3730A3" },
+};
+
+function KnowledgeBaseGrid({
   images,
   onChange,
 }: {
@@ -170,73 +450,119 @@ function ImageUploadPanel({
     const additions: ProjectImage[] = [];
     Array.from(files).forEach((f) => {
       const url = URL.createObjectURL(f);
-      const kind: "image" | "video" = f.type.startsWith("video") ? "video" : "image";
-      additions.push({ id: `img-${Date.now()}-${f.name}`, url, name: f.name, kind });
+      const mediaKind: "image" | "video" = f.type.startsWith("video") ? "video" : "image";
+      additions.push({
+        id: `uploaded-${Date.now()}-${f.name}`,
+        source: "uploaded",
+        url,
+        name: f.name,
+        kind: "exterior", // default kind; user can re-tag
+        mediaKind,
+      });
     });
     onChange([...images, ...additions]);
   };
 
+  const cycleKind = (img: ProjectImage) => {
+    const idx = IMAGE_KINDS.indexOf(img.kind);
+    const nextKind = IMAGE_KINDS[(idx + 1) % IMAGE_KINDS.length];
+    onChange(images.map((x) => (x.id === img.id ? { ...x, kind: nextKind } : x)));
+  };
+
   return (
     <div>
+      <div className="text-[11.5px] text-text-tertiary leading-[1.5] mb-3">
+        Spot uses these as creative source material. Click a type badge to re-tag, or remove
+        anything off-brand. Upload your own to bias generation.
+      </div>
       <div
-        className="grid gap-3 mb-3"
+        className="grid gap-2.5"
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}
       >
         {images.map((img) => (
           <div
             key={img.id}
-            className="card-base p-2 flex flex-col gap-2"
+            className="card-base overflow-hidden flex flex-col group relative"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <div
               style={{
                 width: "100%",
                 aspectRatio: "1 / 1",
-                borderRadius: 6,
-                overflow: "hidden",
-                background: "#000",
+                position: "relative",
+                background:
+                  img.source === "uploaded" && img.url
+                    ? "#000"
+                    : `repeating-linear-gradient(135deg, oklch(0.9 0.05 ${img.hue ?? 0}) 0 8px, oklch(0.82 0.06 ${(img.hue ?? 0) + 30}) 8px 16px)`,
               }}
             >
-              {img.kind === "image" ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={img.url}
-                  alt={img.name}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <video
-                  src={img.url}
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] truncate flex-1">{img.name}</span>
+              {img.source === "uploaded" && img.url ? (
+                img.mediaKind === "video" ? (
+                  <video
+                    src={img.url}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={img.url}
+                    alt={img.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                )
+              ) : null}
+
+              {/* Type badge — click to cycle */}
+              <button
+                type="button"
+                onClick={() => cycleKind(img)}
+                className="absolute top-1.5 left-1.5 inline-flex items-center h-5 px-1.5 rounded-[4px] text-[9.5px] font-semibold uppercase tracking-wide"
+                style={{
+                  background: IMAGE_KIND_COLORS[img.kind].bg,
+                  color: IMAGE_KIND_COLORS[img.kind].fg,
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                }}
+                title="Click to re-tag"
+              >
+                {IMAGE_KIND_LABELS[img.kind]}
+              </button>
+
+              {/* Remove */}
               <button
                 type="button"
                 onClick={() => onChange(images.filter((x) => x.id !== img.id))}
-                className="inline-flex items-center justify-center h-6 w-6 rounded-button text-text-tertiary hover:bg-surface-page"
+                className="absolute top-1.5 right-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ background: "rgba(0,0,0,0.55)" }}
                 title="Remove"
               >
-                <Trash2 size={11} />
+                <X size={11} />
               </button>
+            </div>
+            <div className="px-2 py-1.5">
+              <div className="text-[10.5px] font-medium truncate" title={img.name}>
+                {img.name}
+              </div>
+              <div className="text-[9.5px] text-text-tertiary">
+                {img.source === "extracted" ? "from web" : "uploaded"}
+              </div>
             </div>
           </div>
         ))}
+
+        {/* Upload tile */}
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="inline-flex flex-col items-center justify-center gap-1.5 rounded-[8px] border-2 border-dashed border-border bg-white text-text-secondary hover:border-border-hover hover:bg-surface-page"
-          style={{ aspectRatio: "1 / 1.15", minHeight: 140 }}
+          className="inline-flex flex-col items-center justify-center gap-1 rounded-[8px] border-2 border-dashed border-border bg-white text-text-secondary hover:border-border-hover hover:bg-surface-page"
+          style={{ aspectRatio: "1 / 1.18", minHeight: 140 }}
         >
-          <Upload size={18} />
-          <span className="text-[11.5px] font-medium">Add image / video</span>
-          <span className="text-[10px] text-text-tertiary">drag or click</span>
+          <Upload size={16} />
+          <span className="text-[11px] font-medium">Upload</span>
+          <span className="text-[9.5px] text-text-tertiary">from laptop</span>
         </button>
         <input
           ref={fileRef}
@@ -249,11 +575,6 @@ function ImageUploadPanel({
           }}
           style={{ display: "none" }}
         />
-      </div>
-      <div className="text-[11px] text-text-tertiary leading-[1.5]">
-        <ImageIcon size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
-        Exteriors, interiors, amenities, site-visit clips — anything I can use in creatives. You
-        can always add more later from the project page.
       </div>
     </div>
   );
@@ -280,92 +601,99 @@ function SpotBubble({ children }: { children: React.ReactNode }) {
 function DraftCard({
   children,
   label = "Spot's draft",
+  hideLabel,
 }: {
   children: React.ReactNode;
   label?: string;
+  hideLabel?: boolean;
 }) {
   return (
     <div
-      className="rounded-[10px] p-4 mb-3 fadeUp"
-      style={{ background: "#FFFDF6", border: "1px solid #E8C97A" }}
+      className="rounded-[12px] p-4 mb-3 fadeUp"
+      style={{
+        background: "#FFFEFA",
+        border: "1px solid #EFE3C2",
+      }}
     >
-      <div className="uplabel mb-3 flex items-center gap-1.5" style={{ fontSize: 10 }}>
-        <Sparkles size={11} style={{ color: "#9C6D00" }} />
-        {label}
-      </div>
+      {!hideLabel && (
+        <div
+          className="uplabel mb-3 flex items-center gap-1.5"
+          style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+        >
+          <Sparkles size={10.5} style={{ color: "#B98A14" }} />
+          {label}
+        </div>
+      )}
       {children}
     </div>
   );
 }
 
-function Field({
+/**
+ * Tighter field for dense grids — the input has a soft underline on hover
+ * rather than the heavier framed look. Used in the brief stage where many
+ * facts share one card.
+ */
+function CompactField({
   label,
   value,
   onChange,
-  long,
-  rows,
+  span = 1,
+  provenance,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  long?: boolean;
-  rows?: number;
+  span?: number;
+  /** Small chip below the field showing where Spot pulled this value from. */
+  provenance?: string;
 }) {
   return (
-    <div className="mb-3">
-      <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1">
+    <div style={{ gridColumn: `span ${span} / span ${span}`, minWidth: 0 }}>
+      <div
+        className="uplabel mb-1"
+        style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+      >
         {label}
       </div>
-      {long ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={rows || 2}
-          className="w-full text-[13px] outline-none rounded px-2 py-1.5"
-          style={{ border: "1px solid #C9A86A", background: "#FFFEF8" }}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full text-[13px] outline-none rounded px-2 py-1.5"
-          style={{ border: "1px solid #C9A86A", background: "#FFFEF8" }}
-        />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full outline-none rounded-[6px] px-2 py-1.5 text-[12.5px]"
+        style={{
+          border: "1px solid transparent",
+          background: "#FFF",
+          boxShadow: "inset 0 0 0 1px #EFE3C2",
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow = "inset 0 0 0 1.5px #C9A86A";
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = "inset 0 0 0 1px #EFE3C2";
+        }}
+      />
+      {provenance && (
+        <div
+          className="inline-flex items-center gap-1 mt-1 text-[9.5px] text-text-tertiary leading-tight"
+          title={`Source: ${provenance}`}
+        >
+          <Info size={9} style={{ flexShrink: 0 }} />
+          <span className="truncate">{provenance}</span>
+        </div>
       )}
     </div>
   );
 }
 
-function DerivedCostCard({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-[8px] p-2.5"
-      style={{
-        border: highlight ? "1px solid #1A1A1A" : "1px solid var(--border)",
-        background: highlight ? "#FAF7FF" : "#FFF",
-      }}
-    >
-      <div className="text-[9.5px] uppercase tracking-[0.4px] text-text-tertiary font-semibold mb-1">
-        {label}
-      </div>
-      <div className="text-[16px] font-semibold tabular-nums leading-tight">{value}</div>
-      <div className="text-[10.5px] text-text-tertiary mt-0.5 tabular-nums">{sub}</div>
-    </div>
-  );
-}
-
-function ListField({
+/**
+ * Compact chip-style editable list. Used in the Brief stage's positioning
+ * section so three lists can sit side-by-side without overwhelming.
+ *
+ * Each value is a one-line input with a tiny "x" remove. New rows are
+ * added via the bottom "Add…" field that commits on Enter.
+ */
+function ChipList({
   label,
   values,
   onChange,
@@ -376,17 +704,28 @@ function ListField({
   onChange: (next: string[]) => void;
   placeholder?: string;
 }) {
+  const [draftText, setDraftText] = useState("");
+  const commit = () => {
+    const v = draftText.trim();
+    if (!v) return;
+    onChange([...values, v]);
+    setDraftText("");
+  };
   return (
-    <div className="mb-2.5">
-      <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1">
+    <div className="min-w-0">
+      <div
+        className="uplabel mb-1.5"
+        style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+      >
         {label}
       </div>
-      <div
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
-      >
+      <div className="space-y-1">
         {values.map((v, i) => (
-          <div key={i} className="group relative">
+          <div
+            key={i}
+            className="flex items-center gap-1 group rounded-[6px] px-2 py-1"
+            style={{ background: "#FFF", border: "1px solid #EFE3C2" }}
+          >
             <input
               type="text"
               value={v}
@@ -395,27 +734,37 @@ function ListField({
                 next[i] = e.target.value;
                 onChange(next);
               }}
-              className="w-full text-[12px] outline-none rounded pl-2 pr-6 py-1 leading-tight"
-              style={{ border: "1px solid #C9A86A", background: "#FFFEF8", height: 26 }}
+              className="flex-1 outline-none bg-transparent text-[11.5px] leading-[1.35] min-w-0"
             />
             <button
               type="button"
               onClick={() => onChange(values.filter((_, j) => j !== i))}
-              className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-5 w-5 rounded text-text-tertiary opacity-0 group-hover:opacity-100 hover:bg-white"
+              className="inline-flex items-center justify-center h-4 w-4 rounded-button text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-text-secondary transition-opacity"
               title="Remove"
             >
-              <Trash2 size={10} />
+              <X size={10} />
             </button>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={() => onChange([...values, ""])}
-          className="inline-flex items-center justify-center gap-1 rounded text-[11px] text-text-tertiary hover:text-text-secondary border border-dashed border-border bg-white/40 hover:bg-white"
-          style={{ height: 26 }}
-        >
-          <Plus size={10} /> Add {placeholder || "item"}
-        </button>
+        <input
+          type="text"
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          onBlur={commit}
+          placeholder={placeholder}
+          className="w-full outline-none rounded-[6px] px-2 py-1 text-[11.5px]"
+          style={{
+            border: "1px dashed #E0CC95",
+            background: "transparent",
+            color: "var(--text-1)",
+          }}
+        />
       </div>
     </div>
   );
@@ -910,13 +1259,13 @@ export function CreateProjectFlow({
   onComplete: (id: string, action: "view" | "creatives") => void;
 }) {
   const [stage, setStage] = useState<Stage>("intent");
+  const [autoMode, setAutoMode] = useState(false);
   const [draft, setDraft] = useState<Draft>(SEED);
   const [researching, setResearching] = useState(false);
   const [researchFindings, setResearchFindings] = useState<string[]>([]);
   const [projectImages, setProjectImages] = useState<ProjectImage[]>([]);
   const showToast = useSpotStore((s) => s.showToast);
   const scope = useCurrentScope();
-  const workspaceLabel = useCurrentWorkspaceLabel();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -972,27 +1321,112 @@ export function CreateProjectFlow({
 
   const personaCount = draft.personas.length;
 
-  const startDeepResearch = () => {
-    setDraft({ ...draft, source: "deep-research", sourceLabel: "Deep research · web + RERA + builder pages" });
+  // Auto mode: when enabled, the agent advances stages without waiting for
+  // a click. We stop at the Ready screen and then auto-trigger the "Build
+  // creative angles" CTA — after that, CreativesFlow runs its own generation
+  // and stops at its ready screen, where manual approval kicks in again.
+  //
+  // We hold the running timer on a ref so toggling Auto off mid-stride
+  // (or unmounting) cancels cleanly.
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autoTimerRef.current) {
+      clearTimeout(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
+    if (!autoMode) return;
+    if (researching) return; // wait for deep research to finish first
+    if (stage === "intent") return; // user picks the source manually
+    if (stage === "personas" && personaCount === 0) return; // wait for reveals
+
+    const advance = () => {
+      const idx = STAGES.findIndex((s) => s.key === stage);
+      if (stage === "ready") {
+        // Trigger the "Build creative angles" CTA programmatically
+        const id = persistProject();
+        showToast("Auto mode — drafting creative angles next");
+        onComplete(id, "creatives");
+        return;
+      }
+      if (idx >= 0 && idx < STAGES.length - 1) {
+        setStage(STAGES[idx + 1].key);
+      }
+    };
+
+    // Personas needs longer because seeded reveal takes 600 + 1100ms × N
+    // Personas needs longer because reveal is staggered. Brief gets a bit
+    // more breathing room than other stages since there's more to verify.
+    const delay = stage === "personas" ? 4500 : stage === "brief" ? 2500 : 2200;
+    autoTimerRef.current = setTimeout(advance, delay);
+
+    return () => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+        autoTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, stage, researching, personaCount]);
+
+  /**
+   * Unified entry point from Step 1. Builds a streaming finding list that
+   * adapts to whatever the user provided (files, URL, or nothing), then
+   * seeds Spot's visual-memory `projectImages` with mocked extractions
+   * and transitions to the brief stage.
+   */
+  const startResearch = () => {
     setResearching(true);
     setResearchFindings([]);
-    const findings = [
-      "Reading the project listing page and brand microsite…",
+
+    const findings: string[] = [];
+    if (draft.uploadedFiles.length > 0) {
+      const first = draft.uploadedFiles[0];
+      const more =
+        draft.uploadedFiles.length > 1
+          ? ` and ${draft.uploadedFiles.length - 1} more file${
+              draft.uploadedFiles.length === 2 ? "" : "s"
+            }`
+          : "";
+      findings.push(`Reading ${first.name}${more}…`);
+    }
+    if (draft.sourceUrl) {
+      try {
+        const host = new URL(
+          draft.sourceUrl.startsWith("http") ? draft.sourceUrl : "https://" + draft.sourceUrl,
+        ).hostname;
+        findings.push(`Following ${host}…`);
+      } catch {
+        findings.push("Following the listing URL you pasted…");
+      }
+    }
+    findings.push(
       "Cross-referencing the RERA registry for registered milestones…",
       "Pulling comparable per-sqft pricing from 4 nearby launches…",
       "Scanning locality reports for proximity and infrastructure signals…",
-      "Drafting USPs and key benefits from builder + locality data…",
-    ];
+      "Pulling project images from the builder microsite + comparable launches…",
+      "Drafting USPs and key benefits…",
+    );
+
     findings.forEach((f, i) => {
       setTimeout(() => {
         setResearchFindings((prev) => [...prev, f]);
         if (i === findings.length - 1) {
           setTimeout(() => {
+            // Seed Spot's visual memory with mock extracted images
+            setProjectImages(
+              EXTRACTED_IMAGE_SEEDS.map((seed, idx) => ({
+                id: `extracted-${idx}`,
+                source: "extracted" as const,
+                name: seed.name,
+                kind: seed.kind,
+                hue: seed.hue,
+              })),
+            );
             setResearching(false);
             setStage("brief");
           }, 600);
         }
-      }, 700 * (i + 1));
+      }, 600 * (i + 1));
     });
   };
 
@@ -1007,10 +1441,11 @@ export function CreateProjectFlow({
           inset: 0,
           zIndex: 100,
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "5vh 16px",
+          padding: "4vh 16px",
           pointerEvents: "none",
+          overflowY: "auto",
         }}
       >
       <div
@@ -1038,6 +1473,7 @@ export function CreateProjectFlow({
               Set up a new project knowledge base
             </div>
           </div>
+          <AutoModeToggle value={autoMode} onChange={setAutoMode} />
           <button
             type="button"
             onClick={onClose}
@@ -1056,56 +1492,74 @@ export function CreateProjectFlow({
           {stage === "intent" && (
             <>
               <SpotBubble>
-                Let&apos;s set up your new project. The fastest path: <strong>Deep research</strong> —
-                I&apos;ll scan the web, builder pages, the RERA registry, and comparable launches. Or
-                drop a PDF, paste a URL, or fill it in yourself.
+                Let&apos;s set up your project. Name it, drop anything you have — a brand book,
+                listing link, anything — and I&apos;ll scan the web for the rest.
               </SpotBubble>
-              <DraftCard>
-                <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-                  {[
-                    { k: "deep-research", label: "Deep research", sub: "Spot scans the web for you", Icon: Globe },
-                    { k: "pdf", label: "Upload PDF", sub: "Brand book or sales deck", Icon: Upload },
-                    { k: "url", label: "Paste URL", sub: "Project listing page", Icon: FileText },
-                    { k: "manual", label: "Manual fill", sub: "Type it in yourself", Icon: Edit3 },
-                  ].map(({ k, label, sub, Icon }) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setDraft({ ...draft, source: k as Draft["source"] })}
-                      disabled={researching}
-                      className="card-base text-left p-3 flex flex-col items-start gap-1"
-                      style={{
-                        background: draft.source === k ? "#1A1A1A" : "#FFF",
-                        color: draft.source === k ? "#FFF" : "var(--text-1)",
-                        borderColor: draft.source === k ? "#1A1A1A" : "var(--border)",
-                        opacity: researching ? 0.6 : 1,
-                      }}
-                    >
-                      <Icon size={15} />
-                      <span className="text-[12.5px] font-medium">{label}</span>
-                      <span
-                        className="text-[10.5px]"
-                        style={{ color: draft.source === k ? "rgba(255,255,255,0.7)" : "var(--text-tertiary)" }}
-                      >
-                        {sub}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {draft.source !== "deep-research" && (
-                  <Field
-                    label="Source label"
-                    value={draft.sourceLabel}
-                    onChange={(v) => setDraft({ ...draft, sourceLabel: v })}
-                  />
-                )}
-                {draft.source === "deep-research" && (
-                  <Field
-                    label="Project name or URL to research"
+              <DraftCard hideLabel>
+                {/* Project name */}
+                <div className="mb-4">
+                  <div
+                    className="uplabel mb-1.5"
+                    style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+                  >
+                    Project name
+                  </div>
+                  <input
+                    type="text"
                     value={draft.name}
-                    onChange={(v) => setDraft({ ...draft, name: v })}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    placeholder="e.g. Godrej Sky Gardens · Pune"
+                    disabled={researching}
+                    className="w-full outline-none rounded-[8px] px-3 py-2.5"
+                    style={{
+                      border: "1px solid #E0CC95",
+                      background: "#FFF",
+                      fontSize: 15,
+                      fontWeight: 500,
+                      opacity: researching ? 0.6 : 1,
+                    }}
                   />
-                )}
+                </div>
+
+                {/* File drop area */}
+                <FileDropArea
+                  files={draft.uploadedFiles}
+                  onChange={(next) => setDraft({ ...draft, uploadedFiles: next })}
+                  disabled={researching}
+                />
+
+                {/* URL input */}
+                <div className="mt-4">
+                  <div
+                    className="uplabel mb-1.5"
+                    style={{ fontSize: 9.5, color: "#9C6D00", letterSpacing: "0.4px" }}
+                  >
+                    Project listing URL <span className="text-text-tertiary normal-case">(optional)</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={draft.sourceUrl}
+                    onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
+                    placeholder="https://godrejproperties.com/projects/sky-gardens"
+                    disabled={researching}
+                    className="w-full outline-none rounded-[8px] px-3 py-2"
+                    style={{
+                      border: "1px solid #E0CC95",
+                      background: "#FFF",
+                      fontSize: 13,
+                      opacity: researching ? 0.6 : 1,
+                    }}
+                  />
+                </div>
+
+                {/* Reassurance about web research */}
+                <div className="flex items-start gap-1.5 mt-3 text-[11px] text-text-tertiary leading-[1.5]">
+                  <Sparkles size={11} style={{ color: "#B98A14", flexShrink: 0, marginTop: 2 }} />
+                  <span>
+                    Spot will research the web too — RERA registry, builder pages, comparable
+                    launches in the same micromarket.
+                  </span>
+                </div>
               </DraftCard>
 
               {researching && (
@@ -1144,241 +1598,227 @@ export function CreateProjectFlow({
               )}
 
               <div className="flex justify-end">
-                {draft.source === "deep-research" ? (
-                  <button
-                    type="button"
-                    className="apply-btn"
-                    onClick={startDeepResearch}
-                    disabled={researching}
-                  >
-                    <Sparkles size={11} /> {researching ? "Researching…" : "Run deep research →"}
-                  </button>
-                ) : (
-                  <button type="button" className="apply-btn" onClick={next}>
-                    Got it — extract the basics →
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {stage === "brief" && (
-            <>
-              <SpotBubble>
-                {draft.source === "deep-research" ? (
-                  <>
-                    Synthesized from the web — builder microsite, RERA registry, locality reports,
-                    and 4 comparable launches in <strong>{draft.micromarket}</strong>. Tap any value
-                    to edit.
-                  </>
-                ) : (
-                  <>Pulled from <strong>{draft.sourceLabel}</strong>. Tap any value to edit.</>
-                )}
-              </SpotBubble>
-              <DraftCard label="Extracted brief">
-                <div className="space-y-5">
-                  <div>
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-secondary font-semibold mb-2">
-                      Project basics
-                    </div>
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "2fr 1fr" }}>
-                      <Field
-                        label="Project name"
-                        value={draft.name}
-                        onChange={(v) => setDraft({ ...draft, name: v })}
-                      />
-                      <Field
-                        label="RERA"
-                        value={draft.rera}
-                        onChange={(v) => setDraft({ ...draft, rera: v })}
-                      />
-                    </div>
-                    <Field
-                      label="Micromarket"
-                      value={draft.micromarket}
-                      onChange={(v) => setDraft({ ...draft, micromarket: v })}
-                    />
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                      <Field
-                        label="Typology"
-                        value={draft.typology}
-                        onChange={(v) => setDraft({ ...draft, typology: v })}
-                      />
-                      <Field
-                        label="Possession"
-                        value={draft.possession}
-                        onChange={(v) => setDraft({ ...draft, possession: v })}
-                      />
-                    </div>
-                    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                      <Field
-                        label="Price band"
-                        value={draft.priceBand}
-                        onChange={(v) => setDraft({ ...draft, priceBand: v })}
-                      />
-                      <Field
-                        label="Price per sqft"
-                        value={draft.pricePerSqft}
-                        onChange={(v) => setDraft({ ...draft, pricePerSqft: v })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-1 border-t border-[#E8C97A]">
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-secondary font-semibold mt-3 mb-2">
-                      Positioning
-                    </div>
-                    <ListField
-                      label="Key USPs"
-                      values={draft.keyUSPs}
-                      onChange={(next) => setDraft({ ...draft, keyUSPs: next })}
-                      placeholder="USP"
-                    />
-                    <ListField
-                      label="Location proximity"
-                      values={draft.locationProximity}
-                      onChange={(next) => setDraft({ ...draft, locationProximity: next })}
-                      placeholder="landmark"
-                    />
-                    <ListField
-                      label="Key benefits"
-                      values={draft.keyBenefits}
-                      onChange={(next) => setDraft({ ...draft, keyBenefits: next })}
-                      placeholder="benefit"
-                    />
-                  </div>
-                </div>
-              </DraftCard>
-              <div className="flex justify-between">
                 <button
                   type="button"
-                  className="inline-flex items-center h-8 px-3 rounded-button border border-border bg-white text-[12.5px]"
-                  onClick={prev}
+                  className="apply-btn"
+                  onClick={startResearch}
+                  disabled={researching || !draft.name.trim()}
+                  style={{
+                    opacity: researching || !draft.name.trim() ? 0.5 : 1,
+                    cursor: researching || !draft.name.trim() ? "not-allowed" : "pointer",
+                  }}
                 >
-                  Back
-                </button>
-                <button type="button" className="apply-btn" onClick={next}>
-                  Looks right — set the goal →
+                  <Sparkles size={11} />{" "}
+                  {researching ? "Researching…" : "Continue — research project →"}
                 </button>
               </div>
             </>
           )}
 
-          {stage === "goal" && (() => {
-            const VERIF_RATE = 0.5; // ~50% of leads verify (industry typical)
-            const QUAL_RATE = 0.55; // qual as % of verified
-            const target = Number(draft.goalTarget) || 0;
-            const budget = Number(draft.budgetTotal) || 0;
-            let leadsTarget = 0;
-            let verifTarget = 0;
-            let qualTarget = 0;
-            if (draft.goalKind === "leads") {
-              leadsTarget = target;
-              verifTarget = target * VERIF_RATE;
-              qualTarget = verifTarget * QUAL_RATE;
-            } else if (draft.goalKind === "verified") {
-              verifTarget = target;
-              leadsTarget = target / VERIF_RATE;
-              qualTarget = target * QUAL_RATE;
-            } else {
-              qualTarget = target;
-              verifTarget = target / QUAL_RATE;
-              leadsTarget = verifTarget / VERIF_RATE;
-            }
-            const cpl = leadsTarget ? budget / leadsTarget : 0;
-            const cpvl = verifTarget ? budget / verifTarget : 0;
-            const cpql = qualTarget ? budget / qualTarget : 0;
-            const fmt = (n: number) => {
-              if (!isFinite(n) || n <= 0) return "—";
-              return "₹" + Math.round(n).toLocaleString("en-IN");
-            };
+          {stage === "brief" && (() => {
+            // Build provenance strings keyed on what the user actually provided.
+            // The first uploaded file (if any) gets credit for most identity/pricing
+            // facts; everything else falls back to "web research".
+            const firstFile = draft.uploadedFiles[0];
+            const fromFile = firstFile ? `from ${firstFile.name}` : null;
+            const fromWeb = "from web research";
+            const fromRera = "from RERA registry";
+            const fromLocality = "from locality reports";
+            const fromComps = "from comparable launches";
+            const synthesisLine =
+              draft.uploadedFiles.length > 0 && draft.sourceUrl
+                ? `Synthesized from your ${draft.uploadedFiles.length} file${draft.uploadedFiles.length === 1 ? "" : "s"}, the link you pasted, and web research.`
+                : draft.uploadedFiles.length > 0
+                ? `Synthesized from your ${draft.uploadedFiles.length} file${draft.uploadedFiles.length === 1 ? "" : "s"} and web research.`
+                : draft.sourceUrl
+                ? "Synthesized from the link you pasted and web research."
+                : "Synthesized from web research.";
+
             return (
               <>
                 <SpotBubble>
-                  Goal: <strong>{target || "—"} {draft.goalKind} leads</strong> in{" "}
-                  <strong>{draft.goalWindow}</strong>. At a <strong>{fmt(budget)}</strong> budget
-                  that lands you at ~<strong>{fmt(cpvl)} per verified lead</strong>, ~
-                  <strong>{fmt(cpql)} per qualified</strong>. Recheck the budget if any of those
-                  look off.
+                  Here&apos;s what I pulled together. Verify each section — these go into my
+                  memory and shape every persona and creative from now on.
                 </SpotBubble>
-                <DraftCard label="Goal proposal">
-                  <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-2">
-                    Goal kind
-                  </div>
-                  <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                    {(["leads", "verified", "qualified"] as const).map((k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, goalKind: k })}
-                        className="card-base text-left p-2.5"
-                        style={{
-                          background: draft.goalKind === k ? "#1A1A1A" : "#FFF",
-                          color: draft.goalKind === k ? "#FFF" : "var(--text-1)",
-                          borderColor: draft.goalKind === k ? "#1A1A1A" : "var(--border)",
-                        }}
+
+                {/* Knowledge-base section header — frames the two cards below as
+                    the agent's persistent memory for this project. */}
+                <div
+                  className="rounded-[12px] mb-4 fadeUp"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #F4ECFF 0%, #FFFCF2 100%)",
+                    border: "1px solid #DCC8FF",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className="inline-flex items-center justify-center flex-shrink-0"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        background:
+                          "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+                        color: "#FFF",
+                        boxShadow: "0 4px 10px rgba(124,58,237,0.22)",
+                      }}
+                    >
+                      <Brain size={15} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="uplabel"
+                        style={{ fontSize: 9.5, color: "#7C3AED", letterSpacing: "0.5px" }}
                       >
-                        <div className="text-[12.5px] font-medium capitalize">{k} leads</div>
-                        {k === "verified" && (
-                          <div
-                            className="text-[10.5px] mt-0.5"
-                            style={{
-                              color:
-                                draft.goalKind === k
-                                  ? "rgba(255,255,255,0.7)"
-                                  : "var(--text-tertiary)",
-                            }}
-                          >
-                            Spot recommends
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                    <Field
-                      label="Target count"
-                      value={draft.goalTarget}
-                      onChange={(v) => setDraft({ ...draft, goalTarget: v })}
-                    />
-                    <Field
-                      label="Window"
-                      value={draft.goalWindow}
-                      onChange={(v) => setDraft({ ...draft, goalWindow: v })}
-                    />
-                  </div>
-                  <Field
-                    label="Total budget (₹)"
-                    value={draft.budgetTotal}
-                    onChange={(v) =>
-                      setDraft({ ...draft, budgetTotal: v.replace(/[^0-9]/g, "") })
-                    }
-                  />
-                  <div className="mt-3 pt-3 border-t border-[#E8C97A]">
-                    <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-2">
-                      Derived costs
+                        Knowledge base
+                      </div>
+                      <div className="text-[13.5px] font-semibold leading-tight mt-0.5 mb-1">
+                        Spot&apos;s memory for this project
+                      </div>
+                      <div className="text-[11.5px] text-text-secondary leading-[1.55]">
+                        Project facts (below) and visual references (further below)
+                        are what Spot remembers. Edit anything that&apos;s wrong — every
+                        persona, ad and recommendation downstream uses this.
+                      </div>
                     </div>
-                    <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                      <DerivedCostCard
-                        label="CPL"
-                        value={fmt(cpl)}
-                        sub={`${Math.round(leadsTarget).toLocaleString("en-IN")} leads`}
+                  </div>
+                </div>
+
+                <DraftCard label="Knowledge base · Project facts">
+                  <div className="text-[11px] text-text-tertiary leading-[1.5] mb-4">
+                    {synthesisLine} Tap any value to edit.
+                  </div>
+
+                  {/* Identity */}
+                  <div className="mb-4">
+                    <div
+                      className="text-[10.5px] uppercase tracking-[0.5px] font-semibold mb-2"
+                      style={{ color: "#9C6D00" }}
+                    >
+                      Identity
+                    </div>
+                    <div
+                      className="grid gap-x-3 gap-y-3"
+                      style={{ gridTemplateColumns: "1fr 1fr" }}
+                    >
+                      <CompactField
+                        label="Project name"
+                        value={draft.name}
+                        onChange={(v) => setDraft({ ...draft, name: v })}
+                        provenance={fromFile || fromWeb}
                       />
-                      <DerivedCostCard
-                        label="CPVL"
-                        value={fmt(cpvl)}
-                        sub={`${Math.round(verifTarget).toLocaleString("en-IN")} verified`}
-                        highlight={draft.goalKind === "verified"}
+                      <CompactField
+                        label="RERA"
+                        value={draft.rera}
+                        onChange={(v) => setDraft({ ...draft, rera: v })}
+                        provenance={fromRera}
                       />
-                      <DerivedCostCard
-                        label="CPQL"
-                        value={fmt(cpql)}
-                        sub={`${Math.round(qualTarget).toLocaleString("en-IN")} qualified`}
-                        highlight={draft.goalKind === "qualified"}
+                      <CompactField
+                        label="Builder"
+                        value="Godrej Properties"
+                        onChange={() => {}}
+                        provenance={fromFile || fromWeb}
+                      />
+                      <CompactField
+                        label="Micromarket"
+                        value={draft.micromarket}
+                        onChange={(v) => setDraft({ ...draft, micromarket: v })}
+                        provenance={fromLocality}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pricing & timeline */}
+                  <div
+                    className="pt-4 mb-4"
+                    style={{ borderTop: "1px solid #EFE3C2" }}
+                  >
+                    <div
+                      className="text-[10.5px] uppercase tracking-[0.5px] font-semibold mb-2"
+                      style={{ color: "#9C6D00" }}
+                    >
+                      Pricing & timeline
+                    </div>
+                    <div
+                      className="grid gap-x-3 gap-y-3"
+                      style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}
+                    >
+                      <CompactField
+                        label="Typology"
+                        value={draft.typology}
+                        onChange={(v) => setDraft({ ...draft, typology: v })}
+                        provenance={fromFile || fromWeb}
+                      />
+                      <CompactField
+                        label="Price band"
+                        value={draft.priceBand}
+                        onChange={(v) => setDraft({ ...draft, priceBand: v })}
+                        provenance={fromFile || fromComps}
+                      />
+                      <CompactField
+                        label="Price / sqft"
+                        value={draft.pricePerSqft}
+                        onChange={(v) => setDraft({ ...draft, pricePerSqft: v })}
+                        provenance={fromComps}
+                      />
+                      <CompactField
+                        label="Possession"
+                        value={draft.possession}
+                        onChange={(v) => setDraft({ ...draft, possession: v })}
+                        provenance={fromRera}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Positioning */}
+                  <div className="pt-4" style={{ borderTop: "1px solid #EFE3C2" }}>
+                    <div
+                      className="text-[10.5px] uppercase tracking-[0.5px] font-semibold mb-2"
+                      style={{ color: "#9C6D00" }}
+                    >
+                      Positioning
+                    </div>
+                    <div
+                      className="grid gap-3"
+                      style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
+                    >
+                      <ChipList
+                        label="Key USPs"
+                        values={draft.keyUSPs}
+                        onChange={(next) => setDraft({ ...draft, keyUSPs: next })}
+                        placeholder="Add a USP…"
+                      />
+                      <ChipList
+                        label="Location proximity"
+                        values={draft.locationProximity}
+                        onChange={(next) => setDraft({ ...draft, locationProximity: next })}
+                        placeholder="Add a landmark…"
+                      />
+                      <ChipList
+                        label="Key benefits"
+                        values={draft.keyBenefits}
+                        onChange={(next) => setDraft({ ...draft, keyBenefits: next })}
+                        placeholder="Add a benefit…"
                       />
                     </div>
                   </div>
                 </DraftCard>
+
+                <DraftCard label="Knowledge base · Visual references">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Images size={14} style={{ color: "#B98A14" }} />
+                    <span className="text-[12.5px] font-semibold">
+                      Images Spot found · {projectImages.length}
+                    </span>
+                  </div>
+                  <KnowledgeBaseGrid
+                    images={projectImages}
+                    onChange={setProjectImages}
+                  />
+                </DraftCard>
+
                 <div className="flex justify-between">
                   <button
                     type="button"
@@ -1388,7 +1828,7 @@ export function CreateProjectFlow({
                     Back
                   </button>
                   <button type="button" className="apply-btn" onClick={next}>
-                    Set goal — draft personas →
+                    Looks right — draft personas →
                   </button>
                 </div>
               </>
@@ -1427,45 +1867,7 @@ export function CreateProjectFlow({
             </>
           )}
 
-          {stage === "images" && (
-            <>
-              <SpotBubble>
-                Got any project images I should pull from? Exteriors, interiors, amenities, a site
-                visit reel — anything I can use in your creatives later. Drop them here, or skip if
-                we&apos;ll grab them from the brand book.
-              </SpotBubble>
-              <DraftCard label="Project images">
-                <ImageUploadPanel images={projectImages} onChange={setProjectImages} />
-              </DraftCard>
-              <div className="flex justify-between mt-4">
-                <button
-                  type="button"
-                  className="inline-flex items-center h-8 px-3 rounded-button border border-border bg-white text-[12.5px]"
-                  onClick={prev}
-                >
-                  Back
-                </button>
-                <button type="button" className="apply-btn" onClick={next}>
-                  {projectImages.length > 0
-                    ? `Continue with ${projectImages.length} image${projectImages.length === 1 ? "" : "s"} →`
-                    : "Skip — almost done →"}
-                </button>
-              </div>
-            </>
-          )}
-
           {stage === "ready" && (() => {
-            const VERIF_RATE = 0.5;
-            const target = Number(draft.goalTarget) || 0;
-            const budget = Number(draft.budgetTotal) || 0;
-            const verifTarget =
-              draft.goalKind === "verified"
-                ? target
-                : draft.goalKind === "leads"
-                ? target * VERIF_RATE
-                : target / 0.55;
-            const cpvl = verifTarget ? Math.round(budget / verifTarget) : 0;
-            const cpvlStr = cpvl ? `₹${cpvl.toLocaleString("en-IN")}` : "—";
             const projectShort = draft.name.split(" · ")[0] || draft.name;
             const personaNames = draft.personas.slice(0, 2).map((p) => p.name).join(", ");
             const personaSummary =
@@ -1480,16 +1882,11 @@ export function CreateProjectFlow({
             return (
               <ReadyCelebration
                 projectShort={projectShort}
-                workspaceLabel={workspaceLabel}
                 personaCount={personaCount}
                 personaSummary={personaSummary}
                 imageCount={projectImages.length}
                 uspCount={draft.keyUSPs.length}
                 proximityCount={draft.locationProximity.length}
-                goalTarget={target}
-                goalKind={draft.goalKind}
-                goalWindow={draft.goalWindow}
-                cpvlStr={cpvlStr}
                 onView={() => {
                   const id = persistProject();
                   showToast("Project saved — opening project page");
@@ -1515,30 +1912,20 @@ export function CreateProjectFlow({
 
 function ReadyCelebration({
   projectShort,
-  workspaceLabel,
   personaCount,
   personaSummary,
   imageCount,
   uspCount,
   proximityCount,
-  goalTarget,
-  goalKind,
-  goalWindow,
-  cpvlStr,
   onView,
   onContinue,
 }: {
   projectShort: string;
-  workspaceLabel: string;
   personaCount: number;
   personaSummary: string;
   imageCount: number;
   uspCount: number;
   proximityCount: number;
-  goalTarget: number;
-  goalKind: "leads" | "verified" | "qualified";
-  goalWindow: string;
-  cpvlStr: string;
   onView: () => void;
   onContinue: () => void;
 }) {
@@ -1549,13 +1936,13 @@ function ReadyCelebration({
         background:
           "radial-gradient(circle at 50% 0%, #FBF7FF 0%, #FFFDF6 55%, #FFFFFF 100%)",
         border: "1px solid #C8A8FF",
-        padding: "40px 32px 32px",
+        padding: "36px 32px 28px",
       }}
     >
       {/* Animated stamp */}
       <div
-        className="mx-auto mb-5 relative"
-        style={{ width: 72, height: 72 }}
+        className="mx-auto mb-4 relative"
+        style={{ width: 64, height: 64 }}
       >
         <span
           className="absolute inset-0 rounded-full"
@@ -1570,10 +1957,10 @@ function ReadyCelebration({
         <span
           className="absolute rounded-full"
           style={{
-            top: 8,
-            left: 8,
-            width: 56,
-            height: 56,
+            top: 6,
+            left: 6,
+            width: 52,
+            height: 52,
             background:
               "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
             display: "flex",
@@ -1584,7 +1971,7 @@ function ReadyCelebration({
             animation: "ready-stamp-in 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
           }}
         >
-          <Check size={26} strokeWidth={3} />
+          <Check size={22} strokeWidth={3} />
         </span>
       </div>
 
@@ -1595,96 +1982,85 @@ function ReadyCelebration({
         </div>
       </div>
       <div
-        className="text-center text-[22px] font-semibold tracking-[-0.01em] mb-1"
+        className="text-center text-[20px] font-semibold tracking-[-0.01em] mb-1"
         style={{ letterSpacing: "-0.01em" }}
       >
         Your project is set up
       </div>
-      <div className="text-center text-[13px] text-text-secondary mb-1">{projectShort}</div>
-      <div className="text-center text-[11.5px] text-text-tertiary mb-6">
-        Saved to {workspaceLabel}
-      </div>
+      <div className="text-center text-[13px] text-text-secondary mb-6">{projectShort}</div>
 
-      {/* Summary chips */}
+      {/* Summary — flat, info-only (no card chrome that hints at clickability) */}
       <div
-        className="grid gap-3 mx-auto mb-7"
-        style={{
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          maxWidth: 720,
-        }}
+        className="mx-auto mb-5"
+        style={{ maxWidth: 460 }}
       >
-        <SummaryChip
-          icon={<BookOpen size={14} />}
-          label="Brief"
-          value={`${uspCount} USPs`}
-          sub={`${proximityCount} proximity points${imageCount > 0 ? ` · ${imageCount} image${imageCount === 1 ? "" : "s"}` : ""}`}
-        />
-        <SummaryChip
-          icon={<Users size={14} />}
-          label="Personas"
-          value={`${personaCount} persona${personaCount === 1 ? "" : "s"}`}
-          sub={personaSummary}
-        />
-        <SummaryChip
-          icon={<Target size={14} />}
-          label="Goal"
-          value={`${goalTarget} ${goalKind === "leads" ? "leads" : `${goalKind} leads`}`}
-          sub={`${goalWindow} · ~${cpvlStr} per verified`}
-        />
+        <div
+          className="flex items-stretch"
+          style={{
+            background: "rgba(255,255,255,0.55)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: 10,
+          }}
+        >
+          <ReadyStat
+            icon={<BookOpen size={12} />}
+            label="Brief"
+            value={`${uspCount} USPs · ${proximityCount} proximity${imageCount > 0 ? ` · ${imageCount} image${imageCount === 1 ? "" : "s"}` : ""}`}
+          />
+          <div style={{ width: 1, background: "var(--border-subtle)" }} />
+          <ReadyStat
+            icon={<Users size={12} />}
+            label="Personas"
+            value={`${personaCount} · ${personaSummary}`}
+          />
+        </div>
+
+        {/* Goal hint inline below */}
+        <div className="text-center text-[11px] text-text-tertiary mt-3">
+          <Target size={10} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
+          No goal set yet — add one later from the project page.
+        </div>
       </div>
 
-      {/* What's next */}
-      <div className="text-center text-[11px] uppercase tracking-[0.5px] text-text-tertiary font-semibold mb-3">
+      {/* What's next — proper buttons, not big cards */}
+      <div className="text-center text-[11px] uppercase tracking-[0.5px] text-text-tertiary font-semibold mb-2.5">
         What&apos;s next?
       </div>
-      <div
-        className="grid gap-3 mx-auto"
-        style={{
-          gridTemplateColumns: "1fr 1fr",
-          maxWidth: 620,
-        }}
-      >
+      <div className="flex items-center justify-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={onView}
-          className="text-left rounded-[10px] p-4 transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-button transition-colors hover:bg-surface-secondary"
           style={{
             background: "#FFF",
             border: "1px solid var(--border)",
+            fontSize: 12.5,
+            fontWeight: 500,
           }}
         >
-          <div className="text-[13px] font-semibold mb-0.5">Open project page</div>
-          <div className="text-[11.5px] text-text-tertiary leading-[1.5]">
-            Look around first — review the brief, personas, goal.
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1 text-[11.5px] text-text-secondary">
-            Go to project <ArrowRight size={11} />
-          </div>
+          Open project page
+          <ArrowRight size={12} />
         </button>
         <button
           type="button"
           onClick={onContinue}
-          className="text-left rounded-[10px] p-4 transition-shadow"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-button transition-shadow hover:shadow-lg"
           style={{
             background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
             border: "1px solid transparent",
             color: "#FFF",
-            boxShadow: "0 8px 24px rgba(124,58,237,0.25)",
+            boxShadow: "0 6px 18px rgba(124,58,237,0.28)",
+            fontSize: 12.5,
+            fontWeight: 600,
           }}
         >
-          <div className="text-[13px] font-semibold mb-0.5 flex items-center gap-1.5">
-            <Sparkles size={13} /> Build creative angles
-          </div>
-          <div
-            className="text-[11.5px] leading-[1.5]"
-            style={{ color: "rgba(255,255,255,0.85)" }}
-          >
-            Spot drafts 2 angles per persona · recommended next step.
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1 text-[11.5px]">
-            Continue <ArrowRight size={11} />
-          </div>
+          <Sparkles size={12} />
+          Build creative angles
+          <ArrowRight size={12} />
         </button>
+      </div>
+      <div className="text-center text-[10.5px] text-text-tertiary mt-2">
+        Spot drafts 2 angles per persona · recommended next.
       </div>
 
       <style jsx>{`
@@ -1713,35 +2089,19 @@ function ReadyCelebration({
   );
 }
 
-function SummaryChip({
+function ReadyStat({
   icon,
   label,
   value,
-  sub,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  sub: string;
 }) {
   return (
-    <div
-      className="rounded-[10px] p-3"
-      style={{ background: "#FFF", border: "1px solid var(--border-subtle)" }}
-    >
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span
-          className="inline-flex items-center justify-center"
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 6,
-            background: "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)",
-            color: "#7C3AED",
-          }}
-        >
-          {icon}
-        </span>
+    <div className="flex-1 px-3.5 py-2.5 text-center">
+      <div className="inline-flex items-center gap-1 mb-0.5" style={{ color: "var(--text-tertiary)" }}>
+        {icon}
         <span
           className="uplabel"
           style={{ fontSize: 9.5, color: "var(--text-tertiary)" }}
@@ -1749,8 +2109,65 @@ function SummaryChip({
           {label}
         </span>
       </div>
-      <div className="text-[13px] font-semibold tabular-nums leading-tight mb-0.5">{value}</div>
-      <div className="text-[10.5px] text-text-tertiary leading-[1.4] truncate">{sub}</div>
+      <div className="text-[12px] text-text-secondary leading-tight truncate">
+        {value}
+      </div>
     </div>
+  );
+}
+
+// ─── Auto mode toggle ──────────────────────────────────────────────────
+
+function AutoModeToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      title={
+        value
+          ? "Auto mode is on — Spot advances through to creatives"
+          : "Auto mode is off — you click through each step"
+      }
+      className="inline-flex items-center gap-2 h-8 px-2.5 rounded-button"
+      style={{
+        background: value ? "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)" : "#FFF",
+        border: `1px solid ${value ? "#C8A8FF" : "var(--border)"}`,
+        color: value ? "#7C3AED" : "var(--text-2)",
+      }}
+    >
+      <span className="text-[11.5px] font-medium">Auto mode</span>
+      <span
+        className="inline-block relative"
+        style={{
+          width: 26,
+          height: 14,
+          borderRadius: 7,
+          background: value
+            ? "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)"
+            : "var(--bg-secondary)",
+          transition: "background 160ms",
+        }}
+      >
+        <span
+          className="absolute"
+          style={{
+            top: 2,
+            left: value ? 14 : 2,
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: "#FFF",
+            transition: "left 160ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+          }}
+        />
+      </span>
+    </button>
   );
 }

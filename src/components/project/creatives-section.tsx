@@ -16,12 +16,16 @@ function hueFor(id: string) {
 export function CreativesSection({
   project,
   onAsk,
-  onGenerateCreatives,
+  onGoToPersonas,
 }: {
   project: ProjectDetail;
   onAsk: (q: string) => void;
-  /** Open the CreativesFlow modal (passed from project page). */
-  onGenerateCreatives?: () => void;
+  /**
+   * Routes the user to the Personas tab where the inline Spot composer
+   * for drafting concepts lives. The legacy CreativesFlow modal was
+   * removed in PR 2 of the project-page redesign.
+   */
+  onGoToPersonas?: () => void;
 }) {
   const rows: Row[] = useMemo(
     () =>
@@ -110,10 +114,10 @@ export function CreativesSection({
             Creative angles live with your project — Pain × USP × Hook × CTA combinations you can
             reuse across every campaign. I&apos;ll draft 2 per persona to get you started.
           </div>
-          {onGenerateCreatives && (
+          {onGoToPersonas && (
             <button
               type="button"
-              onClick={onGenerateCreatives}
+              onClick={onGoToPersonas}
               className="apply-btn"
               style={{
                 height: 38,
@@ -122,11 +126,12 @@ export function CreativesSection({
                 background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
               }}
             >
-              <Sparkles size={13} /> Generate creative angles
+              <Sparkles size={13} /> Open Personas to draft creatives
             </button>
           )}
           <div className="text-[10.5px] text-text-tertiary mt-3">
-            Or open the Personas tab to generate creatives for a specific angle.
+            Creatives are drafted per angle on the Personas tab — open it and
+            click &quot;Draft concepts with Spot&quot; on any angle.
           </div>
         </div>
       </div>

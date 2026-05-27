@@ -12,8 +12,9 @@ import type {
   CreativeStrategy,
   CreativeWorkspace,
   GeneratedCreative,
-  MockupCopy,
+  MockupCopyProjectContext,
   MockupField,
+  WorkspacePreAttach,
 } from "./creative/types";
 import {
   emptyWorkspace,
@@ -45,6 +46,18 @@ interface CreativeGeneratorModalProps {
   usp?: string;
   hook: string;
   cta: string;
+  /**
+   * When launched from a project page, pre-fill mockup copy with the
+   * project's real RERA / builder / price / typology / name so the
+   * variants don't ship with Godrej-Air defaults.
+   */
+  projectContext?: MockupCopyProjectContext;
+  /**
+   * Pre-attach brand logo, project image, brand-guidelines toggle, and
+   * strategy-attached toggle so the user lands in Setup with everything
+   * already wired from the project's knowledge base.
+   */
+  preAttach?: WorkspacePreAttach;
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,18 +102,23 @@ export function CreativeGeneratorModal({
   usp,
   hook,
   cta,
+  projectContext,
+  preAttach,
 }: CreativeGeneratorModalProps) {
   const [phase, setPhase] = useState<CreativePhase>("setup");
   const [workspace, setWorkspace] = useState<CreativeWorkspace>(() =>
-    emptyWorkspace({
-      angleName,
-      personaName,
-      personaRole,
-      painPoint: painPoint ?? "",
-      usp: usp ?? "",
-      hook,
-      cta,
-    })
+    emptyWorkspace(
+      {
+        angleName,
+        personaName,
+        personaRole,
+        painPoint: painPoint ?? "",
+        usp: usp ?? "",
+        hook,
+        cta,
+      },
+      preAttach,
+    ),
   );
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -109,18 +127,21 @@ export function CreativeGeneratorModal({
     if (!open) return;
     setPhase("setup");
     setWorkspace(
-      emptyWorkspace({
-        angleName,
-        personaName,
-        personaRole,
-        painPoint: painPoint ?? "",
-        usp: usp ?? "",
-        hook,
-        cta,
-      })
+      emptyWorkspace(
+        {
+          angleName,
+          personaName,
+          personaRole,
+          painPoint: painPoint ?? "",
+          usp: usp ?? "",
+          hook,
+          cta,
+        },
+        preAttach,
+      ),
     );
     setIsGenerating(false);
-  }, [open, angleName, personaName, personaRole, painPoint, usp, hook, cta]);
+  }, [open, angleName, personaName, personaRole, painPoint, usp, hook, cta, preAttach]);
 
   /* ---------- Phase A handlers ---------- */
 
@@ -181,6 +202,7 @@ export function CreativeGeneratorModal({
           parent_id: null,
           preferVariant: variant,
           labelPrefix: `Option ${i + 1}`,
+          projectContext,
         });
         setWorkspace((w) => ({
           ...w,
@@ -288,6 +310,7 @@ export function CreativeGeneratorModal({
           parent_id: null,
           preferVariant: variant,
           labelPrefix: `Option ${i + 1} · round ${round}`,
+          projectContext,
         });
         setWorkspace((w) => ({
           ...w,
@@ -358,6 +381,7 @@ export function CreativeGeneratorModal({
         parent_id: parent,
         labelPrefix: `v${workspace.concept_versions.length + 1}`,
         refinementText: text,
+        projectContext,
       });
       const aiReply: ChatMessage = {
         id: mkId("msg"),
@@ -452,6 +476,7 @@ export function CreativeGeneratorModal({
           preferVariant: cur.variant,
           labelPrefix: `${getSize(sizeId)?.label ?? "size"} v${(extractVersionNumber(cur.label) ?? 1) + 1}`,
           refinementText: refinementText?.trim() ? refinementText : undefined,
+          projectContext,
         });
         return {
           ...w,

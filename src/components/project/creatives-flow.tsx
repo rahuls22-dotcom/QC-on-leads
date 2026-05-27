@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, Sparkles, ArrowRight, ChevronDown } from "lucide-react";
+import { X, Check, Sparkles, ArrowRight } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
 import { getProject } from "@/lib/project-data";
@@ -105,23 +105,34 @@ export function CreativesFlow({
     return out;
   }, [personaInputs]);
 
-  const [creatives, setCreatives] = useState<CreativesState>({});
+  // Seed all creatives immediately with loading: true. Each tile flips to
+  // its final state after ~1.5s, one at a time, so the user sees the
+  // generation rolling across the grid.
+  const [creatives, setCreatives] = useState<CreativesState>(() => {
+    const out: CreativesState = {};
+    orderedTargets.forEach(({ personaId, creative }) => {
+      out[personaId] = out[personaId] || [];
+      out[personaId].push({ ...creative, loading: true });
+    });
+    return out;
+  });
   const [revealedCount, setRevealedCount] = useState(0);
   const isRevealing = revealedCount < orderedTargets.length;
-  const nextTarget = orderedTargets[revealedCount];
 
-  // Progressively reveal creatives one at a time: ~800ms before the first,
-  // then 3000ms between each. Spot is "drafting" while the gap is open.
+  // Flip one loading tile to done every ~1.5s.
   useEffect(() => {
     if (!isRevealing || stage !== "creatives") return;
-    const delay = revealedCount === 0 ? 800 : 3000;
+    const delay = revealedCount === 0 ? 600 : 1500;
     const t = setTimeout(() => {
       const target = orderedTargets[revealedCount];
       if (!target) return;
-      setCreatives((prev) => ({
-        ...prev,
-        [target.personaId]: [...(prev[target.personaId] || []), target.creative],
-      }));
+      setCreatives((prev) => {
+        const list = prev[target.personaId] || [];
+        const next = list.map((c) =>
+          c.id === target.creative.id ? { ...c, loading: false } : c,
+        );
+        return { ...prev, [target.personaId]: next };
+      });
       setRevealedCount((c) => c + 1);
     }, delay);
     return () => clearTimeout(t);
@@ -153,10 +164,11 @@ export function CreativesFlow({
           inset: 0,
           zIndex: 100,
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "5vh 16px",
+          padding: "4vh 16px",
           pointerEvents: "none",
+          overflowY: "auto",
         }}
       >
         <div
@@ -205,20 +217,13 @@ export function CreativesFlow({
                   {focusedAngleName ? (
                     <>
                       Drafting fresh creatives — focused on the{" "}
-                      <strong>{focusedAngleName}</strong> angle. You can also tweak the others
-                      below. These live with your project — every campaign you launch pulls from
-                      this library.
+                      <strong>{focusedAngleName}</strong> angle. These live with your project —
+                      every campaign you launch pulls from this library.
                     </>
                   ) : isRevealing ? (
                     <>
                       Drafting <strong>{orderedTargets.length} creatives</strong> across{" "}
-                      {personaInputs.length} personas — one at a time so you can watch each angle
-                      take shape. {nextTarget && (
-                        <>
-                          Up next: <strong>{nextTarget.creative.angleName}</strong> for{" "}
-                          <strong>{nextTarget.personaName}</strong>.
-                        </>
-                      )}
+                      {personaInputs.length} personas — watch each tile populate as it&apos;s ready.
                     </>
                   ) : (
                     <>
@@ -229,12 +234,6 @@ export function CreativesFlow({
                     </>
                   )}
                 </SpotBubble>
-
-                <GenerationLog
-                  orderedTargets={orderedTargets}
-                  currentIndex={revealedCount}
-                  isRevealing={isRevealing}
-                />
 
                 <DraftCard
                   label="Creatives"
@@ -322,251 +321,3 @@ export function CreativesFlow({
   );
 }
 
-// ─── Hierarchical generation log ───────────────────────────────────────
-
-type Target = {
-  personaId: string;
-  personaName: string;
-  creative: DraftedCreative;
-};
-
-function GenerationLog({
-  orderedTargets,
-  currentIndex,
-  isRevealing,
-}: {
-  orderedTargets: Target[];
-  currentIndex: number;
-  isRevealing: boolean;
-}) {
-  // Group by persona, preserving order
-  const personaGroups = useMemo(() => {
-    const groups: Array<{ personaId: string; personaName: string; targets: Array<{ globalIndex: number; target: Target }> }> = [];
-    orderedTargets.forEach((t, globalIndex) => {
-      let group = groups.find((g) => g.personaId === t.personaId);
-      if (!group) {
-        group = { personaId: t.personaId, personaName: t.personaName, targets: [] };
-        groups.push(group);
-      }
-      group.targets.push({ globalIndex, target: t });
-    });
-    return groups;
-  }, [orderedTargets]);
-
-  // When all done, allow collapsing into a summary
-  const [collapsed, setCollapsed] = useState(false);
-  const allDone = !isRevealing;
-
-  const totalDone = Math.min(currentIndex, orderedTargets.length);
-
-  if (allDone && collapsed) {
-    return (
-      <button
-        type="button"
-        onClick={() => setCollapsed(false)}
-        className="w-full flex items-center gap-2 px-3 py-2 mb-3 rounded-[10px] hover:bg-surface-page"
-        style={{
-          background: "#F0FDF4",
-          border: "1px solid #BBF7D0",
-        }}
-      >
-        <Check size={14} style={{ color: "var(--ok-fg)" }} />
-        <span className="text-[12px] font-medium" style={{ color: "var(--ok-fg)" }}>
-          Drafted {orderedTargets.length} creatives
-        </span>
-        <span
-          className="ml-auto text-[10.5px] text-text-tertiary inline-flex items-center gap-1"
-        >
-          Show timeline <ChevronDown size={11} />
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <div
-      className="rounded-[10px] mb-3 fadeUp"
-      style={{
-        background: "var(--spot-tint)",
-        border: "1px solid var(--spot-stroke)",
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#E8C97A]/40">
-        <SpotMark size={14} />
-        <span className="text-[12.5px] font-semibold">
-          {allDone
-            ? `Drafted ${orderedTargets.length} creatives`
-            : "Drafting creative angles…"}
-        </span>
-        {!allDone && (
-          <span className="text-[11px] text-text-tertiary ml-1">
-            {totalDone} of {orderedTargets.length}
-          </span>
-        )}
-        {!allDone && (
-          <span className="flex gap-1 ml-auto">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="spot-pulse"
-                style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: "50%",
-                  background: "var(--text-2)",
-                  animationDelay: `${i * 0.18}s`,
-                }}
-              />
-            ))}
-          </span>
-        )}
-        {allDone && (
-          <button
-            type="button"
-            onClick={() => setCollapsed(true)}
-            className="ml-auto text-[10.5px] text-text-tertiary hover:text-text-secondary inline-flex items-center gap-1"
-          >
-            Hide
-          </button>
-        )}
-      </div>
-
-      <div className="px-3 py-2.5 space-y-2">
-        {personaGroups.map((group) => {
-          // Persona-level status: derive from child statuses
-          const childStatuses = group.targets.map((t) => {
-            if (t.globalIndex < currentIndex) return "done" as const;
-            if (t.globalIndex === currentIndex && isRevealing) return "generating" as const;
-            return "queued" as const;
-          });
-          const personaState = childStatuses.every((s) => s === "done")
-            ? "done"
-            : childStatuses.some((s) => s === "generating")
-            ? "generating"
-            : childStatuses.some((s) => s === "done")
-            ? "generating"
-            : "queued";
-
-          return (
-            <div key={group.personaId}>
-              <div className="flex items-center gap-2 mb-1">
-                <StatusDot state={personaState} size={12} />
-                <span
-                  className="text-[12.5px] font-semibold"
-                  style={{
-                    color:
-                      personaState === "queued"
-                        ? "var(--text-tertiary)"
-                        : "var(--text-1)",
-                  }}
-                >
-                  {group.personaName}
-                </span>
-                {personaState === "queued" && (
-                  <span className="text-[10.5px] text-text-tertiary">queued</span>
-                )}
-              </div>
-              <div className="pl-5 space-y-1">
-                {group.targets.map(({ globalIndex, target }, i) => {
-                  const state = childStatuses[i];
-                  return (
-                    <div
-                      key={target.creative.id}
-                      className="flex items-center gap-2 text-[11.5px] fadeUp"
-                    >
-                      <StatusDot state={state} size={10} />
-                      <span
-                        style={{
-                          color:
-                            state === "queued"
-                              ? "var(--text-tertiary)"
-                              : state === "generating"
-                              ? "var(--text-1)"
-                              : "var(--text-2)",
-                          fontWeight: state === "generating" ? 600 : 400,
-                        }}
-                      >
-                        {target.creative.angleName} · {target.creative.format}
-                      </span>
-                      <span className="ml-auto text-[10.5px] text-text-tertiary">
-                        {state === "done"
-                          ? `done in ${(2.6 + ((globalIndex * 0.4) % 1.2)).toFixed(1)}s`
-                          : state === "generating"
-                          ? "generating…"
-                          : "queued"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StatusDot({
-  state,
-  size,
-}: {
-  state: "queued" | "generating" | "done";
-  size: number;
-}) {
-  if (state === "done") {
-    return (
-      <span
-        className="inline-flex items-center justify-center flex-shrink-0"
-        style={{
-          width: size + 4,
-          height: size + 4,
-          borderRadius: "50%",
-          background: "#15803D",
-          color: "#FFF",
-        }}
-      >
-        <Check size={Math.round(size * 0.7)} strokeWidth={3} />
-      </span>
-    );
-  }
-  if (state === "generating") {
-    return (
-      <span
-        className="inline-flex items-center justify-center flex-shrink-0"
-        style={{
-          width: size + 4,
-          height: size + 4,
-          borderRadius: "50%",
-          border: "1.5px solid #C026D3",
-          borderTopColor: "transparent",
-          animation: "gen-spin 0.9s linear infinite",
-        }}
-      >
-        <style jsx>{`
-          @keyframes gen-spin {
-            0% {
-              transform: rotate(0deg);
-            }
-            100% {
-              transform: rotate(360deg);
-            }
-          }
-        `}</style>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-block flex-shrink-0"
-      style={{
-        width: size + 4,
-        height: size + 4,
-        borderRadius: "50%",
-        border: "1.5px solid var(--border)",
-        background: "transparent",
-      }}
-    />
-  );
-}

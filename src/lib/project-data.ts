@@ -62,9 +62,53 @@ export type Creative = {
   cpql: number | null;
   hookRate?: number;
   holdRate?: number;
+  /**
+   * % of viewers who watched past the first frame. Video-only. Higher means
+   * the thumbnail/first frame is doing its job before the ad even plays.
+   */
+  firstFrameRetention?: number;
   tag?: "winner" | "loser" | null;
   note?: string;
+
+  // ─── Asset lifecycle ────────────────────────────────────────────────
+  /**
+   * URL (or blob URL for uploads) to the actual creative asset. When
+   * absent, the creative is a **shell** — the concept exists but no
+   * file has been attached yet. Shells render as placeholders and
+   * cannot be launched into a campaign.
+   */
+  assetUrl?: string | null;
+  /** Where the asset came from. Used to surface the source on the size tile. */
+  assetSource?: "uploaded" | "generated";
+  /** Stable hue for the placeholder gradient on shell creatives. */
+  placeholderHue?: number;
+  /**
+   * Body copy / headline shown next to the asset in the Meta preview.
+   * Inherited from the angle's hook + CTA when unset.
+   */
+  primaryText?: string;
+  formHeadline?: string;
+  ctaLabel?: string;
 };
+
+/**
+ * Derived asset state for a creative — separate from the run state
+ * (spend / live / paused / draft). Three values:
+ *
+ *   · "shell"  — concept exists, no asset uploaded yet
+ *   · "ready"  — asset uploaded but no spend (not in a campaign)
+ *   · "live"   — asset uploaded *and* the creative has spend / metrics
+ */
+export type CreativeAssetState = "shell" | "ready" | "live";
+
+export function creativeAssetState(c: Creative): CreativeAssetState {
+  // Live = has spend recorded (the creative is actually running).
+  if (c.spend != null) return "live";
+  // Ready = an asset has been generated or uploaded but no spend yet.
+  if (c.assetSource) return "ready";
+  // Otherwise it's a shell — concept exists, no file attached.
+  return "shell";
+}
 
 export type Angle = {
   id: string;
@@ -109,6 +153,28 @@ export type ProjectStrategy = {
   proofPoints: string[];
 };
 
+/**
+ * Top-of-funnel + mid-funnel metrics shared by ads / ad sets / campaigns.
+ * Every field is optional and nullable so seeded campaigns can carry real
+ * numbers while runtime-created campaigns leave them empty until data
+ * lands. The Campaigns tab's column picker selects from this set.
+ */
+export type MediaMetrics = {
+  impressions?: number | null;
+  cpm?: number | null;
+  cpc?: number | null;
+  ctr?: number | null;
+  cvr?: number | null;
+  cpl?: number | null;
+  verifRate?: number | null;
+  qualRate?: number | null;
+  cpql?: number | null;
+  /** Video-only. */
+  hookRate?: number | null;
+  /** Video-only. */
+  holdRate?: number | null;
+};
+
 export type MediaAd = {
   id: string;
   name: string;
@@ -119,7 +185,10 @@ export type MediaAd = {
   leads: number | null;
   cpl: number | null;
   tag?: "winner" | "loser" | null;
-};
+  /** Specific creative (size) attached to this ad. Used to surface
+   * "this concept is in N campaigns" in the persona workspace. */
+  creativeId?: string;
+} & MediaMetrics;
 
 export type MediaAdSet = {
   id: string;
@@ -133,7 +202,11 @@ export type MediaAdSet = {
   status: "live" | "paused" | "proposed" | "draft";
   spotChange: string | null;
   ads: MediaAd[];
-};
+  spend?: number | null;
+  leads?: number | null;
+  verified?: number | null;
+  qualified?: number | null;
+} & MediaMetrics;
 
 export type MediaRow = {
   id: string;
@@ -150,7 +223,11 @@ export type MediaRow = {
   /** Optional voice/WhatsApp agent attached to this campaign. */
   agentId?: string;
   agentName?: string;
-};
+  spend?: number | null;
+  leads?: number | null;
+  verified?: number | null;
+  qualified?: number | null;
+} & MediaMetrics;
 
 export type MediaPlan = {
   window: string;
@@ -163,7 +240,128 @@ export type MediaPlan = {
     weeklyExpected: { leads: number; verified: number };
     gapToGoal: string;
   };
+  /** Edits saved by the user but not yet deployed to the live media plan.
+   * Each entry overlays one field on one entity (campaign / ad set / ad).
+   * Deploy walks this list, applies each to the underlying row, and
+   * clears it. */
+  stagedChanges?: StagedChange[];
 };
+
+/**
+ * A single saved-but-not-yet-deployed edit. Tracking edits this way (vs
+ * direct mutation) lets the user accumulate several tweaks across
+ * campaigns + ad sets and ship them as one batch — closer to how Ads
+ * Manager actually works.
+ */
+export type StagedChange =
+  | {
+      id: string;
+      stagedAt: string;
+      scope: "campaign";
+      campaignId: string;
+      field: "name" | "budgetDaily";
+      oldValue: string | number;
+      newValue: string | number;
+      label: string;
+    }
+  | {
+      id: string;
+      stagedAt: string;
+      scope: "adSet";
+      campaignId: string;
+      adSetId: string;
+      field: "name" | "audience" | "budgetDaily";
+      oldValue: string | number;
+      newValue: string | number;
+      label: string;
+    }
+  | {
+      id: string;
+      stagedAt: string;
+      scope: "ad";
+      campaignId: string;
+      adSetId: string;
+      adId: string;
+      field: "name" | "status";
+      oldValue: string;
+      newValue: string;
+      label: string;
+    };
+
+/**
+ * Returns the effective value for a campaign field — staged value if
+ * present, otherwise the live value.
+ *
+ * The staged-change "name" field maps to MediaRow.campaign, since
+ * MediaRow uses `campaign` as the human-readable name. budgetDaily
+ * maps directly.
+ */
+export function effectiveCampaignValue<F extends "name" | "budgetDaily">(
+  plan: MediaPlan,
+  campaignId: string,
+  field: F,
+): F extends "name" ? string : number {
+  const row = plan.rows.find((r) => r.id === campaignId);
+  const liveValue =
+    field === "name"
+      ? (row?.campaign ?? "")
+      : (row?.budgetDaily ?? 0);
+  const staged = (plan.stagedChanges || []).find(
+    (c) => c.scope === "campaign" && c.campaignId === campaignId && c.field === field,
+  );
+  return (staged?.newValue ?? liveValue) as F extends "name" ? string : number;
+}
+
+export function effectiveAdSetValue<
+  F extends "name" | "audience" | "budgetDaily",
+>(
+  plan: MediaPlan,
+  campaignId: string,
+  adSetId: string,
+  field: F,
+): F extends "budgetDaily" ? number : string {
+  const row = plan.rows.find((r) => r.id === campaignId);
+  const set = row?.adSets.find((a) => a.id === adSetId);
+  const liveValue = set?.[field] ?? (field === "budgetDaily" ? 0 : "");
+  const staged = (plan.stagedChanges || []).find(
+    (c) =>
+      c.scope === "adSet" &&
+      c.campaignId === campaignId &&
+      c.adSetId === adSetId &&
+      c.field === field,
+  );
+  return (staged?.newValue ?? liveValue) as F extends "budgetDaily"
+    ? number
+    : string;
+}
+
+/**
+ * Effective value for an ad-level field — staged value if present,
+ * otherwise the live value. Ad-level edits cover the two settings that
+ * make sense to tweak from the project page: display name and run
+ * status (live / paused).
+ */
+export function effectiveAdValue<F extends "name" | "status">(
+  plan: MediaPlan,
+  campaignId: string,
+  adSetId: string,
+  adId: string,
+  field: F,
+): string {
+  const row = plan.rows.find((r) => r.id === campaignId);
+  const set = row?.adSets.find((a) => a.id === adSetId);
+  const ad = set?.ads.find((x) => x.id === adId);
+  const liveValue = ad?.[field] ?? "";
+  const staged = (plan.stagedChanges || []).find(
+    (c) =>
+      c.scope === "ad" &&
+      c.campaignId === campaignId &&
+      c.adSetId === adSetId &&
+      c.adId === adId &&
+      c.field === field,
+  );
+  return (staged?.newValue as string) ?? (liveValue as string);
+}
 
 export type Experiment = {
   id: string;
@@ -189,6 +387,55 @@ export type ProjectImage = {
   usedIn: number;
 };
 
+// ─── Lead-gen forms ────────────────────────────────────────────────────
+
+/** A single question shown on the form. The set is small on purpose —
+ * Meta lead-gen forms drop off fast once they're more than 5 questions. */
+export type LeadFormQuestionKind =
+  | "name"
+  | "phone"
+  | "email"
+  | "budget"
+  | "timeline"
+  | "city"
+  | "bhk"
+  | "custom-short"
+  | "custom-multiline"
+  | "custom-single-choice";
+
+export type LeadFormQuestion = {
+  id: string;
+  kind: LeadFormQuestionKind;
+  /** Display label shown to the lead. Editable for custom kinds. */
+  label: string;
+  required: boolean;
+  /** Choices for custom-single-choice questions. */
+  options?: string[];
+};
+
+export type LeadForm = {
+  id: string;
+  name: string;
+  /**
+   * When the form is the *default* for the project (used by any persona
+   * that doesn't have its own form). `null` means a persona-specific
+   * form — `personaId` carries the link.
+   */
+  personaId: string | null;
+  /** Short status pill — drafts can't be attached to campaigns. */
+  status: "draft" | "published";
+  /** Intro screen (optional — when blank, Meta shows the system default). */
+  intro: { headline: string; body: string };
+  /** Questions in the order they're shown. */
+  questions: LeadFormQuestion[];
+  /** Privacy / consent line shown before submit. */
+  privacy: string;
+  /** Completion screen copy (after submit). */
+  completion: { headline: string; body: string; ctaLabel: string; ctaUrl: string };
+  /** When this form was last edited — used for the list view. */
+  updatedAt: string;
+};
+
 export type ProjectDetail = ProjectSummary & {
   workspaceId: string;
   rera: string;
@@ -209,6 +456,10 @@ export type ProjectDetail = ProjectSummary & {
   mediaPlan: MediaPlan;
   experiments: Experiment[];
   images: ProjectImage[];
+  /** Lead-capture forms. A project starts with no forms; users build them
+   * on the Forms tab. At least one published form is required for any
+   * campaign to go live. */
+  forms?: LeadForm[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -222,18 +473,38 @@ function cr(
   leads: number | null,
   verified: number | null,
   qualified: number | null,
-  metrics: Partial<Pick<Creative, "ctr" | "cvr" | "hookRate" | "holdRate" | "tag" | "note" | "impressions">> = {},
+  metrics: Partial<
+    Pick<
+      Creative,
+      | "ctr"
+      | "cvr"
+      | "hookRate"
+      | "holdRate"
+      | "firstFrameRetention"
+      | "tag"
+      | "note"
+      | "impressions"
+    >
+  > = {},
 ): Creative {
   const cpl = spend !== null && leads ? Math.round(spend / leads) : null;
   const cpvl = spend !== null && verified ? Math.round(spend / verified) : null;
   const cpql = spend !== null && qualified ? Math.round(spend / qualified) : null;
+  const id = `cr-${Math.random().toString(36).slice(2, 8)}`;
+  // Hash the id into a stable hue 0-359 for the placeholder gradient.
+  const placeholderHue =
+    (id.split("").reduce((s, c) => s + c.charCodeAt(0), 0) * 47) % 360;
   return {
-    id: `cr-${Math.random().toString(36).slice(2, 8)}`,
+    id,
     format,
     surface,
     platform,
     kind,
     spend,
+    // Seeded creatives have run — mark them as generated so the preview
+    // surfaces them as proper assets rather than empty shells.
+    assetSource: spend !== null ? "generated" : undefined,
+    placeholderHue,
     impressions: metrics.impressions ?? (spend !== null ? Math.round(spend * 18) : null),
     leads,
     verified,
@@ -245,6 +516,14 @@ function cr(
     cpql,
     hookRate: metrics.hookRate,
     holdRate: metrics.holdRate,
+    firstFrameRetention:
+      metrics.firstFrameRetention ??
+      // Reasonable default for any video that has a hook rate: FFR is
+      // generally somewhat higher than hook (people stay past frame 1
+      // before churning at the 3s hook mark).
+      (kind === "video" && metrics.hookRate != null
+        ? Math.min(98, Math.round(metrics.hookRate + 25))
+        : undefined),
     tag: metrics.tag ?? null,
     note: metrics.note,
   };
@@ -1142,6 +1421,33 @@ export function mutateRuntimeProject(id: string, mutator: (p: ProjectDetail) => 
 
 export function getProject(id: string): ProjectDetail | undefined {
   return runtimeProjects.get(id) || projectDetails[id];
+}
+
+/**
+ * Has this project produced any signal yet? Used to decide whether the
+ * Dashboard tab is worth showing — a brand-new project has no spend,
+ * no impressions, no leads, and no live campaigns, so the Dashboard
+ * would just render zeros. We hide it in that state and let the user
+ * land on Personas instead.
+ *
+ * Activity = any live campaign row OR any ad-level recorded spend /
+ * leads / impressions OR an achieved-leads count > 0 on the goal.
+ */
+export function hasAnyProjectActivity(p: ProjectDetail): boolean {
+  if (p.goal.achieved > 0) return true;
+  for (const row of p.mediaPlan.rows) {
+    if (row.status === "live") return true;
+    if (typeof row.spend === "number" && row.spend > 0) return true;
+    if (typeof row.leads === "number" && row.leads > 0) return true;
+    for (const set of row.adSets) {
+      for (const ad of set.ads) {
+        if (ad.status === "live") return true;
+        if (typeof ad.spend === "number" && ad.spend > 0) return true;
+        if (typeof ad.leads === "number" && ad.leads > 0) return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Projects scoped to a workspace, or all if `workspaceId` is undefined / "all". */

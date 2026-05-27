@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Palette, ImageIcon, Plus, Sparkles, Upload, Bot } from "lucide-react";
+import { FileText, Palette, ImageIcon, Plus, Bot, Target } from "lucide-react";
 import { ProjectDetail, MediaRow } from "@/lib/project-data";
 import { SectionHeader } from "./shared/section-header";
 import { RichText } from "@/components/spot/rich-text";
 import { AgentPicker, getAgentName } from "./agent-picker";
+import { GoalEditor } from "./goal-editor";
 
 function BulletBlock({
   title,
@@ -55,12 +56,21 @@ function PaletteSwatch({ color }: { color: string }) {
 export function SetupSection({
   project,
   onAsk,
+  onOpenLibrary,
 }: {
   project: ProjectDetail;
   onAsk: (q: string) => void;
+  /**
+   * Called when the user clicks "Manage in Library" — lets the project page
+   * switch the active tab without forcing a route change.
+   */
+  onOpenLibrary?: () => void;
 }) {
   return (
     <>
+      {/* GOAL */}
+      <GoalSettingsBlock project={project} onAsk={onAsk} />
+
       {/* BRIEF */}
       <SectionHeader
         icon={FileText}
@@ -134,7 +144,7 @@ export function SetupSection({
             </div>
           </div>
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1.5">We're not</div>
+            <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1.5">We&apos;re not</div>
             <div className="flex flex-wrap gap-1.5">
               {project.strategy.tone.isNot.map((t) => (
                 <span key={t} className="pill pill-err" style={{ fontSize: 11 }}>
@@ -181,81 +191,76 @@ export function SetupSection({
         </div>
       </div>
 
-      {/* IMAGES */}
+      {/* IMAGES — read-only mirror; primary editing happens in Library tab */}
       <SectionHeader
         icon={ImageIcon}
-        title="Project images"
-        subtitle={`${project.images.length} uploaded · creative generator pulls from here`}
-        onAsk={() => onAsk("Audit my image gallery — what's missing?")}
+        title="Image library"
+        subtitle={`${project.images.length} images in Spot's visual memory · used as creative source material`}
         actions={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px]"
-          >
-            <Upload size={11} /> Upload
-          </button>
+          onOpenLibrary ? (
+            <button
+              type="button"
+              onClick={onOpenLibrary}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] hover:border-border-hover"
+            >
+              Manage in Library →
+            </button>
+          ) : null
         }
       />
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-        {project.images.map((img) => (
-          <div key={img.id} className="card-base overflow-hidden hover-row">
+      <div className="card-base p-3">
+        <div className="text-[11px] text-text-tertiary mb-2.5">
+          A read-only mirror so the project brief is self-contained. Add, remove, or
+          retag images from the Library tab.
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {project.images.slice(0, 8).map((img) => (
             <div
+              key={img.id}
+              className="flex-shrink-0 rounded-[7px] overflow-hidden"
               style={{
-                aspectRatio: "4 / 3",
+                width: 92,
+                height: 68,
                 background: `repeating-linear-gradient(135deg, oklch(0.9 0.05 ${img.hue}) 0 6px, oklch(0.82 0.06 ${(img.hue + 30) % 360}) 6px 12px)`,
+                border: "1px solid var(--border-subtle)",
                 position: "relative",
               }}
+              title={`${img.name} · ${img.kind}`}
             >
               <span
-                className="pill"
                 style={{
                   position: "absolute",
-                  top: 8,
-                  left: 8,
-                  background: "rgba(255,255,255,0.85)",
-                  backdropFilter: "blur(4px)",
-                  fontSize: 10,
+                  bottom: 4,
+                  left: 4,
+                  padding: "1px 5px",
+                  borderRadius: 3,
+                  background: "rgba(255,255,255,0.9)",
+                  backdropFilter: "blur(3px)",
+                  fontSize: 9,
+                  fontWeight: 600,
                   textTransform: "uppercase",
-                  letterSpacing: 0.4,
+                  letterSpacing: "0.3px",
+                  color: "var(--text-2)",
                 }}
               >
                 {img.kind}
               </span>
-              {img.usedIn > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 8,
-                    right: 8,
-                    background: "#111",
-                    color: "#FAFAF8",
-                    padding: "2px 7px",
-                    borderRadius: 4,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <Sparkles size={9} /> {img.usedIn} ads
-                </span>
-              )}
             </div>
-            <div className="px-2.5 py-2">
-              <div className="text-[11.5px] font-medium truncate">{img.name}</div>
+          ))}
+          {project.images.length > 8 && (
+            <div
+              className="flex-shrink-0 flex items-center justify-center rounded-[7px] text-[11px] text-text-tertiary"
+              style={{
+                width: 64,
+                height: 68,
+                border: "1px dashed var(--border)",
+                background: "var(--bg-page)",
+              }}
+            >
+              +{project.images.length - 8}
             </div>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => onAsk("Upload more project images")}
-          className="card-base flex flex-col items-center justify-center p-6 text-text-secondary hover:border-border-hover hover:bg-surface-page"
-          style={{ borderStyle: "dashed" }}
-        >
-          <Upload size={18} />
-          <span className="text-[11.5px] mt-1">Upload more</span>
-        </button>
+          )}
+        </div>
       </div>
 
       {/* CAMPAIGN AGENTS */}
@@ -355,5 +360,111 @@ function CampaignAgentsPanel({ project }: { project: ProjectDetail }) {
         );
       })}
     </div>
+  );
+}
+
+// ─── Goal settings block ───────────────────────────────────────────────
+
+function GoalSettingsBlock({
+  project,
+  onAsk,
+}: {
+  project: ProjectDetail;
+  onAsk: (q: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  // Force re-render after saving so we read the freshly-mutated goal
+  const [, tick] = useState(0);
+  const goal = project.goal;
+  const goalSet = goal.target > 0;
+
+  return (
+    <>
+      <SectionHeader
+        icon={Target}
+        title="Goal"
+        subtitle={goalSet ? `${goal.kind} leads · ${goal.window}` : "Not set yet"}
+        onAsk={() => onAsk("Help me decide what goal to set for this project")}
+      />
+      <div className="card-base p-5 mb-4">
+        {editing ? (
+          <GoalEditor
+            project={project}
+            onCancel={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              tick((t) => t + 1);
+            }}
+            compact
+          />
+        ) : goalSet ? (
+          <div className="flex items-center gap-5">
+            <div className="flex-1 min-w-0">
+              <div className="uplabel mb-1">Current goal</div>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="tabular-nums"
+                  style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}
+                >
+                  {goal.target}
+                </span>
+                <span className="text-[13px] text-text-secondary capitalize">
+                  {goal.kind} leads
+                </span>
+                <span className="text-[12px] text-text-tertiary">· {goal.window}</span>
+              </div>
+              <div className="text-[11.5px] text-text-tertiary mt-1">
+                Day {goal.daysElapsed} of {goal.daysTotal} · {goal.achieved} achieved so far.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button border border-border bg-white text-[12px]"
+            >
+              Edit goal
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div
+              className="inline-flex items-center justify-center flex-shrink-0"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background:
+                  "linear-gradient(135deg, #F4ECFF 0%, #FDF2FF 100%)",
+                color: "#7C3AED",
+              }}
+            >
+              <Target size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] font-semibold mb-0.5">
+                No goal configured
+              </div>
+              <div className="text-[11.5px] text-text-tertiary leading-[1.5]">
+                Set a target (e.g. 240 verified leads in 180 days). Spot uses it to
+                project pace and surface gaps as data rolls in.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="apply-btn"
+              style={{
+                height: 32,
+                fontSize: 12.5,
+                padding: "0 12px",
+                background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
+              }}
+            >
+              <Target size={12} /> Set goal
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

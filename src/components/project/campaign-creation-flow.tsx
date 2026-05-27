@@ -9,10 +9,10 @@ import { getProject, mutateRuntimeProject } from "@/lib/project-data";
 import { appendLaunchedCampaign } from "@/lib/build-project";
 import { AgentPicker, getAgentName } from "@/components/project/agent-picker";
 import {
+  DEFAULT_LEAD_FORM_STATE,
   AdSetsCard,
   LeadFormCard,
   autoDraftCreatives,
-  DEFAULT_DISCLAIMER,
   type CampaignSettings,
   type CreativesState,
   type LeadFormState,
@@ -78,7 +78,7 @@ export function CampaignCreationFlow({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const [stage, setStage] = useState<Stage>("mediaplan");
+  const [stage, setStage] = useState<Stage>("leadform");
 
   const personaInputs: PersonaInput[] = project
     ? project.personas.map((p) => ({
@@ -90,11 +90,19 @@ export function CampaignCreationFlow({
       }))
     : [];
 
-  const [settings] = useState<CampaignSettings>(() => ({
-    objective: project?.goal.kind || "verified",
-    weeklyBudget: project ? String(Math.round((project.goal.target / 24) * 5800)) : "50000",
-    pacing: "standard",
-  }));
+  const [settings] = useState<CampaignSettings>(() => {
+    // Derive a starting weekly budget from the project's goal when one
+    // exists; otherwise fall back to a sensible default. Treats target=0
+    // as "no goal" so we don't compute ₹0/wk.
+    const goalTarget = project?.goal.target || 0;
+    const derivedWeekly =
+      goalTarget > 0 ? Math.round((goalTarget / 24) * 5800) : 50000;
+    return {
+      objective: project?.goal.kind || "verified",
+      weeklyBudget: String(derivedWeekly),
+      pacing: "standard",
+    };
+  });
 
   // Creatives come from the project's library. We mirror the auto-draft
   // shape here so AdSetsCard can render thumbnails per ad set without a
@@ -105,8 +113,7 @@ export function CampaignCreationFlow({
   const [agentId, setAgentId] = useState<string | null>(null);
 
   const [leadForm, setLeadForm] = useState<LeadFormState>(() => ({
-    enabled: { name: true, phone: true, email: true, budget: true, timeline: true, units: false },
-    disclaimer: DEFAULT_DISCLAIMER,
+    ...DEFAULT_LEAD_FORM_STATE,
   }));
 
   useEffect(() => {
@@ -120,12 +127,12 @@ export function CampaignCreationFlow({
 
   const totalCreatives = Object.values(creatives).reduce((s, arr) => s + arr.length, 0);
   const next = () => {
-    const order: Stage[] = ["mediaplan", "leadform", "deploy"];
+    const order: Stage[] = ["leadform", "mediaplan", "deploy"];
     const i = order.indexOf(stage);
     if (i < order.length - 1) setStage(order[i + 1]);
   };
   const back = () => {
-    const order: Stage[] = ["mediaplan", "leadform", "deploy"];
+    const order: Stage[] = ["leadform", "mediaplan", "deploy"];
     const i = order.indexOf(stage);
     if (i > 0) setStage(order[i - 1]);
   };
@@ -159,10 +166,11 @@ export function CampaignCreationFlow({
           inset: 0,
           zIndex: 100,
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "5vh 16px",
+          padding: "4vh 16px",
           pointerEvents: "none",
+          overflowY: "auto",
         }}
       >
         <div
@@ -205,17 +213,14 @@ export function CampaignCreationFlow({
             className="flex-1 overflow-y-auto px-5 py-4 scroll"
             style={{ background: "var(--chat-bg)" }}
           >
-            {stage === "mediaplan" && (
+            {stage === "leadform" && (
               <>
                 <SpotBubble>
-                  Pulling your project goal — <strong>{project.goal.target} {project.goal.kind} leads</strong>{" "}
-                  in <strong>{project.goal.window}</strong> — into the media plan. Here&apos;s a
-                  starter shape: 4 canonical campaigns (Experiment, Scaling, Cost/Bid Cap,
-                  Advantage+) with your project creatives slotted into the right ad sets. Tap any
-                  campaign to expand.
+                  Let&apos;s shape the lead form first — the questions you ask determine how Spot
+                  routes and qualifies these leads. Preview shows exactly how this looks on Meta.
                 </SpotBubble>
                 <DraftCard
-                  label="Media plan · ad sets per campaign"
+                  label="Lead form"
                   footer={
                     <div className="flex justify-between items-center">
                       <button
@@ -226,28 +231,41 @@ export function CampaignCreationFlow({
                         Cancel
                       </button>
                       <button type="button" onClick={next} className="apply-btn">
-                        <Check size={11} /> Set up the lead form →
+                        <Check size={11} /> Continue to the media plan →
                       </button>
                     </div>
                   }
                 >
-                  <AdSetsCard
-                    projectShort={project.name.split(" · ")[0]}
-                    personas={personaInputs}
-                    creatives={creatives}
-                  />
+                  <LeadFormCard state={leadForm} onChange={setLeadForm} />
                 </DraftCard>
               </>
             )}
 
-            {stage === "leadform" && (
+            {stage === "mediaplan" && (
               <>
                 <SpotBubble>
-                  Here&apos;s how the lead form will appear to a buyer. Click{" "}
-                  <strong>Edit settings</strong> to add or remove fields, or refine the disclaimer.
+                  {project.goal.target > 0 ? (
+                    <>
+                      Pulling your project goal —{" "}
+                      <strong>
+                        {project.goal.target} {project.goal.kind} leads
+                      </strong>{" "}
+                      in <strong>{project.goal.window}</strong> — into the media plan. Here&apos;s a
+                      starter shape: 4 canonical campaigns (Experiment, Scaling, Cost/Bid Cap,
+                      Advantage+) with your project creatives slotted into the right ad sets. Tap
+                      any campaign to expand.
+                    </>
+                  ) : (
+                    <>
+                      Here&apos;s a starter media plan: 4 canonical campaigns (Experiment, Scaling,
+                      Cost/Bid Cap, Advantage+) with your project creatives slotted into the right
+                      ad sets. No project goal set yet — you can add one from the project page to
+                      tune the budget recommendation.
+                    </>
+                  )}
                 </SpotBubble>
                 <DraftCard
-                  label="Lead form"
+                  label="Media plan · ad sets per campaign"
                   footer={
                     <div className="flex justify-between items-center">
                       <button
@@ -263,7 +281,11 @@ export function CampaignCreationFlow({
                     </div>
                   }
                 >
-                  <LeadFormCard state={leadForm} onChange={setLeadForm} />
+                  <AdSetsCard
+                    projectShort={project.name.split(" · ")[0]}
+                    personas={personaInputs}
+                    creatives={creatives}
+                  />
                 </DraftCard>
               </>
             )}

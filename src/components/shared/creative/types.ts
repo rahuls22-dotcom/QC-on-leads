@@ -75,6 +75,72 @@ export function defaultMockupCopy(): MockupCopy {
   };
 }
 
+/**
+ * Project-aware mockup-copy seed. Used when the generator is launched
+ * from a Persona on the project page so the mockups land with the right
+ * RERA / builder / price / project-name baked in instead of the legacy
+ * Godrej Air defaults.
+ *
+ * Every input is optional — anything blank falls back to the default.
+ */
+export interface MockupCopyProjectContext {
+  /** Project's display name — drops onto variant-4 brandHeader. */
+  projectName?: string;
+  /** Builder name shown in the bottom-corner badge. */
+  builderName?: string;
+  /** "₹1.6 – 2.4 Cr" — leading slice becomes priceMain+priceUnit. */
+  priceBand?: string;
+  /** RERA-shaped status line; falls back to "RERA approved" when truthy. */
+  rera?: string;
+  /** Phase / launch tag for the eyebrow line — e.g. "Phase 3 · Now Open". */
+  launchPhase?: string;
+  /** Typology label used in the social-proof subAttribution. */
+  typology?: string;
+}
+
+export function mockupCopyFromProject(
+  ctx: MockupCopyProjectContext,
+): MockupCopy {
+  const fallback = defaultMockupCopy();
+  const [priceMain, priceUnit] = splitPriceBand(ctx.priceBand);
+  const projectShort = ctx.projectName?.split(" · ")[0];
+  const builderUpper = (ctx.builderName || "").toUpperCase().split(" ")[0];
+  const reraLine = ctx.rera
+    ? `${ctx.rera.slice(0, 18)} · ${ctx.launchPhase || "RERA approved"}`
+    : ctx.launchPhase
+      ? `RERA approved · ${ctx.launchPhase}`
+      : fallback.priceSubtext;
+  return {
+    eyebrow: ctx.launchPhase || fallback.eyebrow,
+    priceMain: priceMain || fallback.priceMain,
+    priceUnit: priceUnit || fallback.priceUnit,
+    priceLabel: "Starting Price",
+    priceSubtext: reraLine,
+    brandCorner: builderUpper || fallback.brandCorner,
+    quote: fallback.quote,
+    attribution: fallback.attribution,
+    subAttribution: ctx.typology
+      ? `${ctx.typology} owners · 1200+ families`
+      : fallback.subAttribution,
+    brandHeader: projectShort || fallback.brandHeader,
+    titleLineA: "Luxury",
+    titleLineB: "Redefined",
+  };
+}
+
+/** Pull the leading "₹X.Y" / "Cr" from a price-band string. */
+function splitPriceBand(band?: string): [string, string] {
+  if (!band) return ["", ""];
+  // Handles "₹1.6 – 2.4 Cr", "1.6-2.4Cr", "₹1.6Cr", "₹95L"
+  const lower = band.replace(/\s+/g, "");
+  const m = lower.match(/(₹?)([\d.]+)[–\-—]?[\d.]*([A-Za-z]*)/);
+  if (!m) return ["", ""];
+  const numeric = m[2];
+  const unit = (m[3] || "").replace(/^k$/i, "K");
+  const main = (m[1] || "₹") + numeric;
+  return [main, unit];
+}
+
 /** A single creative version. Lives in either concept_versions (Phase B) or per-size versions (Phase C). */
 export interface ConceptVersion {
   id: string;
@@ -284,6 +350,8 @@ export function makeMockVersion(opts: {
   labelPrefix?: string;
   /** When generating from a refinement message, we tweak the headline. */
   refinementText?: string;
+  /** Project-aware mockup-copy seed. When present, overrides the legacy defaults. */
+  projectContext?: MockupCopyProjectContext;
 }): ConceptVersion {
   const pool = CONCEPT_POOL;
   const idx = opts.preferVariant
@@ -306,7 +374,7 @@ export function makeMockVersion(opts: {
     primary_text: base.primary_text,
     headline,
     description: base.description,
-    mockup: mockupCopyForBase(base, headline, opts.refinementText),
+    mockup: mockupCopyForBase(base, headline, opts.refinementText, opts.projectContext),
     label: opts.labelPrefix ?? base.label,
     created_at: Date.now(),
   };
@@ -316,37 +384,32 @@ export function makeMockVersion(opts: {
  * Seed variant-specific mockup copy. The default values match what the AdMockup
  * historically rendered for each variant; refinement hints get appended to the
  * variant's most prominent visible text element so the mock visibly reacts.
+ *
+ * When `projectContext` is present, project-derived values (real RERA, price
+ * band, builder name, project name, typology) win over the Godrej-Air defaults.
  */
 function mockupCopyForBase(
   base: ConceptCopy,
   effectiveHeadline: string,
-  refinementText: string | undefined
+  refinementText: string | undefined,
+  projectContext: MockupCopyProjectContext | undefined,
 ): MockupCopy {
   const hint = refinementText ? summariseRefinement(refinementText) : "";
-  const copy = defaultMockupCopy();
-  // Variant-specific defaults derived from the pool entry.
+  const copy = projectContext
+    ? mockupCopyFromProject(projectContext)
+    : defaultMockupCopy();
+  // Variant-specific tweaks that don't depend on context.
   switch (base.variant) {
     case 1:
       // Variant 1 renders the headline directly — no mockup-specific main text.
-      copy.eyebrow = "Phase 3 · Now Open";
       break;
     case 2:
-      copy.priceMain = "₹1.8";
-      copy.priceUnit = "Cr";
-      copy.priceLabel = "Starting Price";
-      copy.priceSubtext = "RERA approved · Phase 3";
-      copy.brandCorner = "GODREJ";
+      // priceMain / priceUnit / priceSubtext already wired in copy seed.
       break;
     case 3:
-      copy.quote = "Changed our lives.";
-      copy.attribution = "— Rajesh & Priya";
-      copy.subAttribution = "3BHK owners · 1200+ families";
       if (hint) copy.quote = `${copy.quote} · ${hint}`;
       break;
     case 4:
-      copy.brandHeader = "Godrej Air";
-      copy.titleLineA = "Luxury";
-      copy.titleLineB = "Redefined";
       if (hint) copy.titleLineB = `${copy.titleLineB} · ${hint}`;
       break;
   }
@@ -437,14 +500,30 @@ function summariseRefinement(text: string): string {
 
 export const DEFAULT_SIZES: string[] = ["sq-feed", "story", "landscape"];
 
-export function emptyWorkspace(strategy?: CreativeStrategy): CreativeWorkspace {
+/**
+ * Pre-attached defaults when the generator is launched from a project
+ * context. The persona launcher passes these so the user lands in the
+ * Setup phase with the brand logo, project image, brand guidelines, and
+ * strategy already attached — no manual setup needed.
+ */
+export interface WorkspacePreAttach {
+  brandLogo?: AttachedImage | null;
+  projectImage?: AttachedImage | null;
+  brandGuidelinesAttached?: boolean;
+  creativeStrategyAttached?: boolean;
+}
+
+export function emptyWorkspace(
+  strategy?: CreativeStrategy,
+  preAttach?: WorkspacePreAttach,
+): CreativeWorkspace {
   return {
     prompt: "",
     style_reference: null,
-    project_image: null,
-    brand_logo: null,
-    brand_guidelines_attached: false,
-    creative_strategy_attached: false,
+    project_image: preAttach?.projectImage ?? null,
+    brand_logo: preAttach?.brandLogo ?? null,
+    brand_guidelines_attached: preAttach?.brandGuidelinesAttached ?? false,
+    creative_strategy_attached: preAttach?.creativeStrategyAttached ?? false,
     strategy: strategy ?? {
       angleName: "",
       personaName: "",

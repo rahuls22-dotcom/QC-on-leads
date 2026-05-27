@@ -1,4 +1,4 @@
-import { Clock, History, MoreHorizontal } from "lucide-react";
+import { Clock, MoreHorizontal } from "lucide-react";
 import { ProjectDetail } from "@/lib/project-data";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { HealthPill } from "./shared/pace-pill";
@@ -95,16 +95,9 @@ export function ProjectHero({
             Ask about this project
           </button>
           <button
-            onClick={() => onAsk(`Open knowledge base diff for ${project.name}`)}
-            type="button"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button border border-border bg-white hover:border-border-hover hover:bg-surface-page text-[12.5px] font-medium transition-colors"
-          >
-            <History size={13} />
-            History
-          </button>
-          <button
             type="button"
             className="inline-flex items-center justify-center h-8 w-8 rounded-button border border-border bg-white hover:border-border-hover hover:bg-surface-page transition-colors"
+            aria-label="More project actions"
           >
             <MoreHorizontal size={14} />
           </button>
