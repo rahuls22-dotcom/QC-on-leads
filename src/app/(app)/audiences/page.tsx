@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
@@ -222,6 +222,14 @@ function CreateAudienceModal({
 
 // ── Main Page ───────────────────────────────────────────────
 export default function AudiencesPage() {
+  return (
+    <Suspense fallback={null}>
+      <AudiencesPageInner />
+    </Suspense>
+  );
+}
+
+function AudiencesPageInner() {
   const { isEmpty } = useDemoMode();
   const params = useSearchParams();
   const fromEnrichment = params.get("source") === "enrichment";
