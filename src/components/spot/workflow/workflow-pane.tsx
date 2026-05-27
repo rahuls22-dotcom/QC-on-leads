@@ -4,7 +4,7 @@
 // approval action lives in the left chat (via the step-cta part). This
 // pane just shows what Spot is working on.
 
-import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink, Image as ImageIcon, Mic, MessageSquare, Phone, ArrowRight } from "lucide-react";
+import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink, Image as ImageIcon, Mic, MessageSquare, Phone, ArrowRight, Upload, FileText, Film as FilmIcon, Layers, Paperclip } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -340,18 +340,70 @@ function DeepResearchStep({ workflow }: { workflow: LaunchWorkflow }) {
  * deep-research step (loader + tool calls) and ultimately the kickoff
  * canvas with synthesised memory.
  */
+/** Files the user has uploaded as research input. We don't actually
+ *  parse them in this demo — they're a signal to Spot ("here's our
+ *  collateral, factor it in"). The deep research step pretends to
+ *  read them and folds the file names into the synthesised memory. */
+type UploadedFile = {
+  id: string;
+  name: string;
+  size: number;
+  kind: "pdf" | "deck" | "video" | "image" | "doc";
+};
+
+function inferKind(file: File): UploadedFile["kind"] {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (["ppt", "pptx", "key"].includes(ext)) return "deck";
+  if (["mp4", "mov", "webm", "avi"].includes(ext)) return "video";
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  return "doc";
+}
+
+function humanSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const FILE_KIND_ICON: Record<UploadedFile["kind"], typeof FileText> = {
+  pdf: FileText,
+  deck: Layers,
+  video: FilmIcon,
+  image: ImageIcon,
+  doc: FileText,
+};
+
 function ProductSetupStep() {
   const startDeepResearch = useSpotStore((s) => s.startDeepResearch);
   const exit = useSpotStore((s) => s.exitWorkflow);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  // Tracks whether a file is currently being dragged over the drop zone
+  // — drives the visual hover state on the dashed border.
+  const [dragOver, setDragOver] = useState(false);
 
-  const canStart = name.trim().length > 1 || url.trim().length > 5;
+  const canStart = name.trim().length > 1 || url.trim().length > 5 || files.length > 0;
+
+  const ingest = (incoming: FileList | File[]) => {
+    const arr = Array.from(incoming).map((f) => ({
+      id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: f.name,
+      size: f.size,
+      kind: inferKind(f),
+    }));
+    setFiles((prev) => [...prev, ...arr]);
+  };
+
+  const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
 
   const submit = () => {
     if (!canStart) return;
     const label = name.trim() || extractDomainName(url) || "New product";
-    startDeepResearch(label);
+    // Pass file names through to deep research so Spot can mention them
+    // in the chat trail. The store accepts an optional second arg.
+    startDeepResearch(label, files.map((f) => f.name));
   };
 
   return (
@@ -363,8 +415,8 @@ function ProductSetupStep() {
         </div>
         <h2 className="text-section-header text-text-primary">Tell me about the product</h2>
         <p className="text-meta text-text-secondary mt-1.5 max-w-[440px] mx-auto">
-          Drop a name and I'll do the research. Or paste a URL and I'll crawl the brand site
-          + audience graph to pre-fill the memory.
+          Drop a name, paste a URL, or upload your existing collateral — brochures, decks,
+          curriculum PDFs. I'll fold all of it into the product memory.
         </p>
       </div>
 
@@ -402,6 +454,78 @@ function ProductSetupStep() {
           </div>
         </div>
 
+        {/* File upload — drag-and-drop zone + file picker. Inputs above
+            are content signals; this is the "drop your existing knowledge"
+            slot. Multiple files, mixed types. */}
+        <div>
+          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
+            Upload collateral <span className="text-text-tertiary normal-case font-normal">· optional · PDFs, decks, brochures, demo videos</span>
+          </label>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (e.dataTransfer.files?.length) ingest(e.dataTransfer.files);
+            }}
+            className={`relative flex flex-col items-center justify-center gap-1.5 h-[88px] rounded-input border-2 border-dashed cursor-pointer transition-colors ${
+              dragOver
+                ? "border-text-primary bg-surface-page"
+                : "border-border hover:border-border-hover bg-surface-page/40"
+            }`}
+          >
+            <Upload size={14} strokeWidth={1.6} className="text-text-secondary" />
+            <div className="text-[12.5px] text-text-secondary text-center">
+              <span className="text-text-primary font-medium">Click to upload</span> or drag and drop
+            </div>
+            <div className="text-[10.5px] text-text-tertiary">PDF · PPT · MP4 · PNG · DOC — up to 50 MB</div>
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.ppt,.pptx,.key,.doc,.docx,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp"
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              onChange={(e) => {
+                if (e.target.files?.length) ingest(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+
+          {files.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {files.map((f) => {
+                const Icon = FILE_KIND_ICON[f.kind];
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-input bg-surface-page border border-border-subtle"
+                  >
+                    <Icon size={12} strokeWidth={1.6} className="text-text-secondary flex-shrink-0" />
+                    <span className="text-[12px] text-text-primary truncate flex-1">{f.name}</span>
+                    <span className="text-[10.5px] text-text-tertiary tabular flex-shrink-0">{humanSize(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(f.id)}
+                      className="text-text-tertiary hover:text-text-primary flex-shrink-0"
+                      aria-label="Remove file"
+                    >
+                      <X size={11} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="text-[10.5px] text-text-tertiary mt-1 inline-flex items-center gap-1">
+                <Paperclip size={9} strokeWidth={1.6} />
+                {files.length} file{files.length === 1 ? "" : "s"} attached — I'll parse and fold into memory.
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="pt-1 flex items-center gap-2">
           <button
             type="button"
@@ -430,9 +554,9 @@ function ProductSetupStep() {
           <SpotMark size={16} />
           <div className="text-[12px] text-text-secondary leading-relaxed">
             <span className="text-text-primary font-medium">What I'll do:</span> spin up the
-            Deep Research Agent · synthesise USPs and the do-not-mention list · check the
-            audience graph for persona overlap · write everything to product memory and
-            walk you through it on the next canvas.
+            Deep Research Agent · {files.length > 0 ? "parse your uploads · " : ""}synthesise USPs
+            and the do-not-mention list · check the audience graph for persona overlap · write
+            everything to product memory and walk you through it on the next canvas.
           </div>
         </div>
       </div>

@@ -1,116 +1,164 @@
 "use client";
 
-// Campaigns dashboard — read-only hierarchical view.
+// Campaigns dashboard — rebuilt.
 //
-// Campaign → Ad Set → Ad. Each row expands the level below it. The
-// platform never lets the user edit campaign / ad-set / ad settings:
-// the only edit paths are
-//   · Open in Meta — link out to the live entity
-//   · Ask Spot — opens /spot pre-loaded with the edit intent
+// Read-only by design: every row is a hierarchical entity (Campaign →
+// Ad Set → Ad). The only edit paths Revspot supports are:
+//   · "Open in Meta" — a tiny inline arrow next to the row name
+//   · "Ask Spot to edit" — a small button with the SpotMark
 //
-// This is by design — Spot owns the "make the change" loop. The
-// platform owns the "see the data" loop.
+// The old version had a wide Actions column and a separate Status
+// column. Both ate space we'd rather use for metrics + trends. This
+// version pushes Open in Meta into the row name itself (inline ↗),
+// makes Status a small dot/pill in the leftmost column, and devotes
+// the rest of the row to dense metrics with up/down trend deltas.
+//
+// Top-of-page controls:
+//   · Global date range (Last 7d / 30d / 90d)
+//   · Product filter (defaults to All, or a Guyju's product)
 
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
   ArrowUpRight,
-  Sparkles,
-  Search,
   Image as ImageIcon,
   Film,
   Layout,
-  Pause,
-  Play,
-  CircleDot,
+  Search,
+  Calendar,
+  Filter,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
-import { campaignHierarchy, type AdSetRowHier, type AdRow, type CampaignHier } from "@/lib/campaign-hierarchy";
-import type { CampaignListItem, CampaignStatus } from "@/lib/campaign-data";
+import {
+  edTechCampaigns,
+  productOptions,
+  type EdTechAd,
+  type EdTechAdSet,
+  type EdTechCampaign,
+  type EdTechCampaignStatus,
+  type EdTechHealth,
+  type TrendDelta,
+} from "@/lib/campaigns-edtech";
 
-const STATUS_TONE: Record<CampaignStatus, { pill: string; label: string; Icon: typeof CircleDot }> = {
-  enabled: { pill: "pill-ok", label: "Enabled", Icon: Play },
-  paused: { pill: "pill-warn", label: "Paused", Icon: Pause },
-  draft: { pill: "pill", label: "Draft", Icon: CircleDot },
+/* ─── Status + health styling ──────────────────────────────────── */
+
+const STATUS_DOT: Record<EdTechCampaignStatus, string> = {
+  enabled: "bg-[#22C55E]",
+  paused: "bg-[#F5A623]",
+  draft: "bg-[#D4D4D4]",
+};
+const STATUS_LABEL: Record<EdTechCampaignStatus, string> = {
+  enabled: "Live",
+  paused: "Paused",
+  draft: "Draft",
 };
 
-const HEALTH_TONE: Record<CampaignListItem["health"], { label: string; pill: string }> = {
-  "on-track": { label: "On track", pill: "pill-ok" },
-  "needs-attention": { label: "Needs attention", pill: "pill-warn" },
-  underperforming: { label: "Underperforming", pill: "pill-err" },
+const HEALTH_TONE: Record<EdTechHealth, string> = {
+  "on-track": "pill-ok",
+  "needs-attention": "pill-warn",
+  underperforming: "pill-err",
 };
+const HEALTH_LABEL: Record<EdTechHealth, string> = {
+  "on-track": "On track",
+  "needs-attention": "Needs attention",
+  underperforming: "Off",
+};
+
+const KIND_ICON: Record<EdTechAd["kind"], typeof ImageIcon> = {
+  image: ImageIcon,
+  video: Film,
+  carousel: Layout,
+  search: Search,
+};
+
+/* ─── Number helpers ────────────────────────────────────────────── */
 
 function inr(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1000000 ? 1 : 2)}L`;
+  if (n === 0) return "—";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
   if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
   return `₹${n}`;
 }
+function num(n: number) {
+  if (n === 0) return "—";
+  if (n >= 100000) return `${(n / 100000).toFixed(2)}L`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toLocaleString("en-IN");
+}
+
+/* ─── Date range ────────────────────────────────────────────────── */
+
+const DATE_RANGES = [
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "90d", label: "Last 90 days" },
+  { key: "custom", label: "Custom range" },
+] as const;
+type DateRange = (typeof DATE_RANGES)[number]["key"];
+
+/* ─── Page ──────────────────────────────────────────────────────── */
 
 export default function CampaignsPage() {
   const askSpot = useSpotStore((s) => s.askSpot);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
+  const [productId, setProductId] = useState<"all" | string>("all");
+  const [range, setRange] = useState<DateRange>("30d");
 
-  const toggle = (id: string) =>
-    setExpanded((m) => ({ ...m, [id]: !m[id] }));
+  const toggle = (id: string) => setExpanded((m) => ({ ...m, [id]: !m[id] }));
+
+  const products = productOptions();
 
   const filtered = useMemo(() => {
-    return campaignHierarchy.filter((h) => {
-      if (statusFilter !== "all" && h.campaign.status !== statusFilter) return false;
+    return edTechCampaigns.filter((c) => {
+      if (productId !== "all" && c.productId !== productId) return false;
       if (!query.trim()) return true;
       const q = query.toLowerCase();
-      return (
-        h.campaign.name.toLowerCase().includes(q) ||
-        h.campaign.client.toLowerCase().includes(q)
-      );
+      return c.name.toLowerCase().includes(q) || c.productName.toLowerCase().includes(q);
     });
-  }, [query, statusFilter]);
+  }, [query, productId]);
 
-  const totalSpend = filtered.reduce((s, h) => s + h.campaign.spend, 0);
-  const totalLeads = filtered.reduce((s, h) => s + h.campaign.leads, 0);
-  const liveCount = filtered.filter((h) => h.campaign.status === "enabled").length;
+  // Roll-ups across the filtered set.
+  const totalSpend = filtered.reduce((s, c) => s + c.metrics.spend, 0);
+  const totalLeads = filtered.reduce((s, c) => s + c.metrics.leads, 0);
+  const totalQual = filtered.reduce((s, c) => s + c.metrics.qualified, 0);
+  const liveCount = filtered.filter((c) => c.status === "enabled").length;
+  const blendedCpl = totalLeads ? Math.round(totalSpend / totalLeads) : 0;
+  const blendedCpql = totalQual ? Math.round(totalSpend / totalQual) : 0;
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-meta text-text-secondary mb-1">Growth · Live spend</div>
           <h1 className="text-page-title text-text-primary">Campaigns</h1>
-          <p className="text-meta text-text-secondary mt-1 max-w-[640px]">
-            Performance across every Meta and Google campaign. Read-only on Revspot — Spot owns the edits, or
-            link out to Meta to make changes manually.
+          <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
+            Every Meta and Google campaign in one read-only view. Spot owns the edits — tap "Ask Spot to edit" on any
+            row, or jump to Meta to make the change manually.
           </p>
         </div>
-        <div className="inline-flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => askSpot("Diagnose this week across all campaigns — where should I act?")}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-button border border-border bg-white hover:border-border-hover text-[12.5px] font-medium"
-          >
-            <SpotMark size={13} />
-            Diagnose with Spot
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => askSpot("Diagnose this week across all campaigns — where should I act?")}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-button border border-border bg-white hover:border-border-hover text-[12.5px] font-medium"
+        >
+          <SpotMark size={13} />
+          Diagnose with Spot
+        </button>
       </div>
 
-      {/* Roll-up strip */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <Stat label="Live campaigns" value={liveCount} />
-        <Stat label="Total spend (30d)" value={inr(totalSpend)} />
-        <Stat label="Total leads (30d)" value={totalLeads.toLocaleString("en-IN")} />
-        <Stat
-          label="Avg CPL"
-          value={totalLeads > 0 ? inr(Math.round(totalSpend / totalLeads)) : "—"}
-        />
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-3">
-        <div className="relative flex-1 max-w-[320px]">
+      {/* Filters strip — global date + product filter live at the top */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <DateRangeChip value={range} onChange={setRange} />
+        <ProductFilter value={productId} onChange={setProductId} options={products} />
+        <div className="relative flex-1 max-w-[280px] min-w-[160px]">
           <Search size={13} strokeWidth={1.8} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input
             type="text"
@@ -120,47 +168,35 @@ export default function CampaignsPage() {
             className="w-full h-8 pl-7 pr-3 rounded-button border border-border bg-white text-[12.5px] placeholder:text-text-tertiary focus:outline-none focus:border-text-primary"
           />
         </div>
-        <div className="inline-flex items-center gap-0.5 bg-surface-secondary p-0.5 rounded-button">
-          {(["all", "enabled", "paused", "draft"] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatusFilter(s)}
-              className={`h-7 px-2.5 rounded-[5px] text-[11.5px] font-medium transition-colors ${
-                statusFilter === s ? "bg-white text-text-primary" : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {s === "all" ? "All" : STATUS_TONE[s].label}
-            </button>
-          ))}
-        </div>
+        <span className="ml-auto text-[11.5px] text-text-tertiary">
+          {filtered.length} campaign{filtered.length === 1 ? "" : "s"} · {liveCount} live
+        </span>
+      </div>
+
+      {/* Roll-up strip */}
+      <div className="grid grid-cols-5 gap-2.5 mb-4">
+        <Stat label="Spend" value={inr(totalSpend)} />
+        <Stat label="Leads" value={num(totalLeads)} />
+        <Stat label="Qualified" value={num(totalQual)} />
+        <Stat label="Blended CPL" value={inr(blendedCpl)} />
+        <Stat label="Blended CPQL" value={inr(blendedCpql)} />
       </div>
 
       {/* Table */}
       <div className="bg-white border border-border rounded-card overflow-hidden">
-        {/* Header row */}
-        <div className="grid grid-cols-[1fr_120px_110px_110px_110px_140px_240px] gap-3 px-4 py-2.5 border-b border-border bg-surface-page text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
-          <div>Name</div>
-          <div className="text-right">Spend</div>
-          <div className="text-right">Leads</div>
-          <div className="text-right">CPL</div>
-          <div className="text-right">CTR</div>
-          <div>Status</div>
-          <div>Actions</div>
-        </div>
-
+        <TableHeader />
         {filtered.length === 0 ? (
           <div className="px-4 py-10 text-center text-[13px] text-text-tertiary">
             No campaigns match your filters.
           </div>
         ) : (
-          filtered.map((h) => (
+          filtered.map((c) => (
             <CampaignRow
-              key={h.campaign.id}
-              hier={h}
-              expanded={!!expanded[h.campaign.id]}
-              onToggle={() => toggle(h.campaign.id)}
+              key={c.id}
+              c={c}
+              expanded={!!expanded[c.id]}
               isAdsetExpanded={(id) => !!expanded[id]}
+              onToggle={() => toggle(c.id)}
               onToggleAdset={(id) => toggle(id)}
               askSpot={askSpot}
             />
@@ -171,74 +207,192 @@ export default function CampaignsPage() {
   );
 }
 
-/* ─── Rows ───────────────────────────────────────────────────── */
+/* ─── Filters ──────────────────────────────────────────────────── */
+
+function DateRangeChip({ value, onChange }: { value: DateRange; onChange: (v: DateRange) => void }) {
+  const [open, setOpen] = useState(false);
+  const current = DATE_RANGES.find((r) => r.key === value)!;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-button border border-border bg-white hover:border-border-hover text-[12px] font-medium text-text-primary"
+      >
+        <Calendar size={12} strokeWidth={1.7} className="text-text-secondary" />
+        {current.label}
+        <ChevronDown size={11} strokeWidth={1.8} className="text-text-tertiary" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 top-full mt-1 z-20 min-w-[180px] bg-white border border-border rounded-card shadow-card-hover py-1"
+          >
+            {DATE_RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => {
+                  onChange(r.key);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page ${
+                  r.key === value ? "text-text-primary font-medium" : "text-text-secondary"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProductFilter({
+  value,
+  onChange,
+  options,
+}: {
+  value: "all" | string;
+  onChange: (v: "all" | string) => void;
+  options: { id: string; name: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const current = value === "all" ? "All products" : options.find((o) => o.id === value)?.name ?? "Product";
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-button border border-border bg-white hover:border-border-hover text-[12px] font-medium text-text-primary"
+      >
+        <Filter size={11} strokeWidth={1.7} className="text-text-secondary" />
+        {current}
+        <ChevronDown size={11} strokeWidth={1.8} className="text-text-tertiary" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 top-full mt-1 z-20 min-w-[240px] bg-white border border-border rounded-card shadow-card-hover py-1"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onChange("all");
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page ${
+                value === "all" ? "text-text-primary font-medium" : "text-text-secondary"
+              }`}
+            >
+              All products
+            </button>
+            <div className="my-1 h-px bg-border-subtle" />
+            {options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => {
+                  onChange(o.id);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page ${
+                  value === o.id ? "text-text-primary font-medium" : "text-text-secondary"
+                }`}
+              >
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Table chrome ─────────────────────────────────────────────── */
+
+// Column template — narrow status pill on the left, name takes flex,
+// then dense metric columns. No standalone "Actions" column anymore;
+// the Ask Spot button is appended after the row name.
+const COLS =
+  "grid-cols-[14px_minmax(0,1.6fr)_88px_70px_70px_88px_82px_82px_92px_120px]";
+// One row to rule them all: status dot · name (+ inline actions) · spend · CPM · CTR · leads · CPL · qual rate · CPQL · health
+
+function TableHeader() {
+  return (
+    <div
+      className={`grid ${COLS} gap-2 px-3 py-2.5 border-b border-border bg-surface-page text-[10.5px] font-medium uppercase tracking-wider text-text-tertiary items-center`}
+    >
+      <div></div>
+      <div>Campaign</div>
+      <div className="text-right">Spend</div>
+      <div className="text-right">CPM</div>
+      <div className="text-right">CTR</div>
+      <div className="text-right">Leads</div>
+      <div className="text-right">CPL</div>
+      <div className="text-right">Qual %</div>
+      <div className="text-right">CPQL</div>
+      <div>Health</div>
+    </div>
+  );
+}
+
+/* ─── Rows ─────────────────────────────────────────────────────── */
 
 function CampaignRow({
-  hier,
+  c,
   expanded,
-  onToggle,
   isAdsetExpanded,
+  onToggle,
   onToggleAdset,
   askSpot,
 }: {
-  hier: CampaignHier;
+  c: EdTechCampaign;
   expanded: boolean;
-  onToggle: () => void;
   isAdsetExpanded: (id: string) => boolean;
+  onToggle: () => void;
   onToggleAdset: (id: string) => void;
   askSpot: (q: string) => void;
 }) {
-  const c = hier.campaign;
-  const StatusIcon = STATUS_TONE[c.status].Icon;
-  const health = HEALTH_TONE[c.health];
-
   return (
     <>
-      {/* Campaign row */}
-      <div className="grid grid-cols-[1fr_120px_110px_110px_110px_140px_240px] gap-3 px-4 py-3 border-b border-border-subtle items-center hover-row">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-text-secondary hover:bg-surface-secondary"
-            aria-label={expanded ? "Collapse" : "Expand"}
-          >
-            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
-          <div className="min-w-0">
-            <div className="text-[13px] font-medium text-text-primary truncate">{c.name}</div>
-            <div className="text-[11px] text-text-tertiary truncate">
-              {c.client} · {c.type} · {hier.adsets.length} ad set{hier.adsets.length === 1 ? "" : "s"}
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-[13px] text-text-primary tabular">{inr(c.spend)}</div>
-        <div className="text-right text-[13px] text-text-primary tabular">{c.leads.toLocaleString("en-IN")}</div>
-        <div className="text-right text-[13px] text-text-primary tabular">{inr(c.cpl)}</div>
-        <div className="text-right text-[13px] text-text-primary tabular">{c.ctr}%</div>
-        <div className="flex items-center gap-1 flex-wrap">
-          <span className={`pill ${STATUS_TONE[c.status].pill} inline-flex items-center gap-1`}>
-            <StatusIcon size={9} strokeWidth={2} />
-            {STATUS_TONE[c.status].label}
-          </span>
-          <span className={`pill ${health.pill}`} style={{ fontSize: 10 }}>
-            {health.label}
-          </span>
-        </div>
-        <ActionCell
-          metaUrl={hier.metaUrl}
+      <div
+        className={`grid ${COLS} gap-2 px-3 py-2.5 border-b border-border-subtle items-center hover-row`}
+      >
+        <StatusDot status={c.status} />
+        <NameCell
+          name={c.name}
+          sub={`${c.channel} · ${c.objective} · ${c.productName} · ${c.adsets.length} ad set${c.adsets.length === 1 ? "" : "s"}`}
+          metaUrl={c.metaUrl}
+          expanded={expanded}
+          onToggle={onToggle}
           onAskSpot={() =>
-            askSpot(`Edit campaign "${c.name}" — what change should I propose, and apply it on Meta?`)
+            askSpot(`Edit campaign "${c.name}" — diagnose and propose the change, then apply on Meta.`)
           }
         />
+        <MetricCell value={inr(c.metrics.spend)} delta={c.deltas.spend} />
+        <MetricCell value={inr(c.metrics.cpm)} delta={c.deltas.cpm} />
+        <MetricCell value={`${c.metrics.ctr.toFixed(2)}%`} delta={c.deltas.ctr} />
+        <MetricCell value={num(c.metrics.leads)} delta={c.deltas.leads} />
+        <MetricCell value={inr(c.metrics.cpl)} delta={c.deltas.cpl} />
+        <MetricCell
+          value={c.metrics.qualificationRate ? `${c.metrics.qualificationRate.toFixed(1)}%` : "—"}
+          delta={c.deltas.qualificationRate}
+        />
+        <MetricCell value={inr(c.metrics.costPerQualified)} delta={c.deltas.costPerQualified} />
+        <HealthCell health={c.health} />
       </div>
 
-      {/* Ad sets — only when campaign is expanded */}
       {expanded &&
-        hier.adsets.map((a) => (
-          <AdSetSubRow
+        c.adsets.map((a) => (
+          <AdSetRow
             key={a.id}
-            adset={a}
+            a={a}
             expanded={isAdsetExpanded(a.id)}
             onToggle={() => onToggleAdset(a.id)}
             askSpot={askSpot}
@@ -248,147 +402,227 @@ function CampaignRow({
   );
 }
 
-function AdSetSubRow({
-  adset,
+function AdSetRow({
+  a,
   expanded,
   onToggle,
   askSpot,
 }: {
-  adset: AdSetRowHier;
+  a: EdTechAdSet;
   expanded: boolean;
   onToggle: () => void;
   askSpot: (q: string) => void;
 }) {
-  const StatusIcon = STATUS_TONE[adset.status].Icon;
   return (
     <>
-      <div className="grid grid-cols-[1fr_120px_110px_110px_110px_140px_240px] gap-3 px-4 py-2.5 border-b border-border-subtle items-center hover-row bg-[#FAFAFA]">
-        <div className="flex items-center gap-2 min-w-0 pl-7">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-text-secondary hover:bg-surface-secondary"
-            aria-label={expanded ? "Collapse" : "Expand"}
-          >
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          </button>
-          <div className="min-w-0">
-            <div className="text-[12.5px] font-medium text-text-primary truncate">{adset.name}</div>
-            <div className="text-[11px] text-text-tertiary">
-              Ad set · {adset.ads.length} ad{adset.ads.length === 1 ? "" : "s"}
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-[12.5px] text-text-primary tabular">{inr(adset.spend)}</div>
-        <div className="text-right text-[12.5px] text-text-primary tabular">{adset.leads.toLocaleString("en-IN")}</div>
-        <div className="text-right text-[12.5px] text-text-primary tabular">{inr(adset.cpl)}</div>
-        <div className="text-right text-[12.5px] text-text-primary tabular">{adset.ctr}%</div>
-        <div>
-          <span className={`pill ${STATUS_TONE[adset.status].pill} inline-flex items-center gap-1`}>
-            <StatusIcon size={9} strokeWidth={2} />
-            {STATUS_TONE[adset.status].label}
-          </span>
-        </div>
-        <ActionCell
-          metaUrl={adset.metaUrl}
-          onAskSpot={() =>
-            askSpot(`Adjust ad set "${adset.name}" — audience, schedule, or bid. Apply on Meta when ready.`)
-          }
+      <div
+        className={`grid ${COLS} gap-2 px-3 py-2 border-b border-border-subtle items-center hover-row bg-[#FAFAFA]`}
+      >
+        <StatusDot status={a.status} />
+        <NameCell
+          name={a.name}
+          sub={`Ad set · ${a.ads.length} ad${a.ads.length === 1 ? "" : "s"}`}
+          metaUrl={a.metaUrl}
+          expanded={expanded}
+          onToggle={onToggle}
+          onAskSpot={() => askSpot(`Adjust ad set "${a.name}" — audience or schedule. Apply on Meta when ready.`)}
+          indent={1}
+          dense
         />
+        <MetricCell value={inr(a.metrics.spend)} delta={a.deltas.spend} dense />
+        <MetricCell value={inr(a.metrics.cpm)} delta={a.deltas.cpm} dense />
+        <MetricCell value={`${a.metrics.ctr.toFixed(2)}%`} delta={a.deltas.ctr} dense />
+        <MetricCell value={num(a.metrics.leads)} delta={a.deltas.leads} dense />
+        <MetricCell value={inr(a.metrics.cpl)} delta={a.deltas.cpl} dense />
+        <MetricCell
+          value={`${a.metrics.qualificationRate.toFixed(1)}%`}
+          delta={a.deltas.qualificationRate}
+          dense
+        />
+        <MetricCell value={inr(a.metrics.costPerQualified)} delta={a.deltas.costPerQualified} dense />
+        <div />
       </div>
-
-      {expanded &&
-        adset.ads.map((ad) => <AdSubRow key={ad.id} ad={ad} askSpot={askSpot} />)}
+      {expanded && a.ads.map((ad) => <AdRow key={ad.id} ad={ad} askSpot={askSpot} />)}
     </>
   );
 }
 
-const KIND_ICON: Record<AdRow["kind"], typeof ImageIcon> = {
-  image: ImageIcon,
-  video: Film,
-  carousel: Layout,
-};
-
-function AdSubRow({ ad, askSpot }: { ad: AdRow; askSpot: (q: string) => void }) {
-  const StatusIcon = STATUS_TONE[ad.status].Icon;
-  const KindIcon = KIND_ICON[ad.kind];
+function AdRow({ ad, askSpot }: { ad: EdTechAd; askSpot: (q: string) => void }) {
+  const KIcon = KIND_ICON[ad.kind];
   return (
-    <div className="grid grid-cols-[1fr_120px_110px_110px_110px_140px_240px] gap-3 px-4 py-2 border-b border-border-subtle items-center hover-row bg-white">
-      <div className="flex items-center gap-2 min-w-0 pl-14">
-        <KindIcon size={11} strokeWidth={1.6} className="text-text-tertiary flex-shrink-0" />
-        <div className="min-w-0">
-          <div className="text-[12px] text-text-primary truncate">
-            {ad.name}
-            <span className="ml-1.5 text-[10.5px] text-text-tertiary">· {ad.format}</span>
-          </div>
+    <div className={`grid ${COLS} gap-2 px-3 py-1.5 border-b border-border-subtle items-center hover-row bg-white`}>
+      <StatusDot status={ad.status} />
+      <div className="flex items-center gap-2 min-w-0 pl-9">
+        <KIcon size={11} strokeWidth={1.6} className="text-text-tertiary flex-shrink-0" />
+        <div className="min-w-0 flex-1 flex items-center gap-1.5">
+          <span className="text-[11.5px] text-text-primary truncate">{ad.name}</span>
+          <span className="text-[10px] text-text-tertiary flex-shrink-0">· {ad.format}</span>
+          <a
+            href={ad.metaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-text-tertiary hover:text-text-primary flex-shrink-0"
+            title="Open in Meta"
+          >
+            <ArrowUpRight size={11} strokeWidth={1.8} />
+          </a>
+          <button
+            type="button"
+            onClick={() => askSpot(`Swap creative or copy on ad "${ad.name}". Propose and apply on Meta.`)}
+            className="inline-flex items-center gap-1 h-5 px-1.5 rounded-[5px] hover:bg-surface-secondary text-text-tertiary hover:text-text-primary text-[10px] font-medium flex-shrink-0"
+            title="Ask Spot to edit this ad"
+          >
+            <SpotMark size={9} />
+            Edit
+          </button>
         </div>
       </div>
-      <div className="text-right text-[12px] text-text-primary tabular">{inr(ad.spend)}</div>
-      <div className="text-right text-[12px] text-text-primary tabular">{ad.leads.toLocaleString("en-IN")}</div>
-      <div className="text-right text-[12px] text-text-primary tabular">{inr(ad.cpl)}</div>
-      <div className="text-right text-[12px] text-text-primary tabular">{ad.ctr}%</div>
-      <div>
-        <span className={`pill ${STATUS_TONE[ad.status].pill} inline-flex items-center gap-1`} style={{ fontSize: 10 }}>
-          <StatusIcon size={8} strokeWidth={2} />
-          {STATUS_TONE[ad.status].label}
-        </span>
-      </div>
-      <ActionCell
-        metaUrl={ad.metaUrl}
-        onAskSpot={() =>
-          askSpot(`Swap creative or copy on ad "${ad.name}". Propose the change and apply on Meta.`)
-        }
-        compact
+      <MetricCell value={inr(ad.metrics.spend)} delta={ad.deltas.spend} dense />
+      <MetricCell value={inr(ad.metrics.cpm)} delta={ad.deltas.cpm} dense />
+      <MetricCell value={`${ad.metrics.ctr.toFixed(2)}%`} delta={ad.deltas.ctr} dense />
+      <MetricCell value={num(ad.metrics.leads)} delta={ad.deltas.leads} dense />
+      <MetricCell value={inr(ad.metrics.cpl)} delta={ad.deltas.cpl} dense />
+      <MetricCell
+        value={`${ad.metrics.qualificationRate.toFixed(1)}%`}
+        delta={ad.deltas.qualificationRate}
+        dense
       />
+      <MetricCell value={inr(ad.metrics.costPerQualified)} delta={ad.deltas.costPerQualified} dense />
+      <div />
     </div>
   );
 }
 
-/* ─── Action cell ────────────────────────────────────────────── */
+/* ─── Cells ────────────────────────────────────────────────────── */
 
-function ActionCell({
+function StatusDot({ status }: { status: EdTechCampaignStatus }) {
+  return (
+    <div
+      title={STATUS_LABEL[status]}
+      className="inline-flex items-center justify-center"
+      style={{ width: 14 }}
+    >
+      <span className={`w-2 h-2 rounded-full ${STATUS_DOT[status]} inline-block`} />
+    </div>
+  );
+}
+
+function NameCell({
+  name,
+  sub,
   metaUrl,
+  expanded,
+  onToggle,
   onAskSpot,
-  compact,
+  indent = 0,
+  dense,
 }: {
+  name: string;
+  sub: string;
   metaUrl: string;
+  expanded: boolean;
+  onToggle: () => void;
   onAskSpot: () => void;
-  compact?: boolean;
+  indent?: number;
+  dense?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 min-w-0" style={{ paddingLeft: indent * 16 }}>
       <button
         type="button"
-        onClick={onAskSpot}
-        className={`inline-flex items-center gap-1 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black font-medium ${
-          compact ? "h-6 px-2 text-[10.5px]" : "h-7 px-2.5 text-[11.5px]"
-        }`}
+        onClick={onToggle}
+        className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded text-text-secondary hover:bg-surface-secondary"
+        aria-label={expanded ? "Collapse" : "Expand"}
       >
-        <Sparkles size={compact ? 9 : 11} strokeWidth={2} />
-        Ask Spot to edit
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>
-      <a
-        href={metaUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`inline-flex items-center gap-1 rounded-button border border-border bg-white hover:border-border-hover text-text-secondary hover:text-text-primary ${
-          compact ? "h-6 px-2 text-[10.5px]" : "h-7 px-2.5 text-[11.5px]"
-        }`}
-      >
-        Open in Meta
-        <ArrowUpRight size={compact ? 9 : 11} strokeWidth={1.8} />
-      </a>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`font-medium text-text-primary truncate ${dense ? "text-[12px]" : "text-[12.5px]"}`}>
+            {name}
+          </span>
+          {/* Inline Open in Meta — tiny ↗ icon, no chrome */}
+          <a
+            href={metaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-text-tertiary hover:text-text-primary flex-shrink-0"
+            title="Open in Meta"
+          >
+            <ArrowUpRight size={11} strokeWidth={1.8} />
+          </a>
+          {/* Inline Ask Spot — small button, SpotMark only — no separate logo */}
+          <button
+            type="button"
+            onClick={onAskSpot}
+            className={`inline-flex items-center gap-1 rounded-[5px] hover:bg-surface-secondary text-text-tertiary hover:text-text-primary font-medium flex-shrink-0 ${
+              dense ? "h-5 px-1.5 text-[10px]" : "h-5 px-1.5 text-[10.5px]"
+            }`}
+            title="Ask Spot to edit"
+          >
+            <SpotMark size={9} />
+            Edit
+          </button>
+        </div>
+        <div className={`text-text-tertiary truncate ${dense ? "text-[10.5px]" : "text-[11px]"} mt-0.5`}>
+          {sub}
+        </div>
+      </div>
     </div>
   );
 }
 
-/* ─── Stat ───────────────────────────────────────────────────── */
+/**
+ * Metric value + trend arrow. Trend arrows are coloured:
+ *   · ↑ green / ↓ red for positive metrics (leads, CTR, qual rate)
+ *   · ↑ red / ↓ green for cost metrics (CPL, CPM, CPQL — `invert: true`)
+ * Zero / no-data renders a flat dash (—).
+ */
+function MetricCell({
+  value,
+  delta,
+  dense,
+}: {
+  value: string;
+  delta: TrendDelta;
+  dense?: boolean;
+}) {
+  const pct = delta.pct;
+  const isZero = Math.abs(pct) < 0.5;
+  // "good" = arrow direction colour: for normal metrics up is good.
+  // For invert metrics (costs), down is good.
+  const good = delta.invert ? pct < 0 : pct > 0;
+  const Icon = isZero ? Minus : pct > 0 ? TrendingUp : TrendingDown;
+  const color = isZero
+    ? "text-text-tertiary"
+    : good
+      ? "text-[#15803D]"
+      : "text-[#B91C1C]";
+
+  return (
+    <div className="text-right">
+      <div className={`tabular text-text-primary ${dense ? "text-[12px]" : "text-[12.5px]"}`}>{value}</div>
+      {value !== "—" && (
+        <div className={`inline-flex items-center gap-0.5 text-[10px] tabular ${color} mt-0.5`}>
+          <Icon size={9} strokeWidth={2} />
+          <span>{isZero ? "0%" : `${Math.abs(pct).toFixed(1)}%`}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HealthCell({ health }: { health: EdTechHealth }) {
+  return (
+    <span className={`pill ${HEALTH_TONE[health]}`}>{HEALTH_LABEL[health]}</span>
+  );
+}
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-white border border-border rounded-card p-3">
-      <div className="text-[11.5px] text-text-tertiary mb-1">{label}</div>
-      <div className="text-stat-md text-text-primary tabular">{value}</div>
+    <div className="bg-white border border-border rounded-card p-2.5">
+      <div className="text-[11px] text-text-tertiary mb-0.5">{label}</div>
+      <div className="text-[16px] font-medium text-text-primary tabular">{value}</div>
     </div>
   );
 }

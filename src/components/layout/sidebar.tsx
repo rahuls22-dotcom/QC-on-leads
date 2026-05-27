@@ -14,14 +14,11 @@ import {
   LayoutGrid,
   Monitor,
   FileText,
-  Globe,
-  Image as ImageIcon,
   Plug,
   Eye,
   EyeOff,
   Sparkles,
-  Package,
-  Users,
+  BrainCircuit,
   Database,
   ScanLine,
   Send,
@@ -52,19 +49,16 @@ type NavItem = {
   comingSoon?: boolean;
 };
 
-// Each inner array is a visual group. Groups are separated by a hairline.
+// Sidebar philosophy (this pass): one item per row, no noise. Long-lived
+// nouns (Products, Personas, Creatives, Audiences, Performance, History)
+// all live inside /memory — they don't deserve top-level real estate.
+// The top of the rail is the daily working set: Dashboard → Campaigns →
+// Memory → Leads → outbound + data + agents → workspace.
 const navGroups: NavItem[][] = [
-  [{ name: "Dashboard", href: "/dashboard", icon: LayoutGrid, description: "Metrics, leads, voice perf" }],
   [
-    { name: "Products", href: "/products", icon: Package, description: "Memory · what each product is" },
-    { name: "Personas", href: "/personas", icon: Users, description: "Reusable audiences across products" },
-    { name: "Creatives", href: "/creatives", icon: ImageIcon, description: "Statics & videos by persona" },
-    { name: "Audiences", href: "/audiences", icon: Globe, description: "Lookalikes & custom audiences" },
-  ],
-  [
-    // Projects-as-a-concept is gone. Each Product *is* the project unit:
-    // it carries memory, spend, and performance together.
+    { name: "Dashboard", href: "/dashboard", icon: LayoutGrid, description: "Metrics, leads, voice perf" },
     { name: "Campaigns", href: "/campaigns", icon: Monitor, description: "Meta · Google · live spend" },
+    { name: "Memory", href: "/memory", icon: BrainCircuit, description: "Products, personas, creatives, performance & change history" },
     { name: "Leads", href: "/enquiries", icon: FileText, description: "CRM inbox" },
   ],
   [{ name: "Outreach", href: "/outreach", icon: Send, description: "Voice + WhatsApp outbound" }],

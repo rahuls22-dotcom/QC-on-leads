@@ -51,7 +51,7 @@ type PanelState = {
   /** Start the workflow at the product-setup step (new product flow). */
   startNewProductFlow: () => void;
   /** Spot doesn't recognise the product — fake-research it in real-time. */
-  startDeepResearch: (productName: string) => void;
+  startDeepResearch: (productName: string, attachedFiles?: string[]) => void;
   /** Advance the workflow to the next step + seed a Spot narration message. */
   advanceWorkflow: (narration?: string) => void;
   /** Jump to a specific step (used for "edit a previous step"). */
@@ -241,8 +241,13 @@ export const useSpotStore = create<PanelState>((set) => ({
   // spawn the Research Agent, show progress on the canvas, then on a
   // delay synthesise the memory and advance to kickoff. From the
   // user's POV it feels like Spot just learned about the product.
-  startDeepResearch: (productName) => {
+  startDeepResearch: (productName, attachedFiles = []) => {
     const callId = `tc-${Date.now()}`;
+    const hasFiles = attachedFiles.length > 0;
+    const fileSummary =
+      attachedFiles.length === 1
+        ? `“${attachedFiles[0]}”`
+        : `${attachedFiles.length} files (${attachedFiles.slice(0, 2).join(", ")}${attachedFiles.length > 2 ? ", …" : ""})`;
     set(() => ({
       open: true,
       maximized: false,
@@ -273,13 +278,17 @@ export const useSpotStore = create<PanelState>((set) => ({
             },
             {
               type: "text",
-              text: "Let me spin up the Deep Research Agent — I'll crawl the brand site, pull category signals from the open web, and check our audience graph, then write everything to product memory.",
+              text: hasFiles
+                ? `I'll parse ${fileSummary} alongside the brand site, pull category signals from the open web, and check our audience graph — then write everything to product memory.`
+                : "Let me spin up the Deep Research Agent — I'll crawl the brand site, pull category signals from the open web, and check our audience graph, then write everything to product memory.",
             },
             {
               type: "tool-call",
               id: callId,
               agent: "Deep Research Agent",
-              detail: "Crawling brand site · category signals · audience overlap.",
+              detail: hasFiles
+                ? `Parsing ${attachedFiles.length} attachment${attachedFiles.length === 1 ? "" : "s"} · brand site · category signals · audience overlap.`
+                : "Crawling brand site · category signals · audience overlap.",
               status: "running",
             },
           ],
@@ -303,6 +312,12 @@ export const useSpotStore = create<PanelState>((set) => ({
             "Skip celebrity-endorsement framing unless explicitly cleared.",
           ],
           sources: [
+            ...(attachedFiles.length > 0
+              ? attachedFiles.slice(0, 3).map((n) => `Your upload · ${n}`)
+              : []),
+            ...(attachedFiles.length > 3
+              ? [`Your uploads · +${attachedFiles.length - 3} more file${attachedFiles.length - 3 === 1 ? "" : "s"}`]
+              : []),
             "Brand site · /about, /curriculum, /pricing",
             "Category research · top-of-funnel keyword landscape",
             "Open web · category review sites, parent forums",
