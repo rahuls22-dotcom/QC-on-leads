@@ -46,7 +46,17 @@ export type FilterDim =
   | "age_group"
   | "employed"
   | "iit_iim"
-  | "mba";
+  | "mba"
+  // Expanded — enables richer chart builder.
+  | "university_tier"
+  | "engineer"
+  | "years_of_experience"
+  | "credit_score"
+  | "credit_limit"
+  | "total_credit_cards"
+  | "total_cars"
+  | "home_loan_amount"
+  | "final_score";
 
 export type FilterOp = "eq" | "in" | "gte" | "lte" | "between";
 
@@ -58,19 +68,13 @@ export interface FilterClause {
 
 // ── Chart cards ───────────────────────────────────────────────────────────
 
+/** Default presets that ship in every dashboard. */
 export type ChartCardId =
   | "source"
   | "company_tier"
   | "seniority"
   | "geography"
-  | "income_range"
-  // Optional, addable via + Add chart:
-  | "industry"
-  | "potential_tier"
-  | "age_group"
-  | "employed"
-  | "iit_iim"
-  | "mba";
+  | "income_range";
 
 export const DEFAULT_CHART_CARDS: ChartCardId[] = [
   "source",
@@ -80,7 +84,21 @@ export const DEFAULT_CHART_CARDS: ChartCardId[] = [
   "income_range",
 ];
 
-// ── Saved views ───────────────────────────────────────────────────────────
+/** User-built chart card — pick any dim, scope with filters, give it a name. */
+export interface CustomChartCard {
+  id: string;            // uuid
+  name: string;          // user-supplied title
+  dim: FilterDim;        // dimension to slice the bar chart by
+  filters: FilterClause[]; // local filters applied before bucketing
+  createdAt: string;
+}
+
+/** Card slot in the grid — either one of the 5 presets or a custom build. */
+export type DashboardChart =
+  | { kind: "default"; id: ChartCardId }
+  | { kind: "custom"; card: CustomChartCard };
+
+// ── Saved views (legacy — kept for storage migration) ─────────────────────
 
 export interface SavedView {
   id: string;

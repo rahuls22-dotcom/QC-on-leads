@@ -1,15 +1,13 @@
 // Group profiles by a dimension's bucket. Returns sorted rows with counts +
 // percentages relative to the input set (NOT all leads — already-filtered).
 
-import { DIM_REGISTRY, INCOME_BUCKETS } from "./dim-registry";
-import type { BreakdownRow, ChartCardId, LeadProfile } from "./types";
-import { CHART_CARD_TO_DIM } from "./dim-registry";
+import { DIM_REGISTRY, CHART_CARD_TO_DIM } from "./dim-registry";
+import type { BreakdownRow, ChartCardId, FilterDim, LeadProfile } from "./types";
 
-export function breakdownByCard(
+export function breakdownByDim(
   profiles: LeadProfile[],
-  cardId: ChartCardId,
+  dimId: FilterDim,
 ): BreakdownRow[] {
-  const dimId = CHART_CARD_TO_DIM[cardId];
   const dim = DIM_REGISTRY[dimId];
   if (!dim) return [];
 
@@ -23,17 +21,7 @@ export function breakdownByCard(
   const total = profiles.length || 1;
   const rows: BreakdownRow[] = [];
 
-  // Income range gets a fixed bucket order so the bars don't reshuffle on filter.
-  if (cardId === "income_range") {
-    for (const bucket of INCOME_BUCKETS) {
-      const count = counts.get(bucket) ?? 0;
-      if (count === 0) continue;
-      rows.push({ bucket, count, pct: round1((count / total) * 100) });
-    }
-    return rows;
-  }
-
-  // Enum dims with a declared value order: respect that order.
+  // Enum / range dims with a declared value order: respect that order.
   if (dim.values) {
     for (const bucket of dim.values) {
       const count = counts.get(bucket);
@@ -56,6 +44,14 @@ export function breakdownByCard(
     rows.push({ bucket, count, pct: round1((count / total) * 100) });
   }
   return rows;
+}
+
+/** Default preset cards still address by ChartCardId — thin wrapper. */
+export function breakdownByCard(
+  profiles: LeadProfile[],
+  cardId: ChartCardId,
+): BreakdownRow[] {
+  return breakdownByDim(profiles, CHART_CARD_TO_DIM[cardId]);
 }
 
 function round1(n: number): number {

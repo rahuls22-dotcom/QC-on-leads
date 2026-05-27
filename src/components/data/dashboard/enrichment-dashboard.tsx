@@ -21,9 +21,8 @@ import { loadDashboardState, saveDashboardState } from "@/lib/dashboard/dashboar
 import { DEFAULT_CHART_CARDS } from "@/lib/dashboard/types";
 import type {
   ChartCardId,
-  FilterClause,
+  CustomChartCard,
   LeadProfile,
-  SavedView,
   TimeRange,
 } from "@/lib/dashboard/types";
 
@@ -73,24 +72,25 @@ export function EnrichmentDashboard({
   const sourceFilter: SourceFilter = sourceFilterProp ?? "all";
   const isControlled = onRangeChange != null;
 
-  const [filters, setFilters] = useState<FilterClause[]>([]);
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
-  const [chartCards, setChartCards] = useState<ChartCardId[]>([...DEFAULT_CHART_CARDS]);
+  const [defaultCards, setDefaultCards] = useState<ChartCardId[]>([...DEFAULT_CHART_CARDS]);
+  const [customCards, setCustomCards] = useState<CustomChartCard[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage after mount (avoids SSR mismatch).
   useEffect(() => {
     const s = loadDashboardState();
-    setSavedViews(s.savedViews);
-    setChartCards(s.chartCards);
+    setDefaultCards(s.defaultCards);
+    setCustomCards(s.customCards);
     setHydrated(true);
   }, []);
 
   // Persist after hydration only — otherwise we'd wipe storage on first render.
   useEffect(() => {
     if (!hydrated) return;
-    saveDashboardState({ savedViews, chartCards });
-  }, [hydrated, savedViews, chartCards]);
+    saveDashboardState({ defaultCards, customCards });
+  }, [hydrated, defaultCards, customCards]);
+  // Defaults are fixed for v1; setter exists for future "reorder/hide" UX.
+  void setDefaultCards;
 
   const bounds = useMemo(
     () => resolveRange(range, customStart, customEnd),
@@ -182,12 +182,9 @@ export function EnrichmentDashboard({
       />
       <LeadExplorer
         profiles={profiles}
-        filters={filters}
-        onFiltersChange={setFilters}
-        savedViews={savedViews}
-        onSavedViewsChange={setSavedViews}
-        chartCards={chartCards}
-        onChartCardsChange={setChartCards}
+        defaultCards={defaultCards}
+        customCards={customCards}
+        onCustomCardsChange={setCustomCards}
       />
     </div>
   );

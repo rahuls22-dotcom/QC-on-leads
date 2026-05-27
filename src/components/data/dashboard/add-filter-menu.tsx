@@ -132,11 +132,11 @@ export function AddFilterMenu({ open, onClose, onApply, activeDims }: Props) {
             </div>
           )}
 
-          {pickedDim.type === "range_money" && (
+          {(pickedDim.type === "range_money" || pickedDim.type === "range_number") && (
             <div className="flex items-center gap-2">
               <input
                 type="number"
-                placeholder="min (₹)"
+                placeholder={`min${pickedDim.unitHint ? ` (${pickedDim.unitHint})` : ""}`}
                 value={rangeMin}
                 onChange={(e) => setRangeMin(e.target.value)}
                 className="flex-1 h-7 px-2 text-[12px] bg-white border border-border rounded-input"
@@ -144,7 +144,7 @@ export function AddFilterMenu({ open, onClose, onApply, activeDims }: Props) {
               <span className="text-text-tertiary text-[11px]">to</span>
               <input
                 type="number"
-                placeholder="max (₹)"
+                placeholder={`max${pickedDim.unitHint ? ` (${pickedDim.unitHint})` : ""}`}
                 value={rangeMax}
                 onChange={(e) => setRangeMax(e.target.value)}
                 className="flex-1 h-7 px-2 text-[12px] bg-white border border-border rounded-input"
@@ -181,9 +181,10 @@ export function AddFilterMenu({ open, onClose, onApply, activeDims }: Props) {
                 let clause: FilterClause | null = null;
                 if (pickedDim.type === "enum" && selected.size > 0) {
                   clause = { dim: pickedDim.id, op: "in", value: [...selected] };
-                } else if (pickedDim.type === "range_money") {
-                  const lo = rangeMin ? Number(rangeMin) : NaN;
-                  const hi = rangeMax ? Number(rangeMax) : NaN;
+                } else if (pickedDim.type === "range_money" || pickedDim.type === "range_number") {
+                  const scale = pickedDim.inputScale ?? 1;
+                  const lo = rangeMin ? Number(rangeMin) * scale : NaN;
+                  const hi = rangeMax ? Number(rangeMax) * scale : NaN;
                   if (!Number.isNaN(lo) && !Number.isNaN(hi)) {
                     clause = { dim: pickedDim.id, op: "between", value: [lo, hi] };
                   } else if (!Number.isNaN(lo)) {

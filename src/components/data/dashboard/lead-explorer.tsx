@@ -1,92 +1,91 @@
 "use client";
 
-// Bottom half: filter bar + saved views + match tile + chart grid + add slot.
-// Owns local UI state for the picker only; filters / savedViews / chartCards
-// state lives in the page (so localStorage persistence stays at one level).
+// Chart grid. The 5 preset cards (Source / Company tier / Seniority /
+// Geography / Income range) come first, followed by any user-built custom
+// cards, followed by the "+ Build a chart" tile that opens the dialog.
 
-import { useMemo } from "react";
-import { evalFilters } from "@/lib/dashboard/filter-eval";
-import { DEFAULT_CHART_CARDS } from "@/lib/dashboard/types";
+import { useState } from "react";
 import type {
   ChartCardId,
-  FilterClause,
+  CustomChartCard,
   LeadProfile,
-  SavedView,
 } from "@/lib/dashboard/types";
 
 import { BreakdownChartCard } from "./breakdown-chart-card";
-import { LeadFilterBar } from "./lead-filter-bar";
-import { SavedViewsStrip } from "./saved-views-strip";
-import { LeadMatchTile } from "./lead-match-tile";
 import { AddChartCardMenu } from "./add-chart-card-menu";
+import { ChartBuilderDialog } from "./chart-builder-dialog";
 
 interface Props {
   profiles: LeadProfile[];
-  filters: FilterClause[];
-  onFiltersChange: (f: FilterClause[]) => void;
-  savedViews: SavedView[];
-  onSavedViewsChange: (v: SavedView[]) => void;
-  chartCards: ChartCardId[];
-  onChartCardsChange: (c: ChartCardId[]) => void;
+  defaultCards: ChartCardId[];
+  customCards: CustomChartCard[];
+  onCustomCardsChange: (cards: CustomChartCard[]) => void;
 }
 
 export function LeadExplorer({
   profiles,
-  filters,
-  onFiltersChange,
-  savedViews,
-  onSavedViewsChange,
-  chartCards,
-  onChartCardsChange,
+  defaultCards,
+  customCards,
+  onCustomCardsChange,
 }: Props) {
-  const filtered = useMemo(
-    () => profiles.filter((p) => evalFilters(p, filters)),
-    [profiles, filters],
-  );
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<CustomChartCard | undefined>();
+
+  const openNew = () => {
+    setEditing(undefined);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (card: CustomChartCard) => {
+    setEditing(card);
+    setDialogOpen(true);
+  };
+
+  const handleSave = (card: CustomChartCard) => {
+    const idx = customCards.findIndex((c) => c.id === card.id);
+    if (idx === -1) onCustomCardsChange([...customCards, card]);
+    else {
+      const next = [...customCards];
+      next[idx] = card;
+      onCustomCardsChange(next);
+    }
+  };
+
+  const handleRemove = (id: string) => {
+    onCustomCardsChange(customCards.filter((c) => c.id !== id));
+  };
 
   return (
     <section>
-      <h2 className="text-[11px] font-medium uppercase tracking-[0.4px] text-text-tertiary mb-3">
-        Who are your leads?
-      </h2>
-
-      {/* Filter row + saved views */}
-      <div className="bg-white border border-border rounded-card p-3 mb-3 flex flex-col gap-2.5">
-        <LeadFilterBar filters={filters} onChange={onFiltersChange} />
-        <div className="border-t border-border-subtle pt-2.5">
-          <SavedViewsStrip
-            savedViews={savedViews}
-            activeFilters={filters}
-            onApplyView={(v) => onFiltersChange([...v.filters])}
-            onSaveView={(v) => onSavedViewsChange([...savedViews, v])}
-            onDeleteView={(id) => onSavedViewsChange(savedViews.filter((s) => s.id !== id))}
-            onClearFilters={() => onFiltersChange([])}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {defaultCards.map((cardId) => (
+          <BreakdownChartCard
+            key={cardId}
+            mode="preset"
+            cardId={cardId}
+            profiles={profiles}
           />
-        </div>
+        ))}
+        {customCards.map((card) => (
+          <BreakdownChartCard
+            key={card.id}
+            mode="custom"
+            card={card}
+            profiles={profiles}
+            onEdit={() => openEdit(card)}
+            onRemove={() => handleRemove(card.id)}
+          />
+        ))}
+        <AddChartCardMenu onClick={openNew} />
       </div>
 
-      {/* Match tile */}
-      <LeadMatchTile matching={filtered.length} total={profiles.length} />
-
-      {/* Chart grid */}
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {chartCards.map((cardId) => {
-          const isDefault = DEFAULT_CHART_CARDS.includes(cardId);
-          return (
-            <BreakdownChartCard
-              key={cardId}
-              cardId={cardId}
-              profiles={filtered}
-              removable={!isDefault}
-              onRemove={() => onChartCardsChange(chartCards.filter((c) => c !== cardId))}
-            />
-          );
-        })}
-        <AddChartCardMenu
-          active={chartCards}
-          onAdd={(c) => onChartCardsChange([...chartCards, c])}
-        />
-      </div>
+      <ChartBuilderDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        profiles={profiles}
+        existing={editing}
+        onSave={handleSave}
+      />
     </section>
   );
 }
