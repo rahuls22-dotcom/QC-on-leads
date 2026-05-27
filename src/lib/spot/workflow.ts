@@ -23,6 +23,7 @@ export type WorkflowStep =
   | "personas"
   | "media-plan"
   | "angles"
+  | "resize-qa" // Resize Agent + QA review per variant
   | "forms"
   | "campaigns"
   | "done";
@@ -34,6 +35,7 @@ export const STEP_ORDER: WorkflowStep[] = [
   "personas",
   "media-plan",
   "angles",
+  "resize-qa",
   "forms",
   "campaigns",
   "done",
@@ -47,6 +49,7 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
   personas: "Personas",
   "media-plan": "Media plan",
   angles: "Creatives",
+  "resize-qa": "Resize & QA",
   forms: "Forms & pages",
   campaigns: "Campaign structure",
   done: "Live",
@@ -58,6 +61,7 @@ export const VISIBLE_STEPS: WorkflowStep[] = [
   "personas",
   "media-plan",
   "angles",
+  "resize-qa",
   "forms",
   "campaigns",
 ];
@@ -229,14 +233,15 @@ export const LAUNCH_PERSONAS: (LaunchPersona & {
 ];
 
 // Each channel can carry several *ad types* (lead form, click-to-WA,
-// landing page, etc). The plan is now per-channel × per-ad-type, with
-// a per-ad-type availability flag — e.g. click-to-WhatsApp is unavailable
-// when the WhatsApp account isn't connected.
+// landing page, etc). The plan is per-channel × per-ad-type, with a
+// per-ad-type availability flag — e.g. click-to-WhatsApp is unavailable
+// when the WhatsApp account isn't connected, but the user can click to
+// connect it from the canvas.
 export type AdTypeAvailability = "available" | "needs-connection" | "coming-soon";
 
 export type ChannelPlan = {
-  channel: "Meta Ads" | "Google Ads" | "WhatsApp Agent" | "Voice AI · Outreach" | "LinkedIn Ads" | "Email & RCS";
-  iconKey: "meta" | "google" | "whatsapp" | "voice" | "linkedin" | "email";
+  channel: "Meta Ads" | "Google Ads" | "Outreach";
+  iconKey: "meta" | "google" | "outreach";
   share: number; // share of total budget
   rationale: string;
   adTypes: {
@@ -244,13 +249,16 @@ export type ChannelPlan = {
     description: string;
     personas: string[]; // persona names targeted
     availability: AdTypeAvailability;
-    /** Human readable budget within this channel. */
-    budgetShare: number; // share of channel budget
+    /** Connection key — if set, the row carries a Connect action that
+     *  flips this to "available" once the user pretends to connect. */
+    connectionKey?: "whatsapp";
+    /** Share of *channel* budget for this ad type. */
+    budgetShare: number;
   }[];
 };
 
 export function generateChannelPlans(
-  budget: number,
+  _budget: number,
   whatsAppConnected: boolean = false,
 ): ChannelPlan[] {
   return [
@@ -262,7 +270,7 @@ export function generateChannelPlans(
       adTypes: [
         {
           name: "Lead form ads",
-          description: "Native Meta lead form · pre-filled name + phone, instant-WhatsApp follow-up via Voice Agent.",
+          description: "Native Meta lead form · pre-filled name + phone · instant-WhatsApp follow-up.",
           personas: ["Engineer Parent", "Doctor Parent"],
           availability: "available",
           budgetShare: 0.5,
@@ -271,9 +279,10 @@ export function generateChannelPlans(
           name: "Click-to-WhatsApp",
           description: whatsAppConnected
             ? "Tap → WhatsApp Business · counsellor flow handled by WhatsApp Agent."
-            : "Tap → WhatsApp Business · needs WhatsApp Business account connected.",
+            : "Tap → WhatsApp Business · connect a WA Business account to enable.",
           personas: ["Engineer Parent", "Self-Studier"],
           availability: whatsAppConnected ? "available" : "needs-connection",
+          connectionKey: "whatsapp",
           budgetShare: 0.3,
         },
         {
@@ -288,69 +297,47 @@ export function generateChannelPlans(
     {
       channel: "Google Ads",
       iconKey: "google",
-      share: 0.22,
-      rationale: "Captures high-intent search — 'JEE coaching online', competitor brand bidding (Allen, Aakash).",
+      share: 0.3,
+      rationale: "Captures high-intent — branded + category search and Discover surfaces.",
       adTypes: [
         {
-          name: "Search · category + brand",
-          description: "Brand defense + 'JEE online coaching' queries · landing page CTA.",
-          personas: ["Engineer Parent", "Coaching Hopper"],
+          name: "Search ads",
+          description: "Brand defense + category queries ('JEE online coaching', 'IIT prep at home').",
+          personas: ["Generic · high intent"],
           availability: "available",
-          budgetShare: 0.6,
+          budgetShare: 0.65,
         },
         {
-          name: "Performance Max",
-          description: "Asset-fed PMax across Search, YouTube, Discovery, Gmail.",
+          name: "Discover ads",
+          description: "Native Discover feed surfacing on YouTube and Google Discover homepage.",
           personas: ["Engineer Parent", "Self-Studier"],
           availability: "available",
-          budgetShare: 0.4,
+          budgetShare: 0.35,
         },
       ],
     },
     {
-      channel: "Voice AI · Outreach",
-      iconKey: "voice",
-      share: 0.1,
-      rationale: "Outbound calls on warm leads · parent cohort works best for high-touch follow-up.",
+      channel: "Outreach",
+      iconKey: "outreach",
+      share: 0.15,
+      rationale: "Warm-lead outbound · Voice AI for parents, WhatsApp for student follow-ups.",
       adTypes: [
         {
-          name: "Voice outbound · parents",
-          description: "Calls placed by Voice AI agent on enriched parent contacts from Revspot graph.",
+          name: "Voice AI campaign",
+          description: "Calls placed by Voice AI on enriched parent contacts from Revspot graph.",
           personas: ["Engineer Parent", "Doctor Parent"],
           availability: "available",
-          budgetShare: 1,
+          budgetShare: 0.55,
         },
-      ],
-    },
-    {
-      channel: "WhatsApp Agent",
-      iconKey: "whatsapp",
-      share: 0.08,
-      rationale: "Post-lead-fill nurture sequence; also picks up Click-to-WA conversations from Meta.",
-      adTypes: [
         {
-          name: "Nurture sequence",
+          name: "WhatsApp campaign",
           description: whatsAppConnected
             ? "Multi-turn qualification + demo-class booking via WhatsApp Agent."
             : "Multi-turn qualification — needs WhatsApp Business connected.",
-          personas: ["Engineer Parent", "Doctor Parent", "Self-Studier"],
+          personas: ["Engineer Parent", "Self-Studier", "Coaching Hopper"],
           availability: whatsAppConnected ? "available" : "needs-connection",
-          budgetShare: 1,
-        },
-      ],
-    },
-    {
-      channel: "LinkedIn Ads",
-      iconKey: "linkedin",
-      share: 0.05,
-      rationale: "Engineer-parent lookalike — fathers of Class 9–12 students. Lower volume, premium CPL.",
-      adTypes: [
-        {
-          name: "Sponsored content · lookalike",
-          description: "LinkedIn lookalike on engineering managers / staff engineers in tier-1 cities.",
-          personas: ["Engineer Parent"],
-          availability: "available",
-          budgetShare: 1,
+          connectionKey: "whatsapp",
+          budgetShare: 0.45,
         },
       ],
     },
@@ -396,6 +383,95 @@ export const SAMPLE_ANGLES: AnglePack[] = [
     ],
   },
 ];
+
+/** Non-persona-specific Google Search ad copies. Drafted by the
+ *  Creative Agent for the Google · Search ad type in the media plan. */
+export type SearchAdCopy = {
+  id: string;
+  headline: string;
+  description: string;
+  /** Comma-separated keyword group this targets. */
+  keywords: string;
+};
+
+export const SAMPLE_SEARCH_ADS: SearchAdCopy[] = [
+  {
+    id: "sa-1",
+    headline: "Guyju's JEE Crack · Live cohort, IIT mentors",
+    description: "Class 11/12 prep with live doubt-clearing, weekly mocks, and 24-mo replay access. Book a free demo.",
+    keywords: "jee online coaching, iit prep online, jee classes class 11",
+  },
+  {
+    id: "sa-2",
+    headline: "Switching coaching? Try Guyju's JEE",
+    description: "Mentor-led classes capped at 60. Bring your old syllabus — we cover the gap. Free demo class today.",
+    keywords: "switch coaching, fiitjee alternative, allen alternative",
+  },
+  {
+    id: "sa-3",
+    headline: "Free JEE mock · ranked all-India",
+    description: "See where your child stands against 1.2L+ JEE aspirants. Free mock, instant report. No card needed.",
+    keywords: "free jee mock, jee rank predictor, jee test",
+  },
+];
+
+/** A resized variant of an approved angle. QA Agent reviews each. */
+export type ResizedVariant = {
+  id: string;
+  format: "1:1" | "4:5" | "9:16" | "16:9";
+  channel: "Meta" | "Google";
+  status: "approved" | "needs-fix";
+  /** When needs-fix, QA Agent's note. */
+  note?: string;
+};
+
+export type ResizeReview = {
+  personaId: string;
+  personaName: string;
+  angles: {
+    id: string;
+    hook: string;
+    hue: number;
+    variants: ResizedVariant[];
+  }[];
+};
+
+/** Build review data from existing SAMPLE_ANGLES — every angle gets 4
+ *  resized variants (1:1, 4:5, 9:16, 16:9). Most pass; one per persona
+ *  is flagged with a realistic QA Agent comment. */
+export function buildResizeReviews(): ResizeReview[] {
+  // Stable seed: which (personaIndex, angleIndex, format) is flagged.
+  const flags: Record<string, string> = {
+    "0-0-9:16": "Headline overflows on the 9:16 crop — Resize will tighten kerning.",
+    "1-1-16:9": "Mentor photo cuts off at 16:9 ratio — Resize will reposition.",
+  };
+  return SAMPLE_ANGLES.map((pack, pi) => ({
+    personaId: pack.personaId,
+    personaName: pack.personaName,
+    angles: pack.angles.map((a, ai) => {
+      const hue = (ai * 90 + pi * 30) % 360;
+      const variants: ResizedVariant[] = (
+        [
+          ["1:1", "Meta"],
+          ["4:5", "Meta"],
+          ["9:16", "Meta"],
+          ["16:9", "Google"],
+        ] as const
+      ).map(([fmt, ch]) => {
+        const key = `${pi}-${ai}-${fmt}`;
+        const note = flags[key];
+        return {
+          id: `${a.id}-${fmt}`,
+          format: fmt as ResizedVariant["format"],
+          channel: ch as ResizedVariant["channel"],
+          status: note ? ("needs-fix" as const) : ("approved" as const),
+          note,
+        };
+      });
+      return { id: a.id, hook: a.hook, hue, variants };
+    }),
+  }));
+}
 
 export type FormAsset = {
   id: string;
@@ -491,6 +567,11 @@ export const STEP_TOOL_CALL: Partial<Record<WorkflowStep, StepToolCall>> = {
     detail: "drafting 3 angles per persona + queueing the asset generator…",
     delayMs: 4500,
   },
+  "resize-qa": {
+    agent: "qa.review",
+    detail: "resizing 36 variants across formats + reviewing for layout drift…",
+    delayMs: 4200,
+  },
   forms: {
     agent: "forms.draft",
     detail: "generating per-persona lead forms + landing-page mocks…",
@@ -558,12 +639,28 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Creatives are spinning up — you'll see the hero asset first, then resized variants attach to each campaign.",
+            text: "Creatives are spinning up — visual angles per persona for Meta, and a separate set of search-ad copies for Google.",
           },
           {
             type: "step-cta",
-            label: "Looks good, build forms",
-            helper: "I'll spin up landing pages + lead forms next.",
+            label: "Approve creatives, resize next",
+            helper: "Resize Agent will handle ad-size variants in the next step.",
+          },
+        ],
+      };
+    case "resize-qa":
+      return {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: "Resize Agent produced **36 variants** (4 sizes per angle). QA Agent reviewed them — **34 clean, 2 flagged**. Right pane shows the flags. Tell me to fix or proceed.",
+          },
+          {
+            type: "step-cta",
+            label: "Looks good — build forms",
+            helper: "I'll regenerate the flagged variants in the background and move on.",
+            refineHint: "or type 'fix headline overflow on Tech-Lead 9:16' for targeted edits",
           },
         ],
       };

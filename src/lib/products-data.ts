@@ -36,6 +36,44 @@ export type ProductPerformance = {
   health: "on-track" | "needs-attention" | "underperforming";
 };
 
+/** A factual line in the product brief. Spot reads from this before
+ *  drafting copy / answering questions about the product. */
+export type ProductBriefRow = {
+  /** Single emoji prefix for a glanceable row. */
+  icon: string;
+  label: string;
+  value: string;
+};
+
+/** One pricing plan — e.g. "2-year cohort" → ₹65,000. */
+export type ProductPlan = {
+  name: string;
+  /** Total or per-period cost as a human string. */
+  cost: string;
+  /** "one-shot" / "/month" / "/year" — appended after cost. */
+  cadence?: string;
+  /** Tag like "Most picked" / "Limited slots". Renders as a small pill. */
+  badge?: string;
+};
+
+/** Active offers and discounts on the product. */
+export type ProductOffer = {
+  label: string;
+  /** Optional expiry / short qualifier. */
+  meta?: string;
+};
+
+/** Insight Spot has captured from running campaigns on this product. */
+export type ProductLearning = {
+  id: string;
+  /** Quick frame: "performance" / "audience" / "creative" / "channel". */
+  kind: "performance" | "audience" | "creative" | "channel";
+  /** One-line summary. */
+  summary: string;
+  /** Optional supporting numbers. */
+  evidence?: string;
+};
+
 export type ProductSummary = {
   id: string;
   name: string;
@@ -43,6 +81,12 @@ export type ProductSummary = {
   client: string;
   /** Short tagline / what the product *is*, in 1 line. */
   tagline: string;
+  /** Structured product brief — what the product *is* in detail. */
+  brief: ProductBriefRow[];
+  /** Pricing plans — at least one. */
+  pricing: ProductPlan[];
+  /** Active offers / discounts. */
+  offers: ProductOffer[];
   /** USPs — what makes it distinct. Spot leans on this when drafting copy. */
   usps: string[];
   /** Things never to claim — guarantees, legal, factual landmines. */
@@ -53,6 +97,8 @@ export type ProductSummary = {
   collateral: { name: string; kind: "pdf" | "deck" | "video"; size: string }[];
   /** Memory entries — chronological. Newest first when rendered. */
   memory: ProductMemoryEntry[];
+  /** Insights derived from past campaign data on this product. */
+  learnings: ProductLearning[];
   /** Coverage signal: how complete the memory is. 0..1. */
   readiness: number;
   /** Spend + leads rolled up from this product's campaigns. */
@@ -67,6 +113,25 @@ export const PRODUCTS: ProductSummary[] = [
     category: "EdTech · Engineering Entrance Prep",
     client: "Guyju's",
     tagline: "Two-year JEE Mains + Advanced program for Class 11 students with live doubt-clearing and weekly mocks.",
+    brief: [
+      { icon: "📅", label: "Duration", value: "2 years · Class 11 + 12" },
+      { icon: "👥", label: "Cohort size", value: "Capped at 60 · live classes" },
+      { icon: "📚", label: "Curriculum", value: "Physics · Chemistry · Math (NCERT + advanced)" },
+      { icon: "👨‍🏫", label: "Mentors", value: "12 IIT-alum mentors · 1:1 monthly review" },
+      { icon: "📝", label: "Mocks", value: "Weekly all-India · ranked against 1.2L+ aspirants" },
+      { icon: "🎞️", label: "Access", value: "Recordings + library available for 24 months" },
+      { icon: "🎯", label: "Outcome", value: "JEE Mains + Advanced preparation" },
+    ],
+    pricing: [
+      { name: "2-year cohort", cost: "₹65,000", cadence: "one-shot", badge: "Most picked" },
+      { name: "2-year · EMI", cost: "₹5,950", cadence: "/month · 12 months" },
+      { name: "1-year intensive", cost: "₹38,000", cadence: "one-shot" },
+    ],
+    offers: [
+      { label: "Early-bird · 12% off", meta: "till May 31" },
+      { label: "Sibling discount · 8%", meta: "stackable" },
+      { label: "100% refund · first 14 days", meta: "no questions" },
+    ],
     usps: [
       "Live cohort classes capped at 60 — every doubt answered in-class",
       "Weekly all-India mocks ranked against 1.2L+ JEE aspirants",
@@ -77,6 +142,32 @@ export const PRODUCTS: ProductSummary[] = [
       "Don't promise specific ranks or guarantees",
       "Avoid comparisons to FIITJEE / Allen by name",
       "No 'best in India' superlatives — flagged by legal",
+    ],
+    learnings: [
+      {
+        id: "l1",
+        kind: "creative",
+        summary: "Mentor-led hook outperforms rank-focused hook by 31% on hold-rate",
+        evidence: "Past 45 days · all personas",
+      },
+      {
+        id: "l2",
+        kind: "audience",
+        summary: "Self-Studier cohort: 2.4× lower CPL but 60% lower BOFU conversion",
+        evidence: "Q4 cohort data",
+      },
+      {
+        id: "l3",
+        kind: "audience",
+        summary: "Class 11 parents respond stronger than Class 12 — fresh cohort opening hooks land best",
+        evidence: "Last 2 launches",
+      },
+      {
+        id: "l4",
+        kind: "channel",
+        summary: "Hyderabad, Pune and Bangalore are top metros for paid demo-class signups",
+        evidence: "30-day window",
+      },
     ],
     personas: [
       { id: "pers-aspiring-engineer-parent", name: "The Aspiring Engineer Parent" },
@@ -141,6 +232,25 @@ export const PRODUCTS: ProductSummary[] = [
     category: "EdTech · Medical Entrance Prep",
     client: "Guyju's",
     tagline: "Two-year NEET prep with biology-first weekly mocks and one-on-one mentor sessions for Class 11/12.",
+    brief: [
+      { icon: "📅", label: "Duration", value: "2 years · Class 11 + 12" },
+      { icon: "👥", label: "Cohort size", value: "Capped at 80 · live classes" },
+      { icon: "📚", label: "Curriculum", value: "Biology-first · Physics · Chemistry" },
+      { icon: "👨‍⚕️", label: "Mentors", value: "8 MBBS-alum mentors · bi-weekly 1:1" },
+      { icon: "📝", label: "Mocks", value: "AIIMS-grade · ranked all-India · weekly" },
+      { icon: "🎞️", label: "Access", value: "Recordings available for 24 months" },
+      { icon: "🎯", label: "Outcome", value: "NEET-UG preparation" },
+    ],
+    pricing: [
+      { name: "2-year cohort", cost: "₹72,000", cadence: "one-shot", badge: "Most picked" },
+      { name: "2-year · EMI", cost: "₹6,500", cadence: "/month · 12 months" },
+      { name: "1-year crash", cost: "₹42,000", cadence: "one-shot" },
+    ],
+    offers: [
+      { label: "Early-bird · 10% off", meta: "till May 31" },
+      { label: "Top-10% mock-ranker · ₹10K cashback", meta: "post-enrol" },
+      { label: "100% refund · first 14 days" },
+    ],
     usps: [
       "Biology-first curriculum — 60% of NEET marks come from one subject",
       "Bi-weekly 1:1 mentor sessions with an MBBS-alum",
@@ -150,6 +260,26 @@ export const PRODUCTS: ProductSummary[] = [
     avoid: [
       "Don't make medical-college admission claims",
       "Avoid Allen / Aakash comparisons",
+    ],
+    learnings: [
+      {
+        id: "l1",
+        kind: "creative",
+        summary: "'Parents see weekly progress' hook is strongest opener — 2.1× CTR vs mentor-led",
+        evidence: "Last 30 days · cold cohorts",
+      },
+      {
+        id: "l2",
+        kind: "audience",
+        summary: "Doctor-Parent persona pulls 18% higher BOFU than Engineer-Parent equivalent",
+        evidence: "Cross-product comparison",
+      },
+      {
+        id: "l3",
+        kind: "channel",
+        summary: "Kerala + Tamil Nadu account for 38% of qualified leads despite 22% spend share",
+        evidence: "Last quarter rollup",
+      },
     ],
     personas: [
       { id: "pers-aspiring-doctor-parent", name: "The Aspiring Doctor Parent" },
@@ -198,6 +328,23 @@ export const PRODUCTS: ProductSummary[] = [
     category: "EdTech · K-12 Foundation",
     client: "Guyju's",
     tagline: "Class 9-10 foundation built for kids who want to clear JEE/NEET later — math + science with project labs.",
+    brief: [
+      { icon: "📅", label: "Duration", value: "2 years · Class 9 + 10" },
+      { icon: "👥", label: "Cohort size", value: "Up to 50 · live + project labs" },
+      { icon: "📚", label: "Curriculum", value: "Math + Science · CBSE + ICSE aligned" },
+      { icon: "👨‍🏫", label: "Mentors", value: "6 senior school-teacher mentors" },
+      { icon: "🔬", label: "Labs", value: "Hands-on project labs every fortnight" },
+      { icon: "🎯", label: "Outcome", value: "Foundation for JEE / NEET prep tracks" },
+    ],
+    pricing: [
+      { name: "2-year program", cost: "₹38,000", cadence: "one-shot", badge: "Most picked" },
+      { name: "2-year · EMI", cost: "₹3,500", cadence: "/month · 12 months" },
+      { name: "Single year (9 or 10)", cost: "₹22,000", cadence: "one-shot" },
+    ],
+    offers: [
+      { label: "Early-bird · 8% off", meta: "till May 31" },
+      { label: "100% refund · first 14 days" },
+    ],
     usps: [
       "School-aligned (CBSE + ICSE) so it doesn't conflict with regular coursework",
       "Hands-on project labs every fortnight",
@@ -206,6 +353,20 @@ export const PRODUCTS: ProductSummary[] = [
     avoid: [
       "Don't position as a school replacement",
       "Avoid 'pressure-free' framing — parents read it as unserious",
+    ],
+    learnings: [
+      {
+        id: "l1",
+        kind: "audience",
+        summary: "Engineer-parents lean in 2.3× harder than other parent cohorts",
+        evidence: "Trial-launch data",
+      },
+      {
+        id: "l2",
+        kind: "creative",
+        summary: "Lab-bench imagery outperforms classroom shots by 28% on CTR",
+        evidence: "First two test runs",
+      },
     ],
     personas: [
       { id: "pers-aspiring-engineer-parent", name: "The Aspiring Engineer Parent" },

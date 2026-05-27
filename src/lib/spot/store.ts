@@ -67,6 +67,9 @@ type PanelState = {
   showHomeView: () => void;
   /** Resume the active workflow (homepage banner / past-chats click). */
   resumeWorkflow: () => void;
+  /** Workspace-level WhatsApp Business connection state (for media-plan). */
+  whatsAppConnected: boolean;
+  connectWhatsApp: () => void;
   setScope: (scope: SpotScope) => void;
   appendMessage: (m: SpotMessage) => void;
   setThread: (m: SpotMessage[] | ((prev: SpotMessage[]) => SpotMessage[])) => void;
@@ -97,6 +100,7 @@ export const useSpotStore = create<PanelState>((set) => ({
   workflow: null,
   canvasOpen: true,
   viewHomeOverride: false,
+  whatsAppConnected: false,
 
   askSpot: (query, scope) =>
     set((s) => ({
@@ -355,7 +359,12 @@ export const useSpotStore = create<PanelState>((set) => ({
           // Import lazily to avoid a circular ref at module top-level.
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { LAUNCH_PERSONAS } = require("./workflow") as typeof import("./workflow");
-          return { ...current, personaIds: LAUNCH_PERSONAS.map((p) => p.id) };
+          // Pre-select existing personas only — new (Spot-drafted)
+          // ones require explicit "Approve persona" action.
+          const existing = LAUNCH_PERSONAS.filter(
+            (p: { origin: string }) => p.origin === "existing",
+          ).map((p: { id: string }) => p.id);
+          return { ...current, personaIds: existing };
         }
         return current;
       };
@@ -446,6 +455,27 @@ export const useSpotStore = create<PanelState>((set) => ({
 
   showHomeView: () => set({ viewHomeOverride: true }),
   resumeWorkflow: () => set({ viewHomeOverride: false, canvasOpen: true }),
+
+  connectWhatsApp: () =>
+    set((s) => ({
+      whatsAppConnected: true,
+      toast: "WhatsApp Business connected · Click-to-WA ads can now run.",
+      // Drop a small Spot message so the chat reflects the change.
+      thread: s.workflow
+        ? [
+            ...s.thread,
+            {
+              role: "spot",
+              parts: [
+                {
+                  type: "text",
+                  text: "Connected your WhatsApp Business account. Click-to-WhatsApp + Outreach WA campaigns are now available on the right.",
+                },
+              ],
+            },
+          ]
+        : s.thread,
+    })),
 
   setScope: (scope) => set({ scope }),
   appendMessage: (m) => set((s) => ({ thread: [...s.thread, m] })),

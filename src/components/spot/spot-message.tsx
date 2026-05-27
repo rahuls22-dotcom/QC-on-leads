@@ -179,30 +179,25 @@ function HandoffPart({ kind, label, reason }: { kind: GuidedKind; label: string;
 
 function StepCtaPart({ label, helper, refineHint }: { label: string; helper?: string; refineHint?: string }) {
   const advanceWorkflow = useSpotStore((s) => s.advanceWorkflow);
+  // Compact inline CTA — no boxy card. Button + tiny helper underneath,
+  // sized like a chat reply rather than a banner.
   return (
-    <div
-      className="mb-2 rounded-[8px] border p-2.5"
-      style={{
-        background: "linear-gradient(135deg, #FAF8F2 0%, #FFFCEC 100%)",
-        borderColor: "#E8C97A",
-      }}
-    >
-      {helper && (
-        <div className="text-[11px] text-text-secondary leading-snug mb-1.5">{helper}</div>
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => advanceWorkflow()}
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
+      >
+        {label}
+        <ArrowRight size={10} strokeWidth={2} />
+      </button>
+      {(helper || refineHint) && (
+        <div className="text-[10.5px] text-text-tertiary mt-1 leading-snug">
+          {helper}
+          {helper && refineHint && <span> · </span>}
+          {refineHint}
+        </div>
       )}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => advanceWorkflow()}
-          className="inline-flex items-center gap-1 h-6 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11px] font-medium"
-        >
-          {label}
-          <ArrowRight size={10} strokeWidth={2} />
-        </button>
-        {refineHint && (
-          <span className="text-[10.5px] text-text-tertiary">{refineHint}</span>
-        )}
-      </div>
     </div>
   );
 }

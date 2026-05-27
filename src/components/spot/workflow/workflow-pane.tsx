@@ -4,9 +4,10 @@
 // approval action lives in the left chat (via the step-cta part). This
 // pane just shows what Spot is working on.
 
-import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, Layers as LayersIcon, Trophy, ExternalLink } from "lucide-react";
+import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
+import { useState } from "react";
 import { useSpotStore } from "@/lib/spot/store";
 import {
   STEP_LABELS,
@@ -15,6 +16,8 @@ import {
   SAMPLE_ANGLES,
   SAMPLE_FORMS,
   SAMPLE_STRUCTURE,
+  SAMPLE_SEARCH_ADS,
+  buildResizeReviews,
   generateChannelPlans,
   type WorkflowStep,
   type LaunchWorkflow,
@@ -30,6 +33,7 @@ const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
   personas: Users,
   "media-plan": ChartPie,
   angles: Sparkles,
+  "resize-qa": CheckCircle2,
   forms: LayoutIcon,
   campaigns: Megaphone,
   done: PartyPopper,
@@ -151,6 +155,8 @@ function StepBody({ workflow }: { workflow: LaunchWorkflow }) {
       return <MediaPlanStep />;
     case "angles":
       return <CreativesStep />;
+    case "resize-qa":
+      return <ResizeQaStep />;
     case "forms":
       return <FormsStep />;
     case "campaigns":
@@ -369,65 +375,125 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
           animate="show"
           className="space-y-4"
         >
-          {/* Tagline + readiness */}
+          {/* Product brief — the spine of memory: what the product is */}
           <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="text-[11px] text-text-tertiary mb-1">{product.client} · {product.category}</div>
-            <div className="text-card-title text-text-primary mb-1">{product.name}</div>
-            <p className="text-[13px] text-text-secondary leading-relaxed">{product.tagline}</p>
-            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border-subtle">
-              <Stat label="Readiness" value={`${Math.round(product.readiness * 100)}%`} />
-              <Stat label="Personas" value={product.personas.length.toString()} />
-              <Stat label="Memory entries" value={product.memory.length.toString()} />
-              <Stat label="Active campaigns" value={product.performance.activeCampaigns.toString()} />
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <div>
+                <div className="text-[11px] text-text-tertiary mb-1">{product.client} · {product.category}</div>
+                <div className="text-card-title text-text-primary">{product.name}</div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="pill pill-ok" style={{ fontSize: 9.5 }}>
+                  Memory {Math.round(product.readiness * 100)}%
+                </span>
+                <span className="pill" style={{ fontSize: 9.5 }}>
+                  {product.performance.activeCampaigns} live
+                </span>
+              </div>
             </div>
-          </motion.div>
-
-          {/* USPs + Avoid */}
-          <motion.div variants={canvasReveal} className="grid grid-cols-2 gap-3">
-            <div className="bg-white border border-border rounded-card p-4">
-              <div className="label-section mb-2">USPs to lead with</div>
-              <ul className="space-y-1.5">
-                {product.usps.map((u, i) => (
-                  <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
-                    <span className="text-text-tertiary">·</span>
-                    <span>{u}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="bg-white border border-border rounded-card p-4">
-              <div className="label-section mb-2">Do not mention</div>
-              <ul className="space-y-1.5">
-                {product.avoid.map((a, i) => (
-                  <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
-                    <span className="text-text-tertiary">·</span>
-                    <span>{a}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.div>
-
-          {/* Linked personas */}
-          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="label-section mb-2">Linked personas</div>
-            <div className="flex flex-wrap gap-1.5">
-              {product.personas.map((p) => (
-                <span key={p.id} className="pill">{p.name}</span>
+            <p className="text-[13px] text-text-secondary leading-relaxed mb-3">{product.tagline}</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-3 border-t border-border-subtle">
+              {product.brief.map((r, i) => (
+                <div key={i} className="flex items-baseline gap-2 text-[12.5px] leading-snug">
+                  <span className="text-[13px]" aria-hidden>{r.icon}</span>
+                  <span className="text-text-tertiary flex-shrink-0">{r.label}:</span>
+                  <span className="text-text-primary">{r.value}</span>
+                </div>
               ))}
             </div>
           </motion.div>
 
-          {/* Recent memory */}
+          {/* Pricing */}
           <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="label-section mb-2.5">Most recent memory</div>
+            <div className="label-section mb-2.5">Pricing</div>
+            <div className="space-y-2 mb-3">
+              {product.pricing.map((p) => (
+                <div key={p.name} className="flex items-baseline gap-2 text-[12.5px]">
+                  <span className="text-text-primary">{p.name}</span>
+                  {p.badge && (
+                    <span className="pill pill-info" style={{ fontSize: 9.5, padding: "0 5px" }}>
+                      {p.badge}
+                    </span>
+                  )}
+                  <span className="flex-1 border-b border-dashed border-border-subtle translate-y-[-2px]" />
+                  <span className="font-semibold text-text-primary tabular">{p.cost}</span>
+                  {p.cadence && (
+                    <span className="text-[11px] text-text-tertiary">{p.cadence}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="pt-2 border-t border-border-subtle">
+              <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mb-1.5">
+                Active offers
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {product.offers.map((o, i) => (
+                  <span key={i} className="pill pill-warn" style={{ fontSize: 10.5 }}>
+                    {o.label}
+                    {o.meta && <span className="text-[10px] opacity-70 ml-1">· {o.meta}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Target audience / linked personas — now clickable */}
+          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="label-section">Personas in active campaigns</span>
+              <span className="text-[11px] text-text-tertiary">{product.personas.length} linked</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {product.personas.map((p) => (
+                <a
+                  key={p.id}
+                  href={`/personas#${p.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 pill hover:bg-surface-secondary transition-colors"
+                  title="Open persona in a new tab"
+                >
+                  {p.name}
+                  <ExternalLink size={9} strokeWidth={1.6} className="text-text-tertiary" />
+                </a>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Do not mention — keep prominent */}
+          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <ShieldAlert size={11} strokeWidth={1.8} className="text-[#92400E]" />
+              <span className="label-section">Do not mention</span>
+            </div>
+            <ul className="space-y-1.5">
+              {product.avoid.map((a, i) => (
+                <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
+                  <span className="text-text-tertiary">·</span>
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          {/* Learnings from past campaigns — replaces "memory entries" */}
+          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <TrendingUp size={11} strokeWidth={1.8} className="text-text-secondary" />
+              <span className="label-section">Learnings from past campaigns</span>
+            </div>
             <ol className="space-y-2.5">
-              {product.memory.slice(0, 3).map((e) => (
-                <li key={e.id} className="flex gap-2.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#111] mt-1.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-[12.5px] text-text-primary leading-snug">{e.summary}</div>
-                    <div className="text-[11px] text-text-tertiary mt-0.5">{e.at} · {e.who}</div>
+              {product.learnings.map((l) => (
+                <li key={l.id} className="flex gap-2.5">
+                  <span className={`pill ${LEARNING_TONE[l.kind]} flex-shrink-0 mt-0.5`} style={{ fontSize: 9.5 }}>
+                    {LEARNING_LABEL[l.kind]}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] text-text-primary leading-snug">{l.summary}</div>
+                    {l.evidence && (
+                      <div className="text-[11px] text-text-tertiary mt-0.5 italic">{l.evidence}</div>
+                    )}
                   </div>
                 </li>
               ))}
@@ -443,14 +509,20 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex-1">
-      <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mb-0.5">{label}</div>
-      <div className="text-[16px] font-semibold text-text-primary tabular">{value}</div>
-    </div>
-  );
-}
+// Learning kind → visual tone. Performance = green, audience = blue,
+// creative = info-blue, channel = warn-tinted.
+const LEARNING_TONE: Record<"performance" | "audience" | "creative" | "channel", string> = {
+  performance: "pill-ok",
+  audience: "pill-info",
+  creative: "pill-info",
+  channel: "pill-warn",
+};
+const LEARNING_LABEL: Record<"performance" | "audience" | "creative" | "channel", string> = {
+  performance: "Perf",
+  audience: "Audience",
+  creative: "Creative",
+  channel: "Channel",
+};
 
 /**
  * Loading-state shimmer shown on the kickoff canvas while the
@@ -538,13 +610,6 @@ function SkeletonStat() {
 
 /* ─── Personas — recommended (combined existing + new) ──────── */
 
-// Insight chip iconography
-const INSIGHT_ICON: Record<"trophy" | "trending" | "layers", typeof Trophy> = {
-  trophy: Trophy,
-  trending: TrendingUp,
-  layers: LayersIcon,
-};
-
 function PersonasStep() {
   const approvals = useSpotStore((s) => s.workflow!.approvals);
   const toggle = useSpotStore((s) => s.toggleWorkflowApproval);
@@ -618,95 +683,127 @@ function PersonaCard({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const isNew = persona.origin === "new";
+  // For new personas, "selected" doubles as "approved" — the persona
+  // hasn't been written to the library until the user explicitly says
+  // yes. For existing personas, selection just means "include in run".
+  const isNewApproved = isNew && selected;
+  const isNewUnapproved = isNew && !selected;
+
   return (
     <div
-      className={`relative bg-white border-2 rounded-card overflow-hidden cursor-pointer transition-all ${
-        selected
-          ? "border-[#111] shadow-card-hover"
-          : "border-border hover:border-text-tertiary"
+      className={`relative rounded-card overflow-hidden transition-all ${
+        isNewUnapproved
+          ? // NEW unapproved: prominent dashed amber outline + warm tint
+            "bg-[#FFFCEC] border-2 border-dashed border-[#E8C97A] cursor-default"
+          : selected
+            ? "bg-white border border-[#111] shadow-card-hover cursor-pointer"
+            : "bg-white border border-border hover:border-text-tertiary cursor-pointer"
       }`}
-      onClick={onToggle}
-      role="button"
-      aria-pressed={selected}
+      onClick={() => {
+        // Card body toggles inclusion ONLY for already-approved personas.
+        // New unapproved cards require the explicit Approve button.
+        if (!isNewUnapproved) onToggle();
+      }}
+      role={isNewUnapproved ? undefined : "button"}
+      aria-pressed={!isNewUnapproved ? selected : undefined}
     >
-      {/* Tinted strip across the top, colored by persona hue */}
-      <div
-        className={`h-14 relative transition-opacity ${selected ? "" : "opacity-70"}`}
-        style={{
-          background: `linear-gradient(135deg, hsl(${persona.hue} 70% 92%) 0%, hsl(${persona.hue} 55% 78%) 100%)`,
-        }}
-      >
-        {/* Avatar disc */}
+      {/* NEW ribbon — eyebrow strip, sparkle, prominent treatment */}
+      {isNew && (
         <div
-          className="absolute -bottom-5 left-3.5 w-10 h-10 rounded-full flex items-center justify-center text-[12.5px] font-semibold text-white shadow-card-hover"
-          style={{
-            background: `linear-gradient(135deg, hsl(${persona.hue} 65% 45%) 0%, hsl(${persona.hue} 55% 30%) 100%)`,
-          }}
-        >
-          {persona.avatarLetters}
-        </div>
-        {/* Origin pill */}
-        <div className="absolute top-2 right-2">
-          {persona.origin === "new" ? (
-            <span className="pill pill-info inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
-              <Sparkles size={9} strokeWidth={2} />
-              New
-            </span>
-          ) : (
-            <span className="pill" style={{ fontSize: 9.5 }}>
-              From library
-            </span>
-          )}
-        </div>
-        {/* Selection checkbox — bordered, always visible. Sits over the
-            colored strip so it reads as a discoverable control rather
-            than a faint dot. */}
-        <div
-          className={`absolute top-2 left-2 w-5 h-5 rounded-[5px] border-2 flex items-center justify-center transition-colors ${
-            selected
-              ? "bg-[#111] border-[#111]"
-              : "bg-white border-text-tertiary/50 group-hover:border-text-primary"
+          className={`flex items-center gap-1.5 px-3 py-1 ${
+            isNewUnapproved ? "bg-[#E8C97A]/40" : "bg-[#F0FDF4]"
           }`}
         >
-          {selected && <Check size={12} strokeWidth={3} className="text-white" />}
+          <Sparkles
+            size={10}
+            strokeWidth={2}
+            className={isNewUnapproved ? "text-[#92400E]" : "text-[#15803D]"}
+          />
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wider ${
+              isNewUnapproved ? "text-[#92400E]" : "text-[#15803D]"
+            }`}
+          >
+            {isNewUnapproved ? "New · Spot-drafted persona" : "New · approved"}
+          </span>
         </div>
-      </div>
+      )}
 
-      {/* Body */}
-      <div className="px-3.5 pt-7 pb-3.5">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div className="text-[13px] font-medium text-text-primary leading-tight">
-            {persona.name}
+      <div className="p-3">
+        {/* Identity row — avatar + name + checkbox */}
+        <div className="flex items-center gap-2.5 mb-2">
+          {/* Compact avatar disc — 28px instead of 40 */}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-semibold text-white flex-shrink-0"
+            style={{
+              background: `linear-gradient(135deg, hsl(${persona.hue} 65% 45%) 0%, hsl(${persona.hue} 55% 30%) 100%)`,
+            }}
+          >
+            {persona.avatarLetters}
           </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-medium text-text-primary truncate leading-tight">
+              {persona.name}
+            </div>
+            {!isNew && (
+              <div className="text-[10.5px] text-text-tertiary">From library</div>
+            )}
+          </div>
+          {/* Checkbox — only for non-NEW or approved-NEW (otherwise the
+              Approve button is the action). */}
+          {!isNewUnapproved && (
+            <div
+              className={`w-4 h-4 rounded-[4px] border-2 flex items-center justify-center flex-shrink-0 ${
+                selected ? "bg-[#111] border-[#111]" : "bg-white border-text-tertiary/50"
+              }`}
+            >
+              {selected && <Check size={10} strokeWidth={3} className="text-white" />}
+            </div>
+          )}
         </div>
-        <p className="text-[12px] text-text-secondary leading-snug mb-2.5">{persona.rationale}</p>
 
-        {/* Insight chips — data-driven flavour from past memory */}
-        <div className="flex flex-wrap gap-1 mb-3">
-          {persona.insights.map((ins, i) => {
-            const Ico = INSIGHT_ICON[ins.icon];
+        {/* Rationale */}
+        <p className="text-[11.5px] text-text-secondary leading-snug mb-2.5">{persona.rationale}</p>
+
+        {/* Insights — single dense row, smaller chips, no icons */}
+        <div className="flex flex-wrap gap-1 mb-2.5">
+          {persona.insights.slice(0, 3).map((ins, i) => {
             const cls =
               ins.tone === "strong" ? "pill-ok" : ins.tone === "warn" ? "pill-warn" : "pill-info";
             return (
-              <span key={i} className={`pill ${cls} inline-flex items-center gap-1`} style={{ fontSize: 10 }}>
-                <Ico size={9} strokeWidth={2} />
+              <span key={i} className={`pill ${cls}`} style={{ fontSize: 9.5, padding: "1px 6px" }}>
                 {ins.label}
               </span>
             );
           })}
         </div>
 
-        {/* View link */}
-        <a
-          href="/personas"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary"
-        >
-          View persona
-          <ExternalLink size={9} strokeWidth={1.6} />
-        </a>
+        {/* Action row */}
+        {isNewUnapproved ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(); // Approving the new persona = adding to personaIds
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 h-7 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
+          >
+            <Sparkles size={10} strokeWidth={2} />
+            Approve persona
+          </button>
+        ) : (
+          <a
+            href={`/personas#${persona.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary"
+          >
+            View persona
+            <ExternalLink size={9} strokeWidth={1.6} />
+          </a>
+        )}
       </div>
     </div>
   );
@@ -717,81 +814,95 @@ function PersonaCard({
 const CHANNEL_TINT: Record<ChannelPlan["iconKey"], string> = {
   meta: "#1877F2",
   google: "#4285F4",
-  whatsapp: "#25D366",
-  voice: "#A855F7",
-  linkedin: "#0A66C2",
-  email: "#F59E0B",
+  outreach: "#A855F7",
 };
 
 function MediaPlanStep() {
   const wf = useSpotStore((s) => s.workflow)!;
-  const plans = generateChannelPlans(wf.budget?.amountInr || 0, false);
+  const setBudget = useSpotStore((s) => s.setWorkflowBudget);
+  const whatsAppConnected = useSpotStore((s) => s.whatsAppConnected);
+  const connectWhatsApp = useSpotStore((s) => s.connectWhatsApp);
+  const plans = generateChannelPlans(wf.budget?.amountInr || 0, whatsAppConnected);
   const totalBudget = wf.budget?.amountInr || 0;
+  const days = wf.budget?.days || 7;
 
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Media plan · channel × ad type"
-        blurb={
-          totalBudget > 0
-            ? `${inr(totalBudget)} over ${wf.budget?.days || 7} days · here's how I'd split it.`
-            : "No budget set yet — running as an experiment baseline. Tell me a weekly cap in chat to re-split."
-        }
+        title="Media plan"
+        blurb="Channel split + ad-type strategy. Set a budget on the right or leave blank to run an experiment baseline."
       />
 
-      <div className="space-y-3">
+      {/* Budget input — interactive */}
+      <BudgetCard
+        amount={totalBudget}
+        days={days}
+        onChange={(amount, d) => setBudget({ amountInr: amount, days: d })}
+        onClear={() => setBudget({ amountInr: 0, days: 7 })}
+      />
+
+      {/* Channel cards */}
+      <div className="space-y-3 mt-4">
         {plans.map((c) => (
           <div key={c.channel} className="bg-white border border-border rounded-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-2.5">
+            <div className="px-3.5 py-2.5 border-b border-border-subtle flex items-center gap-2.5">
               <div
-                className="w-7 h-7 rounded-button flex items-center justify-center flex-shrink-0"
-                style={{ background: `${CHANNEL_TINT[c.iconKey]}15`, color: CHANNEL_TINT[c.iconKey] }}
+                className="w-6 h-6 rounded-button flex items-center justify-center flex-shrink-0"
+                style={{ background: `${CHANNEL_TINT[c.iconKey]}18`, color: CHANNEL_TINT[c.iconKey] }}
               >
-                <Megaphone size={13} strokeWidth={1.8} />
+                <Megaphone size={11} strokeWidth={1.8} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-text-primary">{c.channel}</div>
-                <div className="text-[11.5px] text-text-tertiary truncate">{c.rationale}</div>
+                <div className="text-[12.5px] font-medium text-text-primary">{c.channel}</div>
+                <div className="text-[11px] text-text-tertiary truncate">{c.rationale}</div>
               </div>
-              <span className="pill" style={{ fontSize: 10.5 }}>{Math.round(c.share * 100)}%</span>
+              <span className="text-[11px] text-text-tertiary tabular">{Math.round(c.share * 100)}%</span>
               {totalBudget > 0 && (
-                <span className="text-[12px] tabular text-text-primary font-medium ml-1">
+                <span className="text-[12px] tabular text-text-primary font-medium">
                   {inr(Math.round(c.share * totalBudget))}
                 </span>
               )}
             </div>
             <div className="divide-y divide-border-subtle">
-              {c.adTypes.map((ad) => (
-                <div key={ad.name} className="px-4 py-2.5 flex items-start gap-2.5">
-                  <div className="w-1 self-stretch rounded-full bg-border-subtle flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                      <span className="text-[12.5px] font-medium text-text-primary">{ad.name}</span>
-                      <span className="text-[11px] text-text-tertiary">
-                        · {ad.personas.join(", ")}
-                      </span>
+              {c.adTypes.map((ad) => {
+                const channelBudget = Math.round(c.share * totalBudget);
+                const adBudget = Math.round(ad.budgetShare * channelBudget);
+                return (
+                  <div key={ad.name} className="px-3.5 py-2 flex items-center gap-2.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <span className="text-[12px] font-medium text-text-primary">{ad.name}</span>
+                        <span className="text-[11px] text-text-tertiary">· {ad.personas.join(", ")}</span>
+                      </div>
+                      <div className="text-[11.5px] text-text-secondary leading-snug">{ad.description}</div>
                     </div>
-                    <div className="text-[12px] text-text-secondary leading-snug">{ad.description}</div>
+                    {totalBudget > 0 && (
+                      <span className="text-[11.5px] tabular text-text-secondary mr-1">{inr(adBudget)}</span>
+                    )}
+                    <div className="flex-shrink-0">
+                      {ad.availability === "available" && (
+                        <span className="pill pill-ok inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
+                          <Wifi size={9} strokeWidth={2} />
+                          Live
+                        </span>
+                      )}
+                      {ad.availability === "needs-connection" && ad.connectionKey === "whatsapp" && (
+                        <button
+                          type="button"
+                          onClick={connectWhatsApp}
+                          className="inline-flex items-center gap-1 h-6 px-2 rounded-button bg-[#25D366] hover:bg-[#1FB058] text-white text-[10.5px] font-medium"
+                        >
+                          <WifiOff size={9} strokeWidth={2} />
+                          Connect WhatsApp
+                        </button>
+                      )}
+                      {ad.availability === "coming-soon" && (
+                        <span className="pill" style={{ fontSize: 10 }}>Soon</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-shrink-0">
-                    {ad.availability === "available" && (
-                      <span className="pill pill-ok inline-flex items-center gap-1" style={{ fontSize: 10 }}>
-                        <Wifi size={9} strokeWidth={2} />
-                        Available
-                      </span>
-                    )}
-                    {ad.availability === "needs-connection" && (
-                      <span className="pill pill-warn inline-flex items-center gap-1" style={{ fontSize: 10 }}>
-                        <WifiOff size={9} strokeWidth={2} />
-                        Needs connection
-                      </span>
-                    )}
-                    {ad.availability === "coming-soon" && (
-                      <span className="pill" style={{ fontSize: 10 }}>Soon</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
@@ -800,61 +911,293 @@ function MediaPlanStep() {
   );
 }
 
-/* ─── Creatives — image-rich, agents-at-work ────────────────── */
+/**
+ * Budget input on the canvas. Two-mode: a quick text input + windows.
+ * Empty = "experiment baseline" with a clear callout. Changing either
+ * the amount or the window updates the workflow store.
+ */
+function BudgetCard({
+  amount,
+  days,
+  onChange,
+  onClear,
+}: {
+  amount: number;
+  days: number;
+  onChange: (amountInr: number, days: number) => void;
+  onClear: () => void;
+}) {
+  const [draft, setDraft] = useState(amount > 0 ? amount.toString() : "");
+  const isSet = amount > 0;
 
-const CREATIVE_SIZES: { format: "1:1" | "4:5" | "9:16" | "16:9"; label: string; w: number; h: number; channel: "Meta" | "Google" | "Both" }[] = [
-  { format: "1:1", label: "Square · feed", w: 80, h: 80, channel: "Meta" },
-  { format: "4:5", label: "Portrait · feed", w: 64, h: 80, channel: "Meta" },
-  { format: "9:16", label: "Reel / Story", w: 45, h: 80, channel: "Meta" },
-  { format: "16:9", label: "Landscape · Google", w: 96, h: 54, channel: "Google" },
-];
+  return (
+    <div
+      className={`rounded-card p-3.5 ${
+        isSet
+          ? "bg-white border border-border"
+          : "bg-[#FAF8F2] border border-[#E8C97A]"
+      }`}
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        {isSet ? (
+          <CheckCircle2 size={11} strokeWidth={1.8} className="text-[#15803D]" />
+        ) : (
+          <Sparkles size={11} strokeWidth={1.8} className="text-[#92400E]" />
+        )}
+        <span className="label-section">
+          {isSet ? "Budget" : "Experiment baseline (no budget yet)"}
+        </span>
+        <span className="flex-1" />
+        {isSet && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft("");
+              onClear();
+            }}
+            className="text-[11px] text-text-tertiary hover:text-text-primary"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center flex-1">
+          <span className="inline-flex items-center justify-center w-7 h-8 rounded-l-input border border-r-0 border-border bg-surface-page text-[12.5px] text-text-tertiary">
+            ₹
+          </span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={draft}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9]/g, "");
+              setDraft(v);
+              onChange(+v || 0, days);
+            }}
+            placeholder="Set a weekly cap (optional)"
+            className="flex-1 h-8 px-2.5 rounded-r-input border border-border text-[13px] tabular focus:outline-none focus:border-text-primary"
+          />
+        </div>
+        <div className="inline-flex items-center gap-0.5 bg-surface-secondary p-0.5 rounded-button">
+          {[7, 14, 30].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onChange(+draft || 0, d)}
+              className={`h-7 px-2 rounded-[5px] text-[11px] font-medium ${
+                days === d ? "bg-white text-text-primary" : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+      {!isSet && (
+        <div className="text-[11px] text-text-secondary mt-2">
+          I'll use historical persona payoff to allocate across channels. Set a cap to lock spend.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Creatives — angles per persona × channel ────────────────── */
 
 function CreativesStep() {
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Creatives in production"
-        blurb="Hero concepts are ready. Resized variants attach to each campaign in the background — agents at work below."
+        title="Creative direction · angles + search ads"
+        blurb="Hook + visual direction per persona for Meta. A separate set of search-ad copies for Google. Resizing into ad sizes happens in the next step."
       />
 
       {/* Agent activity strip */}
       <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4">
-        <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex items-center gap-1.5 mb-1">
           <Cog size={11} strokeWidth={1.8} className="text-text-secondary animate-spin" style={{ animationDuration: "3s" }} />
-          <span className="text-[11.5px] font-medium text-text-primary">Creative Agent · running</span>
+          <span className="text-[11.5px] font-medium text-text-primary">Creative Agent · drafting</span>
         </div>
-        <ul className="space-y-1 text-[11.5px] text-text-secondary leading-snug pl-5">
-          <li>· Resizing hero static into 4 ad-size variants for Meta</li>
-          <li>· Generating 16:9 landscape from portrait reel for Google PMax</li>
-          <li>· Attaching variants to ad sets · 3 of 12 done</li>
-        </ul>
+        <span className="text-[11.5px] text-text-secondary">3 visual angles per approved persona · 3 search ad copies for Google.</span>
       </div>
 
-      {/* Per-persona creative galleries */}
-      <div className="space-y-4">
-        {SAMPLE_ANGLES.map((pack) => (
-          <div key={pack.personaId} className="bg-white border border-border rounded-card overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border-subtle flex items-center gap-2">
-              <Users size={12} strokeWidth={1.6} className="text-text-tertiary" />
-              <span className="text-[12.5px] font-medium text-text-primary">{pack.personaName}</span>
-              <span className="text-[11px] text-text-tertiary">· {pack.angles.length * CREATIVE_SIZES.length} assets generating</span>
+      {/* Visual creatives — per persona, for Meta */}
+      <div className="mb-5">
+        <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider font-medium mb-2">
+          Visual creatives · Meta
+        </div>
+        <div className="space-y-3">
+          {SAMPLE_ANGLES.map((pack) => (
+            <div key={pack.personaId} className="bg-white border border-border rounded-card overflow-hidden">
+              <div className="px-3.5 py-2 border-b border-border-subtle flex items-center gap-2">
+                <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
+                <span className="text-[12px] font-medium text-text-primary">{pack.personaName}</span>
+                <span className="text-[10.5px] text-text-tertiary">· {pack.angles.length} angles</span>
+                <span className="flex-1" />
+                <span className="pill" style={{ fontSize: 9.5 }}>→ Meta · Cold campaign</span>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-border-subtle">
+                {pack.angles.map((a, ai) => (
+                  <VisualAngleTile key={a.id} angle={a} hue={(ai * 90) % 360} />
+                ))}
+              </div>
             </div>
-            <div className="p-4 space-y-3">
-              {pack.angles.map((a, ai) => (
-                <div key={a.id}>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-[12px] font-medium text-text-primary truncate">{a.hook}</span>
-                    <span className="pill" style={{ fontSize: 9.5 }}>{a.format}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Search ads — non-persona-specific */}
+      <div>
+        <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider font-medium mb-2">
+          Search ads · Google · generic
+        </div>
+        <div className="bg-white border border-border rounded-card divide-y divide-border-subtle">
+          {SAMPLE_SEARCH_ADS.map((sa) => (
+            <div key={sa.id} className="px-3.5 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] text-text-tertiary">Ad ·</span>
+                <span className="text-[10.5px] text-[#1A0DAB] underline">guyjus.com/jee-crack</span>
+              </div>
+              <div className="text-[13.5px] text-[#1A0DAB] leading-tight mb-1">{sa.headline}</div>
+              <div className="text-[12px] text-text-secondary leading-snug mb-1.5">{sa.description}</div>
+              <div className="text-[10.5px] text-text-tertiary">
+                <span className="font-medium">Keywords:</span> {sa.keywords}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisualAngleTile({
+  angle,
+  hue,
+}: {
+  angle: { id: string; hook: string; cta: string; format: string };
+  hue: number;
+}) {
+  return (
+    <div className="p-3 flex flex-col gap-1.5">
+      {/* Hero — single placeholder, 4:5 ratio */}
+      <div
+        className="relative aspect-[4/5] rounded-[6px] overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, hsl(${hue} 65% 86%) 0%, hsl(${hue} 55% 68%) 100%)`,
+        }}
+      >
+        <div className="absolute top-1.5 left-1.5 text-[9px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
+          {angle.format}
+        </div>
+        {/* Faux hero composition — tinted block + headline lines */}
+        <div className="absolute inset-2 flex flex-col justify-end gap-0.5">
+          <div className="h-1 rounded-full bg-white/65 w-3/4" />
+          <div className="h-1 rounded-full bg-white/55 w-1/2" />
+          <div className="h-1.5 rounded-sm bg-text-primary/80 w-1/3 mt-1" />
+        </div>
+      </div>
+      {/* Hook + CTA */}
+      <div className="text-[11.5px] font-medium text-text-primary leading-snug line-clamp-2">{angle.hook}</div>
+      <div className="text-[10.5px] text-text-tertiary leading-snug">CTA: {angle.cta}</div>
+    </div>
+  );
+}
+
+/* ─── Resize + QA ────────────────────────────────────────────── */
+
+function ResizeQaStep() {
+  const reviews = buildResizeReviews();
+  const totalVariants = reviews.reduce(
+    (s, p) => s + p.angles.reduce((ss, a) => ss + a.variants.length, 0),
+    0,
+  );
+  const flagged = reviews.flatMap((p) =>
+    p.angles.flatMap((a) =>
+      a.variants
+        .filter((v) => v.status === "needs-fix")
+        .map((v) => ({ ...v, personaName: p.personaName, hook: a.hook })),
+    ),
+  );
+
+  return (
+    <div className="px-5 py-5">
+      <StepHeader
+        title="Resize & QA"
+        blurb="Resize Agent produced size variants for every approved angle. QA Agent reviewed each — flags below need a quick re-render before deploy."
+      />
+
+      {/* Agent activity strip */}
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4">
+        <div className="flex items-center gap-1.5 mb-1">
+          <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D]" />
+          <span className="text-[11.5px] font-medium text-text-primary">
+            QA Agent · review complete
+          </span>
+        </div>
+        <span className="text-[11.5px] text-text-secondary">
+          <span className="tabular font-medium text-text-primary">
+            {totalVariants - flagged.length}
+          </span>{" "}
+          clean · <span className="tabular font-medium text-[#92400E]">{flagged.length}</span>{" "}
+          flagged · Resize Agent re-runs flagged on approval
+        </span>
+      </div>
+
+      {/* Flagged items — surfaced first */}
+      {flagged.length > 0 && (
+        <div className="bg-white border border-border rounded-card mb-4 overflow-hidden">
+          <div className="px-3.5 py-2 border-b border-border-subtle bg-[#FEF3C7]/40 flex items-center gap-1.5">
+            <span className="pill pill-warn" style={{ fontSize: 9.5 }}>
+              {flagged.length} flagged
+            </span>
+            <span className="text-[11.5px] font-medium text-text-primary">
+              Needs a re-render
+            </span>
+          </div>
+          <div className="divide-y divide-border-subtle">
+            {flagged.map((f) => (
+              <div key={f.id} className="px-3.5 py-2.5 flex items-center gap-3">
+                <span className="pill" style={{ fontSize: 9.5 }}>
+                  {f.format}
+                </span>
+                <span className="text-[10.5px] text-text-tertiary">{f.channel}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-medium text-text-primary truncate">
+                    {f.personaName} · {f.hook}
                   </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {CREATIVE_SIZES.map((sz, si) => (
-                      <CreativeTile
-                        key={sz.format}
-                        size={sz}
-                        ready={ai === 0 || si < 2}
-                        hue={(ai * 80 + si * 25) % 360}
-                        hook={a.hook}
-                      />
+                  <div className="text-[11px] text-text-secondary leading-snug mt-0.5">{f.note}</div>
+                </div>
+                <span className="pill pill-warn" style={{ fontSize: 10 }}>
+                  Re-render queued
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Full per-persona × angle review grid */}
+      <div className="space-y-3">
+        {reviews.map((p) => (
+          <div key={p.personaId} className="bg-white border border-border rounded-card overflow-hidden">
+            <div className="px-3.5 py-2 border-b border-border-subtle flex items-center gap-2">
+              <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
+              <span className="text-[12px] font-medium text-text-primary">{p.personaName}</span>
+              <span className="text-[10.5px] text-text-tertiary">
+                · {p.angles.length} angles × 4 sizes
+              </span>
+            </div>
+            <div className="divide-y divide-border-subtle">
+              {p.angles.map((a) => (
+                <div key={a.id} className="px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-medium text-text-primary mb-1.5 truncate">
+                    {a.hook}
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {a.variants.map((v) => (
+                      <ResizeVariantTile key={v.id} variant={v} hue={a.hue} />
                     ))}
                   </div>
                 </div>
@@ -867,48 +1210,46 @@ function CreativesStep() {
   );
 }
 
-function CreativeTile({
-  size,
-  ready,
+function ResizeVariantTile({
+  variant,
   hue,
-  hook,
 }: {
-  size: { format: string; label: string; w: number; h: number; channel: string };
-  ready: boolean;
+  variant: import("@/lib/spot/workflow").ResizedVariant;
   hue: number;
-  hook: string;
 }) {
+  const failed = variant.status === "needs-fix";
+  // Tile aspect approximates the format.
+  const dims: Record<typeof variant.format, { w: number; h: number }> = {
+    "1:1": { w: 44, h: 44 },
+    "4:5": { w: 38, h: 48 },
+    "9:16": { w: 28, h: 50 },
+    "16:9": { w: 56, h: 32 },
+  };
+  const d = dims[variant.format];
   return (
     <div
-      title={`${hook} · ${size.format} · ${size.channel}`}
-      className="relative flex-shrink-0 rounded-[6px] border border-border overflow-hidden"
+      title={failed ? variant.note : `${variant.format} · ${variant.channel} · approved`}
+      className={`relative rounded-[5px] border overflow-hidden ${
+        failed ? "border-[#F5A623] ring-2 ring-[#F5A623]/30" : "border-border"
+      }`}
       style={{
-        width: size.w + 30,
-        height: size.h + 30,
-        background: ready
-          ? `linear-gradient(135deg, hsl(${hue} 65% 88%) 0%, hsl(${hue} 55% 72%) 100%)`
-          : "#F5F5F5",
+        width: d.w,
+        height: d.h,
+        background: `linear-gradient(135deg, hsl(${hue} 65% 88%) 0%, hsl(${hue} 55% 72%) 100%)`,
       }}
     >
-      {ready ? (
-        <>
-          <div className="absolute top-1 left-1 text-[8.5px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
-            {size.format}
-          </div>
-          <div className="absolute top-1 right-1 text-[8.5px] font-medium text-text-secondary bg-white/85 px-1 rounded-sm">
-            {size.channel === "Both" ? "M+G" : size.channel === "Meta" ? "M" : "G"}
-          </div>
-          {/* Faux hero composition — a tinted block + light "headline" lines */}
-          <div className="absolute inset-2 mt-5 flex flex-col justify-end gap-0.5">
-            <div className="h-1 rounded-full bg-white/65 w-3/4" />
-            <div className="h-1 rounded-full bg-white/55 w-1/2" />
-            <div className="h-1.5 rounded-sm bg-text-primary/80 w-1/3 mt-1" />
-          </div>
-        </>
-      ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <Cog size={11} strokeWidth={1.6} className="text-text-tertiary animate-spin" style={{ animationDuration: "2s" }} />
-          <span className="text-[9px] text-text-tertiary">{size.format}</span>
+      {/* Faux composition lines */}
+      <div className="absolute inset-1 flex flex-col justify-end gap-0.5">
+        <div className="h-[2px] rounded-full bg-white/70 w-3/4" />
+        <div className="h-[2px] rounded-full bg-white/55 w-1/2" />
+        <div className="h-[3px] rounded-sm bg-text-primary/80 w-1/3 mt-0.5" />
+      </div>
+      <div className="absolute top-0.5 left-0.5 text-[7.5px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
+        {variant.format}
+      </div>
+      {failed && (
+        <div className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-[#F5A623] flex items-center justify-center">
+          <span className="text-[7.5px] text-white font-bold">!</span>
         </div>
       )}
     </div>
