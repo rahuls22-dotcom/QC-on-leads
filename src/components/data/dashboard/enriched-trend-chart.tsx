@@ -1,7 +1,7 @@
 "use client";
 
-// Stacked area: % enriched vs % not-enriched/failed over time. Bucketing
-// (daily vs weekly) decided by trend-bucketing.pickBucketing().
+// Stacked area: number of enriched vs not-enriched/failed leads per
+// bucket. Bucketing (daily vs weekly) decided by trend-bucketing.pickBucketing().
 
 import { useMemo } from "react";
 import {
@@ -45,7 +45,7 @@ export function EnrichedTrendChart({ profiles, range, bounds }: Props) {
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
         <CartesianGrid strokeDasharray="2 4" stroke="rgba(15,15,15,0.06)" vertical={false} />
         <XAxis
           dataKey="date"
@@ -55,12 +55,12 @@ export function EnrichedTrendChart({ profiles, range, bounds }: Props) {
           minTickGap={32}
         />
         <YAxis
-          domain={[0, 100]}
-          ticks={[0, 25, 50, 75, 100]}
-          tickFormatter={(v) => `${v}%`}
+          allowDecimals={false}
+          tickFormatter={formatCount}
           tick={{ fontSize: 10, fill: "var(--color-text-tertiary, #71717a)" }}
           tickLine={false}
           axisLine={false}
+          width={44}
         />
         <Tooltip
           contentStyle={{
@@ -70,14 +70,14 @@ export function EnrichedTrendChart({ profiles, range, bounds }: Props) {
             fontSize: 12,
           }}
           formatter={(value, name) => [
-            `${value}%`,
-            name === "enrichedPct" ? "Enriched" : "Not enriched / Failed",
+            (value as number).toLocaleString("en-IN"),
+            name === "enriched" ? "Enriched" : "Not enriched / Failed",
           ]}
           labelFormatter={(label) => label}
         />
         <Area
           type="monotone"
-          dataKey="enrichedPct"
+          dataKey="enriched"
           stackId="1"
           stroke="#22C55E"
           fill="#22C55E"
@@ -85,7 +85,7 @@ export function EnrichedTrendChart({ profiles, range, bounds }: Props) {
         />
         <Area
           type="monotone"
-          dataKey="failedPct"
+          dataKey="failed"
           stackId="1"
           stroke="#F59E0B"
           fill="#F59E0B"
@@ -139,4 +139,10 @@ function formatBucketLabel(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
   return dt.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+}
+
+function formatCount(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(v % 1_000 === 0 ? 0 : 1)}k`;
+  return String(v);
 }

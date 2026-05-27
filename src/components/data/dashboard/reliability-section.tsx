@@ -28,7 +28,7 @@ export function ReliabilitySection({ profiles, prevProfiles, range, bounds }: Pr
           <div className="flex items-baseline justify-between mb-2">
             <div>
               <div className="text-[10.5px] font-medium uppercase tracking-[0.4px] text-text-tertiary">
-                Enrichment rate
+                Enrichment volume
               </div>
               <div className="text-[13px] font-semibold text-text-primary mt-0.5">
                 Enriched vs not-enriched
