@@ -337,10 +337,10 @@ export default function SpotPage() {
   // ─── EMPTY STATE ─────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[var(--chat-bg)]">
-      <div className="max-w-[780px] mx-auto w-full px-6 pt-14 pb-20">
-        {/* Resume banner — when a workflow is parked, the user can jump
-            back into it from the homepage. The workflow is also listed
-            in Past Chats below as a regular thread. */}
+      {/* Top half: hero + composer + chips — narrow centered column so
+          the welcome moment feels intimate and Claude-like. */}
+      <div className="max-w-[780px] mx-auto w-full px-6 pt-14">
+        {/* Resume banner — when a workflow is parked */}
         {workflow && viewHomeOverride && (
           <button
             type="button"
@@ -374,7 +374,6 @@ export default function SpotPage() {
           </p>
         </div>
 
-        {/* Composer */}
         <Composer
           value={draft}
           onChange={setDraft}
@@ -386,7 +385,6 @@ export default function SpotPage() {
           inputRef={inputRef}
         />
 
-        {/* Suggestion chips */}
         <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
           {SUGGESTIONS.map((s) => (
             <button
@@ -399,9 +397,14 @@ export default function SpotPage() {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* History grid */}
-        <div className="grid grid-cols-2 gap-3 mt-10">
+      {/* Lower half: wider canvas. Active products row + Past chats +
+          Spot's queue. Uses the full screen width so the welcome screen
+          feels like a real workspace, not just a chat field. */}
+      <div className="max-w-[1200px] mx-auto w-full px-6 pt-10 pb-20">
+        <ActiveProductsRail />
+        <div className="grid grid-cols-2 gap-3 mt-5">
           <PastChatsCard />
           <QueueCard />
         </div>
@@ -530,7 +533,9 @@ function ScopePicker({
     return () => window.removeEventListener("mousedown", handler);
   }, [open, onOpenChange]);
 
-  const projectScopes: SpotScope[] = projectsList.slice(0, 4).map((p) => ({
+  // Scope from the live Products library so the dropdown reflects what's
+  // actually in this workspace (Guyju's, not the legacy real-estate list).
+  const projectScopes: SpotScope[] = PRODUCTS.slice(0, 5).map((p) => ({
     kind: "project",
     label: p.name,
     target: p.id,
@@ -623,6 +628,93 @@ function ScopeRow({
 }
 
 /* ─── History panels ──────────────────────────────────────────── */
+
+/**
+ * Active products rail — full-width row of product cards the user can
+ * launch straight from the homepage. Clicking the launch button calls
+ * startLaunchFlow which kicks off the split-screen workflow.
+ */
+function ActiveProductsRail() {
+  const startLaunchFlow = useSpotStore((s) => s.startLaunchFlow);
+  const startNewProductFlow = useSpotStore((s) => s.startNewProductFlow);
+  const top = PRODUCTS.slice(0, 3);
+
+  return (
+    <div>
+      <div className="flex items-center mb-2.5">
+        <span className="label-section">Launch a campaign for</span>
+        <span className="flex-1" />
+        <a
+          href="/products"
+          className="text-[11.5px] text-text-tertiary hover:text-text-primary"
+        >
+          All products →
+        </a>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {top.map((p) => {
+          const health = p.performance.health;
+          const healthCls =
+            health === "on-track"
+              ? "pill-ok"
+              : health === "needs-attention"
+                ? "pill-warn"
+                : "pill-err";
+          const healthLabel =
+            health === "on-track"
+              ? "On track"
+              : health === "needs-attention"
+                ? "Needs attention"
+                : "Underperforming";
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => startLaunchFlow({ id: p.id, name: p.name })}
+              className="group bg-white border border-border rounded-card p-4 text-left hover:border-text-tertiary hover:shadow-card-hover transition-all"
+            >
+              <div className="text-[10.5px] text-text-tertiary mb-1 truncate">{p.category}</div>
+              <div className="text-[13.5px] font-medium text-text-primary leading-tight mb-2 line-clamp-2 min-h-[2.4em]">
+                {p.name}
+              </div>
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                <span className={`pill ${healthCls}`} style={{ fontSize: 9.5 }}>
+                  {healthLabel}
+                </span>
+                <span className="text-[11px] text-text-tertiary tabular">
+                  {p.performance.activeCampaigns} live
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline">
+                Launch with Spot
+                <ArrowRight size={11} strokeWidth={2} />
+              </span>
+            </button>
+          );
+        })}
+
+        {/* New product slot — always present, always last */}
+        <button
+          type="button"
+          onClick={startNewProductFlow}
+          className="border-2 border-dashed border-border rounded-card p-4 text-left hover:border-text-primary hover:bg-white transition-colors group"
+        >
+          <div className="text-[10.5px] text-text-tertiary mb-1">Fresh start</div>
+          <div className="text-[13.5px] font-medium text-text-primary leading-tight mb-2 min-h-[2.4em]">
+            New product
+          </div>
+          <div className="text-[11px] text-text-secondary mb-3 leading-snug">
+            I'll do deep research from a name or URL.
+          </div>
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline">
+            <Plus size={11} strokeWidth={2} />
+            Start a new product
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PastChatsCard() {
   const workflow = useSpotStore((s) => s.workflow);

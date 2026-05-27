@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useSpotStore } from "@/lib/spot/store";
 import {
   STEP_LABELS,
+  STEP_TOOL_CALL,
   VISIBLE_STEPS,
   LAUNCH_PERSONAS,
   SAMPLE_ANGLES,
@@ -142,6 +143,35 @@ export function WorkflowPane() {
 /* ─── Step body router ───────────────────────────────────────── */
 
 function StepBody({ workflow }: { workflow: LaunchWorkflow }) {
+  // When the user advances to a new step, the workflow.step flips
+  // immediately but the corresponding agent (tool-call) is still
+  // "running" in the chat. The right pane shows a loader during that
+  // window so the canvas doesn't reveal data before the agent is done.
+  //
+  // Kickoff has its own loader (KickoffSkeleton) gated by
+  // workflow.kickoffReady; we leave that alone.
+  const isAgentRunning = useSpotStore((s) =>
+    s.thread.some(
+      (m) =>
+        m.role === "spot" &&
+        m.parts.some((p) => p.type === "tool-call" && p.status === "running"),
+    ),
+  );
+  const wantsGenericLoader =
+    isAgentRunning &&
+    !!STEP_TOOL_CALL[workflow.step] &&
+    workflow.step !== "kickoff";
+  if (wantsGenericLoader) {
+    const tc = STEP_TOOL_CALL[workflow.step]!;
+    return (
+      <StepLoader
+        stepLabel={STEP_LABELS[workflow.step]}
+        agent={tc.agent}
+        detail={tc.detail}
+      />
+    );
+  }
+
   switch (workflow.step) {
     case "deep-research":
       return <DeepResearchStep workflow={workflow} />;
@@ -164,6 +194,53 @@ function StepBody({ workflow }: { workflow: LaunchWorkflow }) {
     case "done":
       return <DoneStep workflow={workflow} />;
   }
+}
+
+/**
+ * Generic "agent at work" loader for any step that runs a background
+ * tool-call. Shown on the right pane while the agent is still
+ * narrating in chat — the canvas swaps to it immediately on advance.
+ */
+function StepLoader({
+  stepLabel,
+  agent,
+  detail,
+}: {
+  stepLabel: string;
+  agent: string;
+  detail: string;
+}) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 py-16 text-center">
+      <div className="relative w-12 h-12 mb-4">
+        <SpotMark size={28} className="spot-breath absolute inset-0 m-auto" />
+        <svg
+          aria-hidden
+          className="absolute inset-0 animate-spin"
+          style={{ width: 48, height: 48, animationDuration: "2.4s" }}
+          viewBox="0 0 48 48"
+        >
+          <circle
+            cx="24"
+            cy="24"
+            r="21"
+            fill="none"
+            stroke="#E8C97A"
+            strokeWidth="1.5"
+            strokeDasharray="30 130"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+      <div className="text-[14px] font-semibold text-text-primary mb-1">
+        Working on {stepLabel.toLowerCase()}…
+      </div>
+      <div className="mono text-[10.5px] text-text-tertiary mb-3">{agent}</div>
+      <div className="text-[12.5px] text-text-secondary max-w-[380px] leading-relaxed">
+        {detail}
+      </div>
+    </div>
+  );
 }
 
 function StepHeader({ title, blurb }: { title: string; blurb: string }) {
@@ -249,29 +326,124 @@ function DeepResearchStep({ workflow }: { workflow: LaunchWorkflow }) {
 
 /* ─── Product setup ──────────────────────────────────────────── */
 
+/**
+ * Initial canvas for a fresh New Product flow. The user picks how Spot
+ * should learn about the product: type a name and let Spot research it
+ * end-to-end, paste a URL for Spot to crawl, or upload a brochure.
+ *
+ * Submitting fires startDeepResearch which transitions to the
+ * deep-research step (loader + tool calls) and ultimately the kickoff
+ * canvas with synthesised memory.
+ */
 function ProductSetupStep() {
+  const startDeepResearch = useSpotStore((s) => s.startDeepResearch);
+  const exit = useSpotStore((s) => s.exitWorkflow);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+
+  const canStart = name.trim().length > 1 || url.trim().length > 5;
+
+  const submit = () => {
+    if (!canStart) return;
+    const label = name.trim() || extractDomainName(url) || "New product";
+    startDeepResearch(label);
+  };
+
   return (
-    <div className="px-5 py-5">
-      <StepHeader
-        title="Set up product memory"
-        blurb="Tell me about the product in chat — I'll structure it on the right. Or paste a URL / upload a brochure and I'll do the research."
-      />
-      <div className="bg-white border border-border rounded-card p-4 space-y-3 opacity-60">
-        <div>
-          <div className="label-section mb-1">Product name</div>
-          <div className="text-[13px] text-text-tertiary italic">Waiting on chat…</div>
+    <div className="px-5 py-8 max-w-[640px] mx-auto">
+      {/* Intro */}
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] mb-3">
+          <Package size={16} strokeWidth={1.6} className="text-text-secondary" />
         </div>
+        <h2 className="text-section-header text-text-primary">Tell me about the product</h2>
+        <p className="text-meta text-text-secondary mt-1.5 max-w-[440px] mx-auto">
+          Drop a name and I'll do the research. Or paste a URL and I'll crawl the brand site
+          + audience graph to pre-fill the memory.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="bg-white border border-border rounded-card p-5 space-y-4">
         <div>
-          <div className="label-section mb-1">USPs</div>
-          <div className="text-[13px] text-text-tertiary italic">Waiting on chat…</div>
+          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
+            Product name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Guyju's Spoken English Pro"
+            className="w-full h-10 px-3 rounded-input border border-border text-[14px] focus:outline-none focus:border-text-primary placeholder:text-text-tertiary"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canStart) submit();
+            }}
+          />
         </div>
+
         <div>
-          <div className="label-section mb-1">Do not mention</div>
-          <div className="text-[13px] text-text-tertiary italic">Waiting on chat…</div>
+          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
+            Brand site or landing page <span className="text-text-tertiary normal-case font-normal">· optional</span>
+          </label>
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://guyjus.com/spoken-english"
+            className="w-full h-10 px-3 rounded-input border border-border text-[13px] focus:outline-none focus:border-text-primary placeholder:text-text-tertiary"
+          />
+          <div className="text-[11px] text-text-tertiary mt-1">
+            I'll crawl /about, /curriculum, /pricing and cross-check the audience graph.
+          </div>
+        </div>
+
+        <div className="pt-1 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!canStart}
+            onClick={submit}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Search size={12} strokeWidth={2} />
+            Start deep research
+          </button>
+          <button
+            type="button"
+            onClick={exit}
+            className="inline-flex items-center h-9 px-3 rounded-button text-[12px] text-text-secondary hover:text-text-primary"
+          >
+            Cancel
+          </button>
+          <span className="flex-1" />
+          <span className="text-[11px] text-text-tertiary">~3s research</span>
+        </div>
+      </div>
+
+      {/* What I'll do */}
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-4 mt-4">
+        <div className="flex items-start gap-2.5">
+          <SpotMark size={16} />
+          <div className="text-[12px] text-text-secondary leading-relaxed">
+            <span className="text-text-primary font-medium">What I'll do:</span> spin up the
+            Deep Research Agent · synthesise USPs and the do-not-mention list · check the
+            audience graph for persona overlap · write everything to product memory and
+            walk you through it on the next canvas.
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function extractDomainName(url: string): string | null {
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    const host = u.hostname.replace(/^www\./, "");
+    const seg = u.pathname.split("/").filter(Boolean).pop();
+    return seg ? `${host} · ${seg}` : host;
+  } catch {
+    return null;
+  }
 }
 
 /* ─── Kickoff — display product memory ───────────────────────── */
@@ -394,31 +566,43 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
             <p className="text-[13px] text-text-secondary leading-relaxed mb-3">{product.tagline}</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-3 border-t border-border-subtle">
               {product.brief.map((r, i) => (
-                <div key={i} className="flex items-baseline gap-2 text-[12.5px] leading-snug">
-                  <span className="text-[13px]" aria-hidden>{r.icon}</span>
+                <div key={i} className="flex items-baseline gap-2 text-[12.5px] leading-snug min-w-0">
+                  <span className="text-[13px] flex-shrink-0" aria-hidden>{r.icon}</span>
                   <span className="text-text-tertiary flex-shrink-0">{r.label}:</span>
-                  <span className="text-text-primary">{r.value}</span>
+                  <EditableValue value={r.value} className="text-text-primary flex-1 min-w-0" />
                 </div>
               ))}
             </div>
           </motion.div>
 
-          {/* Pricing */}
+          {/* Pricing — compact 3-column cells. Name + cost stack vertically
+              inside each cell so the eye doesn't have to bounce from one
+              edge of the row to the other. */}
           <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="label-section mb-2.5">Pricing</div>
-            <div className="space-y-2 mb-3">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="label-section">Pricing</span>
+              <span className="text-[10.5px] text-text-tertiary">Tap any value to edit</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-3">
               {product.pricing.map((p) => (
-                <div key={p.name} className="flex items-baseline gap-2 text-[12.5px]">
-                  <span className="text-text-primary">{p.name}</span>
-                  {p.badge && (
-                    <span className="pill pill-info" style={{ fontSize: 9.5, padding: "0 5px" }}>
-                      {p.badge}
-                    </span>
-                  )}
-                  <span className="flex-1 border-b border-dashed border-border-subtle translate-y-[-2px]" />
-                  <span className="font-semibold text-text-primary tabular">{p.cost}</span>
+                <div
+                  key={p.name}
+                  className="border border-border rounded-button p-2.5 bg-surface-page hover:border-border-hover transition-colors"
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-[11.5px] text-text-secondary truncate">{p.name}</span>
+                    {p.badge && (
+                      <span className="pill pill-info flex-shrink-0" style={{ fontSize: 9, padding: "0 4px" }}>
+                        {p.badge}
+                      </span>
+                    )}
+                  </div>
+                  <EditableValue
+                    value={p.cost}
+                    className="text-[16px] font-semibold text-text-primary tabular leading-tight"
+                  />
                   {p.cadence && (
-                    <span className="text-[11px] text-text-tertiary">{p.cadence}</span>
+                    <div className="text-[10.5px] text-text-tertiary mt-0.5">{p.cadence}</div>
                   )}
                 </div>
               ))}
@@ -438,66 +622,44 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
             </div>
           </motion.div>
 
-          {/* Target audience / linked personas — now clickable */}
-          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="label-section">Personas in active campaigns</span>
-              <span className="text-[11px] text-text-tertiary">{product.personas.length} linked</span>
+          {/* Personas + Do-not-mention stacked side-by-side so the canvas
+              uses the full width and avoids dead space. */}
+          <motion.div variants={canvasReveal} className="grid grid-cols-2 gap-3">
+            <div className="bg-white border border-border rounded-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="label-section">Personas running</span>
+                <span className="text-[11px] text-text-tertiary">{product.personas.length} linked</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {product.personas.map((p) => (
+                  <a
+                    key={p.id}
+                    href={`/personas?focus=${p.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 pill hover:bg-surface-secondary transition-colors"
+                    title="Open persona in a new tab"
+                  >
+                    {p.name}
+                    <ExternalLink size={9} strokeWidth={1.6} className="text-text-tertiary" />
+                  </a>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {product.personas.map((p) => (
-                <a
-                  key={p.id}
-                  href={`/personas#${p.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 pill hover:bg-surface-secondary transition-colors"
-                  title="Open persona in a new tab"
-                >
-                  {p.name}
-                  <ExternalLink size={9} strokeWidth={1.6} className="text-text-tertiary" />
-                </a>
-              ))}
+            <div className="bg-white border border-border rounded-card p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <ShieldAlert size={11} strokeWidth={1.8} className="text-[#92400E]" />
+                <span className="label-section">Do not mention</span>
+              </div>
+              <ul className="space-y-1.5">
+                {product.avoid.map((a, i) => (
+                  <li key={i} className="text-[12px] text-text-primary flex gap-2 leading-snug">
+                    <span className="text-text-tertiary">·</span>
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </motion.div>
-
-          {/* Do not mention — keep prominent */}
-          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <ShieldAlert size={11} strokeWidth={1.8} className="text-[#92400E]" />
-              <span className="label-section">Do not mention</span>
-            </div>
-            <ul className="space-y-1.5">
-              {product.avoid.map((a, i) => (
-                <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
-                  <span className="text-text-tertiary">·</span>
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
-
-          {/* Learnings from past campaigns — replaces "memory entries" */}
-          <motion.div variants={canvasReveal} className="bg-white border border-border rounded-card p-4">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <TrendingUp size={11} strokeWidth={1.8} className="text-text-secondary" />
-              <span className="label-section">Learnings from past campaigns</span>
-            </div>
-            <ol className="space-y-2.5">
-              {product.learnings.map((l) => (
-                <li key={l.id} className="flex gap-2.5">
-                  <span className={`pill ${LEARNING_TONE[l.kind]} flex-shrink-0 mt-0.5`} style={{ fontSize: 9.5 }}>
-                    {LEARNING_LABEL[l.kind]}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12.5px] text-text-primary leading-snug">{l.summary}</div>
-                    {l.evidence && (
-                      <div className="text-[11px] text-text-tertiary mt-0.5 italic">{l.evidence}</div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
           </motion.div>
         </motion.div>
       ) : (
@@ -509,20 +671,94 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
   );
 }
 
-// Learning kind → visual tone. Performance = green, audience = blue,
-// creative = info-blue, channel = warn-tinted.
-const LEARNING_TONE: Record<"performance" | "audience" | "creative" | "channel", string> = {
-  performance: "pill-ok",
-  audience: "pill-info",
-  creative: "pill-info",
-  channel: "pill-warn",
-};
-const LEARNING_LABEL: Record<"performance" | "audience" | "creative" | "channel", string> = {
-  performance: "Perf",
-  audience: "Audience",
-  creative: "Creative",
-  channel: "Channel",
-};
+/**
+ * Inline-editable value. Click to enter edit mode, Enter or blur saves,
+ * Escape cancels. Mock-only: edits live in component state — no global
+ * memory mutation, the chat reflects intent.
+ *
+ * Use anywhere on the canvas you want to signal "this is editable by
+ * the user" — the canvas is a workspace they share with Spot.
+ */
+function EditableValue({
+  value,
+  className = "",
+  multiline,
+}: {
+  value: string;
+  className?: string;
+  multiline?: boolean;
+}) {
+  const [current, setCurrent] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (editing) {
+    const commit = () => {
+      setCurrent(draft.trim() || current);
+      setEditing(false);
+    };
+    if (multiline) {
+      return (
+        <textarea
+          autoFocus
+          value={draft}
+          rows={2}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              commit();
+            }
+            if (e.key === "Escape") {
+              setDraft(current);
+              setEditing(false);
+            }
+          }}
+          className={`${className} bg-white border border-[#111] rounded-[4px] px-1 -mx-1 outline-none resize-none w-full`}
+        />
+      );
+    }
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setDraft(current);
+            setEditing(false);
+          }
+        }}
+        className={`${className} bg-white border border-[#111] rounded-[4px] px-1 -mx-1 outline-none`}
+      />
+    );
+  }
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        setDraft(current);
+        setEditing(true);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setDraft(current);
+          setEditing(true);
+        }
+      }}
+      className={`${className} cursor-text rounded-[3px] hover:bg-surface-secondary/60 px-0.5 -mx-0.5 transition-colors`}
+      title="Click to edit"
+    >
+      {current}
+    </span>
+  );
+}
 
 /**
  * Loading-state shimmer shown on the kickoff canvas while the

@@ -354,13 +354,14 @@ export const useSpotStore = create<PanelState>((set) => ({
       const callId = `tc-${Date.now()}`;
       // Pre-select sensible defaults so the user sees selected state
       // immediately on entering a step (clearer than "0 selected").
-      const preselectFor = (step: WorkflowStep, current: typeof s.workflow.approvals) => {
+      const preselectFor = (
+        step: WorkflowStep,
+        current: typeof s.workflow.approvals,
+      ) => {
         if (step === "personas" && current.personaIds.length === 0) {
           // Import lazily to avoid a circular ref at module top-level.
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { LAUNCH_PERSONAS } = require("./workflow") as typeof import("./workflow");
-          // Pre-select existing personas only — new (Spot-drafted)
-          // ones require explicit "Approve persona" action.
           const existing = LAUNCH_PERSONAS.filter(
             (p: { origin: string }) => p.origin === "existing",
           ).map((p: { id: string }) => p.id);
@@ -369,13 +370,21 @@ export const useSpotStore = create<PanelState>((set) => ({
         return current;
       };
 
-      // First pass: append narration (if any) + the running tool-call.
-      // The step doesn't advance yet — the right pane stays on the
-      // current step until the agent "finishes".
+      // Flip the workflow step IMMEDIATELY so the right pane swaps to
+      // the *next* step's canvas (which renders a loader while the
+      // tool-call narrates in chat). Then after the fake delay, flip
+      // the tool-call to done + append the step's intro message.
       const appended: SpotMessage[] = [];
       if (narration) {
         appended.push({ role: "spot", parts: [{ type: "text", text: narration }] });
       }
+
+      const nextWorkflow: LaunchWorkflow = {
+        ...s.workflow,
+        step: upcoming,
+        approvals: preselectFor(upcoming, s.workflow.approvals),
+      };
+
       if (tc) {
         appended.push({
           role: "spot",
@@ -389,17 +398,12 @@ export const useSpotStore = create<PanelState>((set) => ({
             },
           ],
         });
-        // After the fake delay, flip the tool-call to done, append the
-        // step intro, and advance workflow.step.
+        // After the fake delay, flip the tool-call to done + append the
+        // step intro. Step itself already advanced.
         setTimeout(() => {
           set((s2) => {
             if (!s2.workflow) return {};
-            const nextWorkflow: LaunchWorkflow = {
-              ...s2.workflow,
-              step: upcoming,
-              approvals: preselectFor(upcoming, s2.workflow.approvals),
-            };
-            const intro = stepIntroMessage(upcoming, nextWorkflow);
+            const intro = stepIntroMessage(upcoming, s2.workflow);
             const updatedThread = s2.thread.map((m) => {
               if (m.role !== "spot") return m;
               return {
@@ -412,18 +416,13 @@ export const useSpotStore = create<PanelState>((set) => ({
               };
             });
             const finalThread = intro ? [...updatedThread, intro] : updatedThread;
-            return { workflow: nextWorkflow, thread: finalThread };
+            return { thread: finalThread };
           });
         }, tc.delayMs);
-        return { thread: [...s.thread, ...appended] };
+        return { workflow: nextWorkflow, thread: [...s.thread, ...appended] };
       }
 
       // No tool call configured for this transition — advance synchronously.
-      const nextWorkflow: LaunchWorkflow = {
-        ...s.workflow,
-        step: upcoming,
-        approvals: preselectFor(upcoming, s.workflow.approvals),
-      };
       const intro = stepIntroMessage(upcoming, nextWorkflow);
       if (intro) appended.push(intro);
       return { workflow: nextWorkflow, thread: [...s.thread, ...appended] };
