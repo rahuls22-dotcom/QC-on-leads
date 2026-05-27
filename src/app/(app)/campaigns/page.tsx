@@ -16,6 +16,8 @@
 // Top-of-page controls:
 //   · Global date range (Last 7d / 30d / 90d)
 //   · Product filter (defaults to All, or a Guyju's product)
+//   · Channel filter (All / Meta / Google) — also reflected on every
+//     row via a small brand-coloured mark before the campaign name.
 
 import { useMemo, useState } from "react";
 import {
@@ -104,11 +106,14 @@ type DateRange = (typeof DATE_RANGES)[number]["key"];
 
 /* ─── Page ──────────────────────────────────────────────────────── */
 
+type ChannelFilterValue = "all" | "Meta" | "Google";
+
 export default function CampaignsPage() {
   const askSpot = useSpotStore((s) => s.askSpot);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [productId, setProductId] = useState<"all" | string>("all");
+  const [channel, setChannel] = useState<ChannelFilterValue>("all");
   const [range, setRange] = useState<DateRange>("30d");
 
   const toggle = (id: string) => setExpanded((m) => ({ ...m, [id]: !m[id] }));
@@ -118,11 +123,12 @@ export default function CampaignsPage() {
   const filtered = useMemo(() => {
     return edTechCampaigns.filter((c) => {
       if (productId !== "all" && c.productId !== productId) return false;
+      if (channel !== "all" && c.channel !== channel) return false;
       if (!query.trim()) return true;
       const q = query.toLowerCase();
       return c.name.toLowerCase().includes(q) || c.productName.toLowerCase().includes(q);
     });
-  }, [query, productId]);
+  }, [query, productId, channel]);
 
   // Roll-ups across the filtered set.
   const totalSpend = filtered.reduce((s, c) => s + c.metrics.spend, 0);
@@ -154,10 +160,11 @@ export default function CampaignsPage() {
         </button>
       </div>
 
-      {/* Filters strip — global date + product filter live at the top */}
+      {/* Filters strip — date · product · channel · search all live at top */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <DateRangeChip value={range} onChange={setRange} />
         <ProductFilter value={productId} onChange={setProductId} options={products} />
+        <ChannelFilter value={channel} onChange={setChannel} />
         <div className="relative flex-1 max-w-[280px] min-w-[160px]">
           <Search size={13} strokeWidth={1.8} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input
@@ -248,6 +255,113 @@ function DateRangeChip({ value, onChange }: { value: DateRange; onChange: (v: Da
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Channel filter — All / Meta / Google. Each item shows the same
+ * little brand-coloured mark that appears on every row so the user
+ * can instantly tie filter ↔ row marker.
+ */
+function ChannelFilter({
+  value,
+  onChange,
+}: {
+  value: ChannelFilterValue;
+  onChange: (v: ChannelFilterValue) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label = value === "all" ? "All channels" : value;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-button border border-border bg-white hover:border-border-hover text-[12px] font-medium text-text-primary"
+      >
+        {value === "all" ? (
+          <Filter size={11} strokeWidth={1.7} className="text-text-secondary" />
+        ) : (
+          <ChannelMark channel={value} size={12} />
+        )}
+        {label}
+        <ChevronDown size={11} strokeWidth={1.8} className="text-text-tertiary" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-20 min-w-[180px] bg-white border border-border rounded-card shadow-card-hover py-1">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("all");
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page inline-flex items-center gap-2 ${
+                value === "all" ? "text-text-primary font-medium" : "text-text-secondary"
+              }`}
+            >
+              <Filter size={11} strokeWidth={1.7} className="text-text-tertiary" />
+              All channels
+            </button>
+            <div className="my-1 h-px bg-border-subtle" />
+            {(["Meta", "Google"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  onChange(c);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page inline-flex items-center gap-2 ${
+                  value === c ? "text-text-primary font-medium" : "text-text-secondary"
+                }`}
+              >
+                <ChannelMark channel={c} size={12} />
+                {c}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tiny brand mark drawn inline — Meta blue rounded square with a
+ * lowercase "f"; Google card with the multi-coloured "G" reduced to
+ * a single brand-blue "G" on white for readability at 12-14px.
+ *
+ * We don't ship Lucide's deprecated brand icons; these are minimal
+ * inline marks that read at glance scale.
+ */
+function ChannelMark({
+  channel,
+  size = 14,
+}: {
+  channel: "Meta" | "Google";
+  size?: number;
+}) {
+  if (channel === "Meta") {
+    return (
+      <span
+        title="Meta"
+        className="inline-flex items-center justify-center rounded-[3px] bg-[#1877F2] text-white font-bold flex-shrink-0"
+        style={{ width: size, height: size, fontSize: Math.round(size * 0.72), lineHeight: 1 }}
+      >
+        f
+      </span>
+    );
+  }
+  return (
+    <span
+      title="Google"
+      className="inline-flex items-center justify-center rounded-[3px] bg-white border border-[#E5E5E5] font-bold flex-shrink-0"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.7), lineHeight: 1 }}
+    >
+      <span style={{ color: "#4285F4" }}>G</span>
+    </span>
   );
 }
 
@@ -367,7 +481,8 @@ function CampaignRow({
         <StatusDot status={c.status} />
         <NameCell
           name={c.name}
-          sub={`${c.channel} · ${c.objective} · ${c.productName} · ${c.adsets.length} ad set${c.adsets.length === 1 ? "" : "s"}`}
+          channel={c.channel}
+          sub={`${c.objective} · ${c.productName} · ${c.adsets.length} ad set${c.adsets.length === 1 ? "" : "s"}`}
           metaUrl={c.metaUrl}
           expanded={expanded}
           onToggle={onToggle}
@@ -393,6 +508,7 @@ function CampaignRow({
           <AdSetRow
             key={a.id}
             a={a}
+            channel={c.channel}
             expanded={isAdsetExpanded(a.id)}
             onToggle={() => onToggleAdset(a.id)}
             askSpot={askSpot}
@@ -404,11 +520,13 @@ function CampaignRow({
 
 function AdSetRow({
   a,
+  channel,
   expanded,
   onToggle,
   askSpot,
 }: {
   a: EdTechAdSet;
+  channel: EdTechCampaign["channel"];
   expanded: boolean;
   onToggle: () => void;
   askSpot: (q: string) => void;
@@ -421,6 +539,7 @@ function AdSetRow({
         <StatusDot status={a.status} />
         <NameCell
           name={a.name}
+          channel={channel}
           sub={`Ad set · ${a.ads.length} ad${a.ads.length === 1 ? "" : "s"}`}
           metaUrl={a.metaUrl}
           expanded={expanded}
@@ -509,6 +628,7 @@ function StatusDot({ status }: { status: EdTechCampaignStatus }) {
 
 function NameCell({
   name,
+  channel,
   sub,
   metaUrl,
   expanded,
@@ -518,6 +638,7 @@ function NameCell({
   dense,
 }: {
   name: string;
+  channel?: EdTechCampaign["channel"];
   sub: string;
   metaUrl: string;
   expanded: boolean;
@@ -536,6 +657,13 @@ function NameCell({
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>
+      {/* Channel mark — first glance tells you Meta vs Google. Slightly
+          dimmed on nested rows (indent > 0) so the parent reads first. */}
+      {channel && (
+        <span className={indent > 0 ? "opacity-60" : ""}>
+          <ChannelMark channel={channel} size={dense ? 12 : 14} />
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className={`font-medium text-text-primary truncate ${dense ? "text-[12px]" : "text-[12.5px]"}`}>
