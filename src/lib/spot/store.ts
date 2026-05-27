@@ -58,6 +58,8 @@ type PanelState = {
   gotoStep: (step: WorkflowStep) => void;
   setWorkflowBudget: (b: WorkflowBudget) => void;
   toggleWorkflowApproval: (group: "personaIds" | "angleIds" | "formIds", id: string) => void;
+  /** Pick / change the voice agent attached to outbound campaigns. */
+  attachVoiceAgent: (agentId: string | null) => void;
   exitWorkflow: () => void;
   /** Collapse the right-pane canvas without losing workflow state. */
   setCanvasOpen: (open: boolean) => void;
@@ -137,6 +139,7 @@ export const useSpotStore = create<PanelState>((set) => ({
         startedAt: Date.now(),
         researchedMemory: null,
         kickoffReady: false,
+        attachedVoiceAgentId: null,
       },
       thread: [
         {
@@ -217,6 +220,7 @@ export const useSpotStore = create<PanelState>((set) => ({
         startedAt: Date.now(),
         researchedMemory: null,
         kickoffReady: true,
+        attachedVoiceAgentId: null,
       },
       thread: [
         {
@@ -256,6 +260,7 @@ export const useSpotStore = create<PanelState>((set) => ({
         startedAt: Date.now(),
         researchedMemory: null,
         kickoffReady: true,
+        attachedVoiceAgentId: null,
       },
       thread: [
         {
@@ -446,6 +451,9 @@ export const useSpotStore = create<PanelState>((set) => ({
         },
       };
     }),
+
+  attachVoiceAgent: (agentId) =>
+    set((s) => (s.workflow ? { workflow: { ...s.workflow, attachedVoiceAgentId: agentId } } : {})),
 
   exitWorkflow: () => set({ workflow: null, canvasOpen: true, viewHomeOverride: false }),
 

@@ -308,15 +308,15 @@ export const PRODUCTS: ProductSummary[] = [
     readiness: 0.74,
     performance: {
       window: "Last 30 days",
-      totalSpend: 412000,
-      totalLeads: 1240,
-      verifiedLeads: 388,
-      qualifiedLeads: 142,
-      avgCpl: 332,
-      costPerVerifiedLead: 1062,
-      costPerQualifiedLead: 2901,
-      verificationRate: 31.3,
-      qualificationRate: 11.5,
+      totalSpend: 488000,
+      totalLeads: 786,
+      verifiedLeads: 218,
+      qualifiedLeads: 78,
+      avgCpl: 621,
+      costPerVerifiedLead: 2238,
+      costPerQualifiedLead: 6256,
+      verificationRate: 27.7,
+      qualificationRate: 9.9,
       activeCampaigns: 2,
       health: "needs-attention",
     },
@@ -386,16 +386,16 @@ export const PRODUCTS: ProductSummary[] = [
     readiness: 0.42,
     performance: {
       window: "Last 30 days",
-      totalSpend: 233000,
-      totalLeads: 696,
-      verifiedLeads: 152,
-      qualifiedLeads: 48,
-      avgCpl: 335,
-      costPerVerifiedLead: 1533,
-      costPerQualifiedLead: 4854,
-      verificationRate: 21.8,
-      qualificationRate: 6.9,
-      activeCampaigns: 2,
+      totalSpend: 188000,
+      totalLeads: 286,
+      verifiedLeads: 62,
+      qualifiedLeads: 19,
+      avgCpl: 657,
+      costPerVerifiedLead: 3032,
+      costPerQualifiedLead: 9895,
+      verificationRate: 21.7,
+      qualificationRate: 6.6,
+      activeCampaigns: 1,
       health: "underperforming",
     },
     updatedAt: "2026-05-18",
@@ -406,4 +406,72 @@ export function readinessLabel(r: number): { label: string; tone: "ok" | "warn" 
   if (r >= 0.8) return { label: "Memory complete", tone: "ok" };
   if (r >= 0.6) return { label: "Mostly briefed", tone: "info" };
   return { label: "Needs more research", tone: "warn" };
+}
+
+/**
+ * Derive an actionable diagnosis for a product based on its perf
+ * numbers. Drives the "what should the user do here?" chip + button
+ * on the homepage. More useful than a generic "On track" / "Needs
+ * attention" label because it names the action.
+ */
+export type ProductDiagnosis = {
+  /** Short label for the diagnosis chip. */
+  chip: string;
+  /** Pill class for the chip tone. */
+  tone: "ok" | "warn" | "err" | "info";
+  /** Primary action label for the CTA button. */
+  action: string;
+  /** Spot prompt that runs when the user clicks the action. */
+  prompt: string;
+};
+
+export function diagnoseProduct(p: ProductSummary): ProductDiagnosis {
+  const perf = p.performance;
+  // Bucket thresholds — tuned for the mock ranges in this repo, not
+  // production. Volume bucket below ~400 leads / 30d is "low"; CPL
+  // above ₹500 is "high"; qual rate below 8% is "low".
+  const lowVolume = perf.totalLeads < 400;
+  const highCpl = perf.avgCpl > 500;
+  const lowQual = perf.qualificationRate < 8;
+
+  // Most actionable case first.
+  if (lowVolume && highCpl) {
+    return {
+      chip: "Low volume · high CPL",
+      tone: "err",
+      action: "Test new angles",
+      prompt: `Diagnose ${p.name} — volume is low and CPL is high. Suggest new angles and personas to test.`,
+    };
+  }
+  if (highCpl) {
+    return {
+      chip: "High CPL",
+      tone: "warn",
+      action: "Optimize campaigns",
+      prompt: `Optimize ${p.name} — CPL is creeping up. Find ad sets to pause and reallocate.`,
+    };
+  }
+  if (lowVolume) {
+    return {
+      chip: "Low volume",
+      tone: "warn",
+      action: "Scale spend",
+      prompt: `Scale ${p.name} — volume is low. Recommend budget lift and new placements.`,
+    };
+  }
+  if (lowQual) {
+    return {
+      chip: "Low qualification",
+      tone: "warn",
+      action: "Refine targeting",
+      prompt: `Refine targeting on ${p.name} — qualification rate is below 8%. Identify which cohort is leaking.`,
+    };
+  }
+  // Healthy — green light to scale.
+  return {
+    chip: "Healthy",
+    tone: "ok",
+    action: "Scale with Spot",
+    prompt: `Scale ${p.name} — performance is healthy. Recommend the next budget tier + audience expansion.`,
+  };
 }

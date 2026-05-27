@@ -45,7 +45,7 @@ import { projectsList } from "@/lib/campaign-data";
 import { PAST_CHATS, SPOT_QUEUE, type QueueItem, type QueueStatus } from "@/lib/spot/mock-history";
 import type { SpotMessage, SpotScope } from "@/lib/spot/types";
 import { WorkflowPane } from "@/components/spot/workflow/workflow-pane";
-import { PRODUCTS } from "@/lib/products-data";
+import { PRODUCTS, diagnoseProduct } from "@/lib/products-data";
 
 // Pull live suggestions from the products library so we never propose
 // launching a product that doesn't exist. First slot = top product
@@ -637,12 +637,13 @@ function ScopeRow({
 function ActiveProductsRail() {
   const startLaunchFlow = useSpotStore((s) => s.startLaunchFlow);
   const startNewProductFlow = useSpotStore((s) => s.startNewProductFlow);
+  const askSpot = useSpotStore((s) => s.askSpot);
   const top = PRODUCTS.slice(0, 3);
 
   return (
     <div>
       <div className="flex items-center mb-2.5">
-        <span className="label-section">Launch a campaign for</span>
+        <span className="label-section">Your products</span>
         <span className="flex-1" />
         <a
           href="/products"
@@ -653,64 +654,116 @@ function ActiveProductsRail() {
       </div>
       <div className="grid grid-cols-4 gap-3">
         {top.map((p) => {
-          const health = p.performance.health;
-          const healthCls =
-            health === "on-track"
+          const dx = diagnoseProduct(p);
+          const tonePill =
+            dx.tone === "ok"
               ? "pill-ok"
-              : health === "needs-attention"
-                ? "pill-warn"
-                : "pill-err";
-          const healthLabel =
-            health === "on-track"
-              ? "On track"
-              : health === "needs-attention"
-                ? "Needs attention"
-                : "Underperforming";
+              : dx.tone === "err"
+                ? "pill-err"
+                : dx.tone === "info"
+                  ? "pill-info"
+                  : "pill-warn";
           return (
-            <button
+            <div
               key={p.id}
-              type="button"
-              onClick={() => startLaunchFlow({ id: p.id, name: p.name })}
-              className="group bg-white border border-border rounded-card p-4 text-left hover:border-text-tertiary hover:shadow-card-hover transition-all"
+              className="bg-white border border-border rounded-card p-3.5 flex flex-col gap-2.5"
             >
-              <div className="text-[10.5px] text-text-tertiary mb-1 truncate">{p.category}</div>
-              <div className="text-[13.5px] font-medium text-text-primary leading-tight mb-2 line-clamp-2 min-h-[2.4em]">
-                {p.name}
+              {/* Header */}
+              <div>
+                <div className="text-[10.5px] text-text-tertiary mb-0.5 truncate">
+                  {p.category}
+                </div>
+                <div className="text-[13px] font-medium text-text-primary leading-tight line-clamp-2 min-h-[2.4em]">
+                  {p.name}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                <span className={`pill ${healthCls}`} style={{ fontSize: 9.5 }}>
-                  {healthLabel}
-                </span>
-                <span className="text-[11px] text-text-tertiary tabular">
-                  {p.performance.activeCampaigns} live
-                </span>
+
+              {/* 3-metric row — small, glanceable */}
+              <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-border-subtle">
+                <ProductMetric
+                  label="Leads"
+                  value={p.performance.totalLeads.toLocaleString("en-IN")}
+                />
+                <ProductMetric
+                  label="CPL"
+                  value={`₹${p.performance.avgCpl}`}
+                />
+                <ProductMetric
+                  label="Qual"
+                  value={`${p.performance.qualificationRate}%`}
+                />
               </div>
-              <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline">
-                Launch with Spot
-                <ArrowRight size={11} strokeWidth={2} />
+
+              {/* Diagnosis chip */}
+              <span
+                className={`pill ${tonePill} self-start inline-flex items-center gap-1`}
+                style={{ fontSize: 10 }}
+              >
+                {dx.chip}
               </span>
-            </button>
+
+              {/* Action — health-driven */}
+              <div className="flex items-center gap-1 mt-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Healthy → straight into launch (scale a new campaign).
+                    // Anything else → talk to Spot first about the fix.
+                    if (dx.tone === "ok") {
+                      startLaunchFlow({ id: p.id, name: p.name });
+                    } else {
+                      askSpot(dx.prompt);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
+                >
+                  {dx.action}
+                  <ArrowRight size={11} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startLaunchFlow({ id: p.id, name: p.name })}
+                  className="inline-flex items-center h-7 px-2 rounded-button text-[11px] text-text-tertiary hover:text-text-primary"
+                  title="Open the launch workflow for this product"
+                >
+                  Launch
+                </button>
+              </div>
+            </div>
           );
         })}
 
-        {/* New product slot — always present, always last */}
+        {/* New product slot — always last */}
         <button
           type="button"
           onClick={startNewProductFlow}
-          className="border-2 border-dashed border-border rounded-card p-4 text-left hover:border-text-primary hover:bg-white transition-colors group"
+          className="border-2 border-dashed border-border rounded-card p-3.5 text-left hover:border-text-primary hover:bg-white transition-colors group flex flex-col gap-2.5"
         >
-          <div className="text-[10.5px] text-text-tertiary mb-1">Fresh start</div>
-          <div className="text-[13.5px] font-medium text-text-primary leading-tight mb-2 min-h-[2.4em]">
-            New product
+          <div>
+            <div className="text-[10.5px] text-text-tertiary mb-0.5">Fresh start</div>
+            <div className="text-[13px] font-medium text-text-primary leading-tight min-h-[2.4em]">
+              New product
+            </div>
           </div>
-          <div className="text-[11px] text-text-secondary mb-3 leading-snug">
+          <div className="text-[11px] text-text-secondary leading-snug">
             I'll do deep research from a name or URL.
           </div>
-          <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline">
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline mt-auto">
             <Plus size={11} strokeWidth={2} />
             Start a new product
           </span>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[9px] text-text-tertiary uppercase tracking-wider">{label}</div>
+      <div className="text-[12.5px] font-medium text-text-primary tabular leading-tight">
+        {value}
       </div>
     </div>
   );

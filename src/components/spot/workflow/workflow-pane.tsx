@@ -4,10 +4,10 @@
 // approval action lives in the left chat (via the step-cta part). This
 // pane just shows what Spot is working on.
 
-import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink } from "lucide-react";
+import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink, Image as ImageIcon, Mic, MessageSquare, Phone, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSpotStore } from "@/lib/spot/store";
 import {
   STEP_LABELS,
@@ -18,11 +18,13 @@ import {
   SAMPLE_FORMS,
   SAMPLE_STRUCTURE,
   SAMPLE_SEARCH_ADS,
+  VOICE_AGENTS,
   buildResizeReviews,
-  generateChannelPlans,
+  generatePlan,
   type WorkflowStep,
   type LaunchWorkflow,
-  type ChannelPlan,
+  type Channel,
+  type CampaignBucket,
 } from "@/lib/spot/workflow";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { PRODUCTS } from "@/lib/products-data";
@@ -37,6 +39,7 @@ const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
   "resize-qa": CheckCircle2,
   forms: LayoutIcon,
   campaigns: Megaphone,
+  "voice-agent": Mic,
   done: PartyPopper,
 };
 
@@ -191,6 +194,8 @@ function StepBody({ workflow }: { workflow: LaunchWorkflow }) {
       return <FormsStep />;
     case "campaigns":
       return <CampaignsStep />;
+    case "voice-agent":
+      return <VoiceAgentStep />;
     case "done":
       return <DoneStep workflow={workflow} />;
   }
@@ -1047,10 +1052,26 @@ function PersonaCard({
 
 /* ─── Media plan ─────────────────────────────────────────────── */
 
-const CHANNEL_TINT: Record<ChannelPlan["iconKey"], string> = {
+const CHANNEL_TINT: Record<Channel["id"], string> = {
   meta: "#1877F2",
-  google: "#4285F4",
+  "google-search": "#34A853",
+  "google-discover": "#FBBC04",
   outreach: "#A855F7",
+};
+
+// Bucket → tone for the campaign card eyebrow chip.
+const BUCKET_PILL: Record<CampaignBucket, { label: string; pill: string }> = {
+  experiment: { label: "Experiment", pill: "pill-info" },
+  scaling: { label: "Scaling", pill: "pill-ok" },
+  "cost-cap": { label: "Cost cap", pill: "pill" },
+  "search-brand": { label: "Brand", pill: "pill-info" },
+  "search-category": { label: "Category", pill: "pill-info" },
+  "search-competitor": { label: "Competitor", pill: "pill-warn" },
+  "discover-cold": { label: "Cold", pill: "pill-info" },
+  "discover-retarget": { label: "Retarget", pill: "pill-ok" },
+  "discover-lookalike": { label: "Lookalike", pill: "pill-ok" },
+  voice: { label: "Voice", pill: "pill-info" },
+  whatsapp: { label: "WhatsApp", pill: "pill-ok" },
 };
 
 function MediaPlanStep() {
@@ -1058,18 +1079,17 @@ function MediaPlanStep() {
   const setBudget = useSpotStore((s) => s.setWorkflowBudget);
   const whatsAppConnected = useSpotStore((s) => s.whatsAppConnected);
   const connectWhatsApp = useSpotStore((s) => s.connectWhatsApp);
-  const plans = generateChannelPlans(wf.budget?.amountInr || 0, whatsAppConnected);
+  const channels = generatePlan(wf.budget?.amountInr || 0, whatsAppConnected);
   const totalBudget = wf.budget?.amountInr || 0;
   const days = wf.budget?.days || 7;
 
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Media plan"
-        blurb="Channel split + ad-type strategy. Set a budget on the right or leave blank to run an experiment baseline."
+        title="Plan"
+        blurb="3-bucket Meta model · Google Search and Discover lanes · Outreach for Voice + WhatsApp. Each campaign carries the reason it exists."
       />
 
-      {/* Budget input — interactive */}
       <BudgetCard
         amount={totalBudget}
         days={days}
@@ -1077,71 +1097,87 @@ function MediaPlanStep() {
         onClear={() => setBudget({ amountInr: 0, days: 7 })}
       />
 
-      {/* Channel cards */}
-      <div className="space-y-3 mt-4">
-        {plans.map((c) => (
-          <div key={c.channel} className="bg-white border border-border rounded-card overflow-hidden">
-            <div className="px-3.5 py-2.5 border-b border-border-subtle flex items-center gap-2.5">
-              <div
-                className="w-6 h-6 rounded-button flex items-center justify-center flex-shrink-0"
-                style={{ background: `${CHANNEL_TINT[c.iconKey]}18`, color: CHANNEL_TINT[c.iconKey] }}
-              >
-                <Megaphone size={11} strokeWidth={1.8} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-medium text-text-primary">{c.channel}</div>
-                <div className="text-[11px] text-text-tertiary truncate">{c.rationale}</div>
-              </div>
-              <span className="text-[11px] text-text-tertiary tabular">{Math.round(c.share * 100)}%</span>
-              {totalBudget > 0 && (
-                <span className="text-[12px] tabular text-text-primary font-medium">
-                  {inr(Math.round(c.share * totalBudget))}
+      <div className="space-y-4 mt-4">
+        {channels.map((ch) => {
+          const channelBudget = Math.round(ch.share * totalBudget);
+          return (
+            <div key={ch.id} className="space-y-2">
+              {/* Channel header */}
+              <div className="flex items-center gap-2.5 px-1">
+                <div
+                  className="w-5 h-5 rounded-button flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${CHANNEL_TINT[ch.id]}20`, color: CHANNEL_TINT[ch.id] }}
+                >
+                  <Megaphone size={10} strokeWidth={1.8} />
+                </div>
+                <div className="text-[12.5px] font-semibold text-text-primary">{ch.name}</div>
+                <div className="text-[11px] text-text-tertiary truncate flex-1 min-w-0">{ch.rationale}</div>
+                <span className="text-[11px] text-text-tertiary tabular">
+                  {Math.round(ch.share * 100)}%
                 </span>
-              )}
-            </div>
-            <div className="divide-y divide-border-subtle">
-              {c.adTypes.map((ad) => {
-                const channelBudget = Math.round(c.share * totalBudget);
-                const adBudget = Math.round(ad.budgetShare * channelBudget);
-                return (
-                  <div key={ad.name} className="px-3.5 py-2 flex items-center gap-2.5">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                        <span className="text-[12px] font-medium text-text-primary">{ad.name}</span>
-                        <span className="text-[11px] text-text-tertiary">· {ad.personas.join(", ")}</span>
+                {totalBudget > 0 && (
+                  <span className="text-[12px] tabular text-text-primary font-medium">
+                    {inr(channelBudget)}
+                  </span>
+                )}
+              </div>
+              {/* Campaign cards */}
+              <div className="grid grid-cols-3 gap-2">
+                {ch.campaigns.map((c) => {
+                  const bucket = BUCKET_PILL[c.kind];
+                  const campaignBudget = Math.round(c.budgetShare * channelBudget);
+                  return (
+                    <div
+                      key={c.id}
+                      className="bg-white border border-border rounded-card p-3 flex flex-col gap-1.5"
+                    >
+                      <span className={`pill ${bucket.pill} self-start`} style={{ fontSize: 9.5 }}>
+                        {bucket.label}
+                      </span>
+                      <div className="text-[12px] font-medium text-text-primary leading-snug">
+                        {c.name}
                       </div>
-                      <div className="text-[11.5px] text-text-secondary leading-snug">{ad.description}</div>
-                    </div>
-                    {totalBudget > 0 && (
-                      <span className="text-[11.5px] tabular text-text-secondary mr-1">{inr(adBudget)}</span>
-                    )}
-                    <div className="flex-shrink-0">
-                      {ad.availability === "available" && (
-                        <span className="pill pill-ok inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
-                          <Wifi size={9} strokeWidth={2} />
-                          Live
+                      <p className="text-[11px] text-text-secondary leading-snug">{c.purpose}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {c.targets.map((t, i) => (
+                          <span key={i} className="pill" style={{ fontSize: 9, padding: "0 5px" }}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-auto pt-1.5 border-t border-border-subtle">
+                        <span className="text-[10.5px] tabular text-text-tertiary">
+                          {Math.round(c.budgetShare * 100)}%
                         </span>
-                      )}
-                      {ad.availability === "needs-connection" && ad.connectionKey === "whatsapp" && (
-                        <button
-                          type="button"
-                          onClick={connectWhatsApp}
-                          className="inline-flex items-center gap-1 h-6 px-2 rounded-button bg-[#25D366] hover:bg-[#1FB058] text-white text-[10.5px] font-medium"
-                        >
-                          <WifiOff size={9} strokeWidth={2} />
-                          Connect WhatsApp
-                        </button>
-                      )}
-                      {ad.availability === "coming-soon" && (
-                        <span className="pill" style={{ fontSize: 10 }}>Soon</span>
-                      )}
+                        {totalBudget > 0 && (
+                          <span className="text-[11px] tabular text-text-primary font-medium">
+                            {inr(campaignBudget)}
+                          </span>
+                        )}
+                        <span className="flex-1" />
+                        {c.availability === "available" ? (
+                          <span className="pill pill-ok inline-flex items-center gap-1" style={{ fontSize: 9 }}>
+                            <Wifi size={8} strokeWidth={2} />
+                            Live
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={connectWhatsApp}
+                            className="inline-flex items-center gap-1 h-5 px-1.5 rounded-button bg-[#25D366] hover:bg-[#1FB058] text-white text-[9.5px] font-medium"
+                          >
+                            <WifiOff size={8} strokeWidth={2} />
+                            Connect WhatsApp
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1239,109 +1275,471 @@ function BudgetCard({
   );
 }
 
-/* ─── Creatives — angles per persona × channel ────────────────── */
+/* ─── Creatives — tabs + one-by-one loading ────────────────── */
 
 function CreativesStep() {
+  const [activeTab, setActiveTab] = useState<"visual" | "search">("visual");
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Creative direction · angles + search ads"
-        blurb="Hook + visual direction per persona for Meta. A separate set of search-ad copies for Google. Resizing into ad sizes happens in the next step."
+        title="Creative direction"
+        blurb="Visual angles per persona for Meta · search ad copy for Google. The Creative Agent generates concepts one at a time per persona — watch the right pane fill in."
       />
 
-      {/* Agent activity strip */}
-      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4">
-        <div className="flex items-center gap-1.5 mb-1">
-          <Cog size={11} strokeWidth={1.8} className="text-text-secondary animate-spin" style={{ animationDuration: "3s" }} />
-          <span className="text-[11.5px] font-medium text-text-primary">Creative Agent · drafting</span>
-        </div>
-        <span className="text-[11.5px] text-text-secondary">3 visual angles per approved persona · 3 search ad copies for Google.</span>
+      {/* Tabs */}
+      <div className="inline-flex items-center gap-0.5 bg-surface-secondary p-0.5 rounded-button mb-4">
+        <TabButton active={activeTab === "visual"} onClick={() => setActiveTab("visual")}>
+          Visual ads · Meta
+        </TabButton>
+        <TabButton active={activeTab === "search"} onClick={() => setActiveTab("search")}>
+          Search ads · Google
+        </TabButton>
       </div>
 
-      {/* Visual creatives — per persona, for Meta */}
-      <div className="mb-5">
-        <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider font-medium mb-2">
-          Visual creatives · Meta
-        </div>
-        <div className="space-y-3">
-          {SAMPLE_ANGLES.map((pack) => (
-            <div key={pack.personaId} className="bg-white border border-border rounded-card overflow-hidden">
-              <div className="px-3.5 py-2 border-b border-border-subtle flex items-center gap-2">
-                <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
-                <span className="text-[12px] font-medium text-text-primary">{pack.personaName}</span>
-                <span className="text-[10.5px] text-text-tertiary">· {pack.angles.length} angles</span>
-                <span className="flex-1" />
-                <span className="pill" style={{ fontSize: 9.5 }}>→ Meta · Cold campaign</span>
-              </div>
-              <div className="grid grid-cols-3 divide-x divide-border-subtle">
-                {pack.angles.map((a, ai) => (
-                  <VisualAngleTile key={a.id} angle={a} hue={(ai * 90) % 360} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+      {activeTab === "visual" ? <VisualAdsTab /> : <SearchAdsTab />}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-7 px-3 rounded-[5px] text-[11.5px] font-medium transition-colors ${
+        active ? "bg-white text-text-primary shadow-card-hover" : "text-text-secondary hover:text-text-primary"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Per-persona creative generation. Creatives appear ONE AT A TIME on a
+ * timer. Once all creatives for a persona are done, that persona's
+ * card collapses to a summary and the next persona begins. Mirrors how
+ * an agent would actually do the work.
+ */
+function VisualAdsTab() {
+  const packs = SAMPLE_ANGLES;
+  // currentPersonaIdx counts forward; when it equals packs.length, all
+  // personas are done. angleIdx tracks progress within the current persona.
+  const [currentPersonaIdx, setCurrentPersonaIdx] = useState(0);
+  const [angleIdx, setAngleIdx] = useState(0);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // Drive the generation timer.
+  useEffect(() => {
+    if (currentPersonaIdx >= packs.length) return;
+    const pack = packs[currentPersonaIdx];
+    const PER_CREATIVE_MS = 1800;
+    const PERSONA_BUFFER_MS = 900;
+    const t = setTimeout(
+      () => {
+        if (angleIdx + 1 < pack.angles.length) {
+          setAngleIdx((a) => a + 1);
+        } else {
+          // All angles for this persona are done — collapse + advance.
+          setCollapsed((s) => new Set(s).add(pack.personaId));
+          setCurrentPersonaIdx((i) => i + 1);
+          setAngleIdx(0);
+        }
+      },
+      angleIdx === 0 && currentPersonaIdx === 0 ? 800 : PER_CREATIVE_MS,
+    );
+    void PERSONA_BUFFER_MS;
+    return () => clearTimeout(t);
+  }, [currentPersonaIdx, angleIdx, packs]);
+
+  const allDone = currentPersonaIdx >= packs.length;
+
+  return (
+    <div>
+      {/* Agent activity strip — shows the current sub-step */}
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-3 flex items-center gap-2">
+        {allDone ? (
+          <>
+            <Check size={11} strokeWidth={2.2} className="text-[#15803D]" />
+            <span className="text-[11.5px] font-medium text-text-primary">
+              All visual creatives ready
+            </span>
+            <span className="text-[11px] text-text-tertiary">
+              · {packs.length} personas · {packs.reduce((s, p) => s + p.angles.length, 0)} angles
+            </span>
+          </>
+        ) : (
+          <>
+            <Cog
+              size={11}
+              strokeWidth={1.8}
+              className="text-text-secondary animate-spin"
+              style={{ animationDuration: "3s" }}
+            />
+            <span className="text-[11.5px] font-medium text-text-primary">
+              Creative Agent · drafting concept {angleIdx + 1} of{" "}
+              {packs[currentPersonaIdx]?.angles.length}
+            </span>
+            <span className="text-[11px] text-text-tertiary">
+              · {packs[currentPersonaIdx]?.personaName}
+            </span>
+          </>
+        )}
       </div>
 
-      {/* Search ads — non-persona-specific */}
-      <div>
-        <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider font-medium mb-2">
-          Search ads · Google · generic
-        </div>
-        <div className="bg-white border border-border rounded-card divide-y divide-border-subtle">
-          {SAMPLE_SEARCH_ADS.map((sa) => (
-            <div key={sa.id} className="px-3.5 py-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] text-text-tertiary">Ad ·</span>
-                <span className="text-[10.5px] text-[#1A0DAB] underline">guyjus.com/jee-crack</span>
-              </div>
-              <div className="text-[13.5px] text-[#1A0DAB] leading-tight mb-1">{sa.headline}</div>
-              <div className="text-[12px] text-text-secondary leading-snug mb-1.5">{sa.description}</div>
-              <div className="text-[10.5px] text-text-tertiary">
-                <span className="font-medium">Keywords:</span> {sa.keywords}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-2.5">
+        {packs.map((pack, pi) => {
+          const isDone = pi < currentPersonaIdx;
+          const isActive = pi === currentPersonaIdx;
+          const visibleCount = isDone
+            ? pack.angles.length
+            : isActive
+              ? angleIdx + 1
+              : 0;
+          const isCollapsed = collapsed.has(pack.personaId);
+
+          return (
+            <PersonaCreativesCard
+              key={pack.personaId}
+              pack={pack}
+              status={isDone ? "done" : isActive ? "active" : "queued"}
+              visibleCount={visibleCount}
+              collapsed={isCollapsed}
+              onToggleCollapse={() =>
+                setCollapsed((s) => {
+                  const next = new Set(s);
+                  if (next.has(pack.personaId)) next.delete(pack.personaId);
+                  else next.add(pack.personaId);
+                  return next;
+                })
+              }
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function VisualAngleTile({
+function PersonaCreativesCard({
+  pack,
+  status,
+  visibleCount,
+  collapsed,
+  onToggleCollapse,
+}: {
+  pack: (typeof SAMPLE_ANGLES)[number];
+  status: "done" | "active" | "queued";
+  visibleCount: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+}) {
+  return (
+    <div className="bg-white border border-border rounded-card overflow-hidden">
+      {/* Header row */}
+      <button
+        type="button"
+        onClick={status === "done" ? onToggleCollapse : undefined}
+        className={`w-full px-3 py-2 border-b border-border-subtle flex items-center gap-2 ${
+          status === "done" ? "hover:bg-surface-page cursor-pointer" : "cursor-default"
+        }`}
+      >
+        <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
+        <span className="text-[12px] font-medium text-text-primary">{pack.personaName}</span>
+        <span className="text-[10.5px] text-text-tertiary">· {pack.angles.length} angles</span>
+        <span className="flex-1" />
+        {status === "done" && (
+          <span className="pill pill-ok inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
+            <Check size={9} strokeWidth={2.2} />
+            Ready
+          </span>
+        )}
+        {status === "active" && (
+          <span className="pill pill-info inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
+            <Cog
+              size={9}
+              strokeWidth={2}
+              className="animate-spin"
+              style={{ animationDuration: "2s" }}
+            />
+            Drafting
+          </span>
+        )}
+        {status === "queued" && (
+          <span className="pill" style={{ fontSize: 9.5 }}>
+            Queued
+          </span>
+        )}
+        {status === "done" && (
+          <ChevronRight
+            size={12}
+            className={`text-text-tertiary transition-transform ${
+              collapsed ? "" : "rotate-90"
+            }`}
+          />
+        )}
+      </button>
+
+      {/* Body */}
+      {(!collapsed || status !== "done") && (
+        <div className="grid grid-cols-3 divide-x divide-border-subtle">
+          {pack.angles.map((a, ai) => {
+            if (ai >= visibleCount + (status === "active" ? 0 : 0)) {
+              // Slot for an angle not yet generated.
+              if (status === "active" && ai === visibleCount) {
+                return <CreativeLoadingTile key={`loading-${ai}`} />;
+              }
+              return <CreativePlaceholderTile key={`placeholder-${ai}`} />;
+            }
+            return (
+              <ExpandableAngleTile key={a.id} angle={a} hue={(ai * 90) % 360} />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreativeLoadingTile() {
+  return (
+    <div className="p-3 flex flex-col items-center justify-center aspect-[4/5] bg-surface-page gap-2">
+      <Cog
+        size={14}
+        strokeWidth={1.6}
+        className="text-text-secondary animate-spin"
+        style={{ animationDuration: "1.6s" }}
+      />
+      <div className="text-[10.5px] text-text-tertiary">Generating…</div>
+    </div>
+  );
+}
+
+function CreativePlaceholderTile() {
+  return <div className="p-3 aspect-[4/5] bg-surface-page" />;
+}
+
+function ExpandableAngleTile({
   angle,
   hue,
 }: {
   angle: { id: string; hook: string; cta: string; format: string };
   hue: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div className="p-3 flex flex-col gap-1.5">
-      {/* Hero — single placeholder, 4:5 ratio */}
-      <div
-        className="relative aspect-[4/5] rounded-[6px] overflow-hidden"
-        style={{
-          background: `linear-gradient(135deg, hsl(${hue} 65% 86%) 0%, hsl(${hue} 55% 68%) 100%)`,
-        }}
+    <>
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="p-2 flex flex-col gap-1 text-left hover:bg-surface-page transition-colors"
       >
-        <div className="absolute top-1.5 left-1.5 text-[9px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
-          {angle.format}
+        <div
+          className="relative aspect-[4/5] rounded-[5px] overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, hsl(${hue} 65% 86%) 0%, hsl(${hue} 55% 68%) 100%)`,
+          }}
+        >
+          <div className="absolute top-1 left-1 text-[8.5px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
+            {angle.format}
+          </div>
+          <div className="absolute inset-1.5 flex flex-col justify-end gap-0.5">
+            <div className="h-[2px] rounded-full bg-white/65 w-3/4" />
+            <div className="h-[2px] rounded-full bg-white/55 w-1/2" />
+            <div className="h-[3px] rounded-sm bg-text-primary/80 w-1/3 mt-0.5" />
+          </div>
         </div>
-        {/* Faux hero composition — tinted block + headline lines */}
-        <div className="absolute inset-2 flex flex-col justify-end gap-0.5">
-          <div className="h-1 rounded-full bg-white/65 w-3/4" />
-          <div className="h-1 rounded-full bg-white/55 w-1/2" />
-          <div className="h-1.5 rounded-sm bg-text-primary/80 w-1/3 mt-1" />
+        <div className="text-[10.5px] font-medium text-text-primary leading-snug line-clamp-2">
+          {angle.hook}
+        </div>
+      </button>
+      {expanded && (
+        <CreativeDetailModal angle={angle} hue={hue} onClose={() => setExpanded(false)} />
+      )}
+    </>
+  );
+}
+
+function CreativeDetailModal({
+  angle,
+  hue,
+  onClose,
+}: {
+  angle: { id: string; hook: string; cta: string; format: string };
+  hue: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="scrim"
+      onClick={onClose}
+      role="dialog"
+      aria-modal
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-border rounded-card w-[640px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
+      >
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-subtle">
+          <span className="pill" style={{ fontSize: 9.5 }}>{angle.format}</span>
+          <span className="text-[12.5px] font-medium text-text-primary flex-1 truncate">
+            {angle.hook}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-button text-text-tertiary hover:bg-surface-secondary hover:text-text-primary"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="p-5 grid grid-cols-[280px_1fr] gap-5">
+          {/* Hero */}
+          <div
+            className="aspect-[4/5] rounded-card overflow-hidden relative"
+            style={{
+              background: `linear-gradient(135deg, hsl(${hue} 65% 86%) 0%, hsl(${hue} 55% 68%) 100%)`,
+            }}
+          >
+            <div className="absolute top-2 left-2 text-[10px] font-medium text-text-primary bg-white/85 px-1.5 rounded">
+              {angle.format}
+            </div>
+            <div className="absolute inset-3 flex flex-col justify-end gap-1">
+              <div className="h-1 rounded-full bg-white/65 w-3/4" />
+              <div className="h-1 rounded-full bg-white/55 w-1/2" />
+              <div className="h-2 rounded-sm bg-text-primary/80 w-1/3 mt-1.5" />
+            </div>
+          </div>
+          {/* Details */}
+          <div className="space-y-3 text-[12.5px]">
+            <Field2 label="Hook" value={angle.hook} />
+            <Field2 label="CTA" value={angle.cta} />
+            <Field2 label="Format" value={angle.format} />
+            <Field2 label="Lands in" value="Meta · Scaling campaign · Engineer Parent ad set" />
+            <Field2 label="Ad strength" value="Strong · ready to ship" />
+          </div>
         </div>
       </div>
-      {/* Hook + CTA */}
-      <div className="text-[11.5px] font-medium text-text-primary leading-snug line-clamp-2">{angle.hook}</div>
-      <div className="text-[10.5px] text-text-tertiary leading-snug">CTA: {angle.cta}</div>
     </div>
   );
 }
 
-/* ─── Resize + QA ────────────────────────────────────────────── */
+function Field2({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mb-0.5">
+        {label}
+      </div>
+      <div className="text-text-primary">{value}</div>
+    </div>
+  );
+}
+
+/* ─── Search Ads tab ──────────────────────────────────────── */
+
+function SearchAdsTab() {
+  return (
+    <div className="space-y-2.5">
+      {SAMPLE_SEARCH_ADS.map((g) => (
+        <SearchAdGroupCard key={g.id} group={g} />
+      ))}
+    </div>
+  );
+}
+
+const AD_STRENGTH_TONE: Record<"excellent" | "good" | "average", { pill: string; label: string }> = {
+  excellent: { pill: "pill-ok", label: "Excellent" },
+  good: { pill: "pill-info", label: "Good" },
+  average: { pill: "pill-warn", label: "Average" },
+};
+
+function SearchAdGroupCard({ group }: { group: (typeof SAMPLE_SEARCH_ADS)[number] }) {
+  const [expanded, setExpanded] = useState(false);
+  const strength = AD_STRENGTH_TONE[group.adStrength];
+  return (
+    <div className="bg-white border border-border rounded-card overflow-hidden">
+      <div className="px-3.5 py-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="pill" style={{ fontSize: 9.5 }}>{group.campaign}</span>
+          <span className={`pill ${strength.pill}`} style={{ fontSize: 9.5 }}>
+            Ad strength · {strength.label}
+          </span>
+          <span className="flex-1" />
+          <span className="text-[10.5px] text-text-tertiary">
+            {group.variants.length} variants
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-[10px] text-text-tertiary">Ad ·</span>
+          <span className="text-[10.5px] text-[#1A0DAB] underline">
+            guyjus.com/jee-crack
+          </span>
+        </div>
+        <div className="text-[13.5px] text-[#1A0DAB] leading-tight mb-1">
+          {group.primaryHeadline}
+        </div>
+        <div className="text-[12px] text-text-secondary leading-snug mb-2">
+          {group.primaryDescription}
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="inline-flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary"
+        >
+          {expanded ? "Hide" : `View all ${group.variants.length} variants`}
+          <ChevronRight
+            size={10}
+            className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+          />
+        </button>
+      </div>
+      {expanded && (
+        <div className="border-t border-border-subtle bg-surface-page">
+          <div className="divide-y divide-border-subtle">
+            {group.variants.map((v, i) => (
+              <div key={i} className="px-3.5 py-2.5">
+                <div className="text-[12.5px] text-[#1A0DAB] leading-tight mb-0.5">
+                  {v.headline}
+                </div>
+                <div className="text-[11.5px] text-text-secondary leading-snug">
+                  {v.description}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-3.5 py-2 border-t border-border-subtle">
+            <div className="text-[10.5px] text-text-tertiary">
+              <span className="font-medium">Keywords:</span> {group.keywords}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Resize + QA — attachment view ───────────────────────────── */
+
+// Where each angle lands. Keyed by (personaId, angleId) — drives the
+// "Lands in" lines on the attachment view. Mirrors the 3-bucket Meta
+// model + Google channels from the Plan step.
+function attachmentsFor(personaName: string, angleIdx: number): string[] {
+  // Distribute angles across campaigns deterministically.
+  const meta = ["Scaling", "Experiment", "Cost cap"][angleIdx % 3];
+  return [
+    `Meta · ${meta} · ${personaName} ad set`,
+    `Google Discover · Cold · ${personaName}`,
+  ];
+}
 
 function ResizeQaStep() {
   const reviews = buildResizeReviews();
@@ -1353,51 +1751,49 @@ function ResizeQaStep() {
     p.angles.flatMap((a) =>
       a.variants
         .filter((v) => v.status === "needs-fix")
-        .map((v) => ({ ...v, personaName: p.personaName, hook: a.hook })),
+        .map((v) => ({ ...v, personaName: p.personaName, hook: a.hook, hue: a.hue, angleId: a.id })),
     ),
   );
+
+  const [sizesModal, setSizesModal] = useState<{
+    hook: string;
+    personaName: string;
+    hue: number;
+    variants: import("@/lib/spot/workflow").ResizedVariant[];
+  } | null>(null);
 
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Resize & QA"
-        blurb="Resize Agent produced size variants for every approved angle. QA Agent reviewed each — flags below need a quick re-render before deploy."
+        title="Resize & QA · campaign attachment"
+        blurb="Each angle is resized and attached to the campaigns + ad sets that will run it. Click View sizes to inspect resized variants. QA flags surface up top."
       />
 
-      {/* Agent activity strip */}
-      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4">
-        <div className="flex items-center gap-1.5 mb-1">
-          <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D]" />
-          <span className="text-[11.5px] font-medium text-text-primary">
-            QA Agent · review complete
-          </span>
-        </div>
-        <span className="text-[11.5px] text-text-secondary">
-          <span className="tabular font-medium text-text-primary">
-            {totalVariants - flagged.length}
-          </span>{" "}
-          clean · <span className="tabular font-medium text-[#92400E]">{flagged.length}</span>{" "}
-          flagged · Resize Agent re-runs flagged on approval
+      {/* Summary strip */}
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4 flex items-center gap-2">
+        <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D]" />
+        <span className="text-[11.5px] font-medium text-text-primary">QA Agent · review complete</span>
+        <span className="text-[11px] text-text-tertiary">
+          · <span className="tabular font-medium text-text-primary">{totalVariants - flagged.length}</span>{" "}
+          clean ·{" "}
+          <span className="tabular font-medium text-[#92400E]">{flagged.length}</span> flagged ·
+          Resize Agent re-runs flagged on approval
         </span>
       </div>
 
-      {/* Flagged items — surfaced first */}
+      {/* Flagged callout */}
       {flagged.length > 0 && (
         <div className="bg-white border border-border rounded-card mb-4 overflow-hidden">
           <div className="px-3.5 py-2 border-b border-border-subtle bg-[#FEF3C7]/40 flex items-center gap-1.5">
             <span className="pill pill-warn" style={{ fontSize: 9.5 }}>
               {flagged.length} flagged
             </span>
-            <span className="text-[11.5px] font-medium text-text-primary">
-              Needs a re-render
-            </span>
+            <span className="text-[11.5px] font-medium text-text-primary">Needs a re-render</span>
           </div>
           <div className="divide-y divide-border-subtle">
             {flagged.map((f) => (
               <div key={f.id} className="px-3.5 py-2.5 flex items-center gap-3">
-                <span className="pill" style={{ fontSize: 9.5 }}>
-                  {f.format}
-                </span>
+                <span className="pill" style={{ fontSize: 9.5 }}>{f.format}</span>
                 <span className="text-[10.5px] text-text-tertiary">{f.channel}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-medium text-text-primary truncate">
@@ -1414,80 +1810,183 @@ function ResizeQaStep() {
         </div>
       )}
 
-      {/* Full per-persona × angle review grid */}
+      {/* Per-persona × angle attachments */}
       <div className="space-y-3">
         {reviews.map((p) => (
           <div key={p.personaId} className="bg-white border border-border rounded-card overflow-hidden">
             <div className="px-3.5 py-2 border-b border-border-subtle flex items-center gap-2">
               <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
               <span className="text-[12px] font-medium text-text-primary">{p.personaName}</span>
-              <span className="text-[10.5px] text-text-tertiary">
-                · {p.angles.length} angles × 4 sizes
-              </span>
+              <span className="text-[10.5px] text-text-tertiary">· {p.angles.length} angles</span>
             </div>
             <div className="divide-y divide-border-subtle">
-              {p.angles.map((a) => (
-                <div key={a.id} className="px-3.5 py-2.5">
-                  <div className="text-[11.5px] font-medium text-text-primary mb-1.5 truncate">
-                    {a.hook}
+              {p.angles.map((a, ai) => {
+                const attachments = attachmentsFor(p.personaName, ai);
+                const flaggedCount = a.variants.filter((v) => v.status === "needs-fix").length;
+                return (
+                  <div key={a.id} className="px-3.5 py-2.5 flex items-start gap-3">
+                    {/* Hero thumbnail */}
+                    <div
+                      className="w-12 h-12 rounded-[5px] flex-shrink-0 relative overflow-hidden"
+                      style={{
+                        background: `linear-gradient(135deg, hsl(${a.hue} 65% 86%) 0%, hsl(${a.hue} 55% 68%) 100%)`,
+                      }}
+                    >
+                      <div className="absolute inset-1 flex flex-col justify-end gap-0.5">
+                        <div className="h-[2px] rounded-full bg-white/65 w-3/4" />
+                        <div className="h-[2px] rounded-full bg-white/55 w-1/2" />
+                        <div className="h-[3px] rounded-sm bg-text-primary/80 w-1/3 mt-0.5" />
+                      </div>
+                    </div>
+                    {/* Hook + attachments */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-medium text-text-primary mb-1 truncate">
+                        {a.hook}
+                      </div>
+                      <div className="space-y-0.5">
+                        {attachments.map((att, i) => (
+                          <div
+                            key={i}
+                            className="text-[11px] text-text-secondary flex items-center gap-1 leading-snug"
+                          >
+                            <ArrowRight size={9} strokeWidth={1.6} className="text-text-tertiary flex-shrink-0" />
+                            <span>{att}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {flaggedCount > 0 && (
+                        <span className="pill pill-warn inline-flex items-center gap-1" style={{ fontSize: 9.5 }}>
+                          {flaggedCount} flagged
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSizesModal({
+                            hook: a.hook,
+                            personaName: p.personaName,
+                            hue: a.hue,
+                            variants: a.variants,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 h-6 px-2 rounded-button border border-border bg-white hover:border-border-hover text-[10.5px] font-medium text-text-secondary hover:text-text-primary"
+                      >
+                        <ImageIcon size={9} strokeWidth={1.8} />
+                        View sizes
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {a.variants.map((v) => (
-                      <ResizeVariantTile key={v.id} variant={v} hue={a.hue} />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Sizes modal */}
+      {sizesModal && (
+        <ResizeSizesModal
+          personaName={sizesModal.personaName}
+          hook={sizesModal.hook}
+          hue={sizesModal.hue}
+          variants={sizesModal.variants}
+          onClose={() => setSizesModal(null)}
+        />
+      )}
     </div>
   );
 }
 
-function ResizeVariantTile({
-  variant,
+function ResizeSizesModal({
+  personaName,
+  hook,
   hue,
+  variants,
+  onClose,
 }: {
-  variant: import("@/lib/spot/workflow").ResizedVariant;
+  personaName: string;
+  hook: string;
   hue: number;
+  variants: import("@/lib/spot/workflow").ResizedVariant[];
+  onClose: () => void;
 }) {
-  const failed = variant.status === "needs-fix";
-  // Tile aspect approximates the format.
-  const dims: Record<typeof variant.format, { w: number; h: number }> = {
-    "1:1": { w: 44, h: 44 },
-    "4:5": { w: 38, h: 48 },
-    "9:16": { w: 28, h: 50 },
-    "16:9": { w: 56, h: 32 },
-  };
-  const d = dims[variant.format];
   return (
-    <div
-      title={failed ? variant.note : `${variant.format} · ${variant.channel} · approved`}
-      className={`relative rounded-[5px] border overflow-hidden ${
-        failed ? "border-[#F5A623] ring-2 ring-[#F5A623]/30" : "border-border"
-      }`}
-      style={{
-        width: d.w,
-        height: d.h,
-        background: `linear-gradient(135deg, hsl(${hue} 65% 88%) 0%, hsl(${hue} 55% 72%) 100%)`,
-      }}
-    >
-      {/* Faux composition lines */}
-      <div className="absolute inset-1 flex flex-col justify-end gap-0.5">
-        <div className="h-[2px] rounded-full bg-white/70 w-3/4" />
-        <div className="h-[2px] rounded-full bg-white/55 w-1/2" />
-        <div className="h-[3px] rounded-sm bg-text-primary/80 w-1/3 mt-0.5" />
-      </div>
-      <div className="absolute top-0.5 left-0.5 text-[7.5px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
-        {variant.format}
-      </div>
-      {failed && (
-        <div className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-[#F5A623] flex items-center justify-center">
-          <span className="text-[7.5px] text-white font-bold">!</span>
+    <div className="scrim" onClick={onClose} role="dialog" aria-modal>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-border rounded-card w-[680px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
+      >
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border-subtle">
+          <div className="text-[10.5px] text-text-tertiary">{personaName}</div>
+          <span className="text-[12.5px] font-medium text-text-primary flex-1 truncate">
+            {hook}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-button text-text-tertiary hover:bg-surface-secondary hover:text-text-primary"
+          >
+            <X size={14} />
+          </button>
         </div>
-      )}
+        <div className="p-5">
+          <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mb-3">
+            All resized variants
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            {variants.map((v) => {
+              const failed = v.status === "needs-fix";
+              const dims: Record<typeof v.format, { w: number; h: number }> = {
+                "1:1": { w: 120, h: 120 },
+                "4:5": { w: 100, h: 125 },
+                "9:16": { w: 78, h: 138 },
+                "16:9": { w: 168, h: 95 },
+              };
+              const d = dims[v.format];
+              return (
+                <div key={v.id} className="flex flex-col items-center gap-1.5">
+                  <div
+                    className={`relative rounded-[5px] border overflow-hidden ${
+                      failed ? "border-[#F5A623] ring-2 ring-[#F5A623]/30" : "border-border"
+                    }`}
+                    style={{
+                      width: d.w,
+                      height: d.h,
+                      background: `linear-gradient(135deg, hsl(${hue} 65% 88%) 0%, hsl(${hue} 55% 72%) 100%)`,
+                    }}
+                  >
+                    <div className="absolute inset-2 flex flex-col justify-end gap-0.5">
+                      <div className="h-[3px] rounded-full bg-white/70 w-3/4" />
+                      <div className="h-[3px] rounded-full bg-white/55 w-1/2" />
+                      <div className="h-[5px] rounded-sm bg-text-primary/80 w-1/3 mt-0.5" />
+                    </div>
+                    <div className="absolute top-1 left-1 text-[9px] font-medium text-text-primary bg-white/85 px-1 rounded-sm">
+                      {v.format}
+                    </div>
+                    {failed && (
+                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#F5A623] flex items-center justify-center">
+                        <span className="text-[9px] text-white font-bold">!</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[10.5px] text-text-tertiary">
+                    {v.format} · {v.channel}
+                  </div>
+                  {failed && (
+                    <div className="text-[10px] text-[#92400E] text-center max-w-[140px] leading-snug">
+                      {v.note}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1495,60 +1994,203 @@ function ResizeVariantTile({
 /* ─── Forms & landing pages — preview-rich ────────────────── */
 
 function FormsStep() {
+  const [tab, setTab] = useState<"meta" | "landing">("meta");
+  const metaForms = SAMPLE_FORMS.filter((f) => f.kind === "lead-form");
+  const landingPages = SAMPLE_FORMS.filter((f) => f.kind === "landing-page");
+
   return (
     <div className="px-5 py-5">
       <StepHeader
         title="Forms & landing pages"
-        blurb="Lead forms · landing pages · click-to-WhatsApp scripts. Hover any tile for the preview."
+        blurb="Native Meta lead forms and standalone landing pages — preview either, edit copy via chat."
       />
 
-      {/* Generation indicator */}
-      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4">
-        <div className="flex items-center gap-1.5 mb-1">
-          <Cog size={11} strokeWidth={1.8} className="text-text-secondary animate-spin" style={{ animationDuration: "3s" }} />
-          <span className="text-[11.5px] font-medium text-text-primary">Forms Agent · running</span>
-        </div>
-        <span className="text-[11.5px] text-text-secondary">Building forms-per-persona · 3 of 5 ready · 2 pending review</span>
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mb-4 flex items-center gap-2">
+        <Check size={11} strokeWidth={2.2} className="text-[#15803D]" />
+        <span className="text-[11.5px] font-medium text-text-primary">
+          Forms Agent · {SAMPLE_FORMS.filter((f) => f.status === "ready").length} ready
+        </span>
+        <span className="text-[11px] text-text-tertiary">
+          · {SAMPLE_FORMS.filter((f) => f.status !== "ready").length} pending review
+        </span>
       </div>
 
-      {/* Asset grid */}
-      <div className="grid grid-cols-2 gap-3">
-        {SAMPLE_FORMS.map((f) => (
-          <FormPreviewCard key={f.id} form={f} />
-        ))}
+      <div className="inline-flex items-center gap-0.5 bg-surface-secondary p-0.5 rounded-button mb-4">
+        <TabButton active={tab === "meta"} onClick={() => setTab("meta")}>
+          Meta forms · {metaForms.length}
+        </TabButton>
+        <TabButton active={tab === "landing"} onClick={() => setTab("landing")}>
+          Landing pages · {landingPages.length}
+        </TabButton>
+      </div>
+
+      {tab === "meta" ? (
+        <div className="space-y-3">
+          {metaForms.map((f) => (
+            <MetaFormPreview key={f.id} form={f} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {landingPages.map((f) => (
+            <LandingPagePreview key={f.id} form={f} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FORM_STATUS_PILL: Record<typeof SAMPLE_FORMS[number]["status"], { label: string; pill: string }> = {
+  ready: { label: "Ready", pill: "pill-ok" },
+  "needs-review": { label: "Needs review", pill: "pill-warn" },
+  drafted: { label: "Drafted", pill: "pill" },
+};
+
+/**
+ * Native-Meta lead form preview. Form settings summary on the left,
+ * phone-frame preview on the right showing the actual form rendering
+ * the way it would appear in-feed. Settings aren't editable in this
+ * mock — the user prompts Spot to make edits.
+ */
+function MetaFormPreview({ form }: { form: typeof SAMPLE_FORMS[number] }) {
+  const status = FORM_STATUS_PILL[form.status];
+  return (
+    <div className="bg-white border border-border rounded-card overflow-hidden">
+      <div className="px-3.5 py-2.5 border-b border-border-subtle flex items-center gap-2">
+        <Users size={11} strokeWidth={1.6} className="text-text-tertiary" />
+        <span className="text-[12.5px] font-medium text-text-primary">{form.name}</span>
+        <span className="text-[11px] text-text-tertiary">· {form.personaName}</span>
+        <span className="flex-1" />
+        <span className={`pill ${status.pill}`} style={{ fontSize: 9.5 }}>
+          {status.label}
+        </span>
+      </div>
+      <div className="grid grid-cols-[1fr_180px] gap-4 p-4">
+        {/* Settings summary (left) */}
+        <div className="space-y-3 text-[12px]">
+          <SettingRow label="Form type" value="Native Meta lead form · pre-filled" />
+          <SettingRow label="Form headline" value="Get the free demo class · IIT-alum mentor" />
+          <SettingRow label="Description" value="Live cohort · Class 11 + 12 · 60-student cap. Pick a slot — we'll WhatsApp the link." />
+          <SettingRow label="Fields" value="Full name · Phone (pre-filled) · Email · Class" />
+          <SettingRow label="Privacy policy" value="guyjus.com/legal/privacy" />
+          <SettingRow
+            label="Thank-you screen"
+            value="Booked. We've sent the WhatsApp link to {phone}."
+          />
+          <SettingRow label="Post-fill" value="Voice AI agent calls within 5 min" />
+          <div className="text-[10.5px] text-text-tertiary pt-1">
+            Tap the chat to ask Spot to refine anything.
+          </div>
+        </div>
+        {/* Phone preview (right) */}
+        <PhoneFramePreview form={form} />
       </div>
     </div>
   );
 }
 
-function FormPreviewCard({ form }: { form: typeof SAMPLE_FORMS[number] }) {
-  const isLanding = form.kind === "landing-page";
-  const statusPill =
-    form.status === "ready" ? "pill-ok" : form.status === "needs-review" ? "pill-warn" : "pill";
-  const statusLabel =
-    form.status === "ready" ? "Ready" : form.status === "needs-review" ? "Needs review" : "Drafted";
+function SettingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mb-0.5">
+        {label}
+      </div>
+      <div className="text-text-primary leading-snug">{value}</div>
+    </div>
+  );
+}
 
+/**
+ * Schematic phone frame with the Meta lead form preview. Not a real
+ * screenshot — a mock representation that reads like Meta's actual
+ * in-feed lead form: card with brand logo, intro line, headline,
+ * description, form fields, and submit button.
+ */
+function PhoneFramePreview({ form }: { form: typeof SAMPLE_FORMS[number] }) {
+  void form;
+  return (
+    <div className="relative">
+      <div
+        className="rounded-[24px] border-[6px] border-text-primary/85 bg-white overflow-hidden mx-auto"
+        style={{ width: 168, height: 320 }}
+      >
+        {/* Status bar */}
+        <div className="bg-text-primary/85 h-2.5 flex items-center justify-between px-2">
+          <span className="text-[7.5px] text-white">9:41</span>
+          <span className="text-[7.5px] text-white">●●●</span>
+        </div>
+        {/* Body */}
+        <div className="p-2 space-y-1.5 h-full bg-[#F0F2F5] overflow-hidden">
+          {/* Logo + brand */}
+          <div className="flex items-center gap-1 bg-white rounded p-1.5">
+            <div className="w-5 h-5 rounded bg-[#1877F2] flex items-center justify-center text-[8px] font-bold text-white">
+              G
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[8.5px] font-semibold text-text-primary">Guyju's JEE</div>
+              <div className="text-[7px] text-text-tertiary">Sponsored</div>
+            </div>
+          </div>
+          {/* Headline */}
+          <div className="bg-white rounded p-1.5">
+            <div className="text-[8.5px] font-semibold text-text-primary leading-tight mb-1">
+              Get the free demo class
+            </div>
+            <div className="text-[7.5px] text-text-secondary leading-snug">
+              Live cohort with IIT-alum mentors. Pick a slot.
+            </div>
+          </div>
+          {/* Fields */}
+          <div className="bg-white rounded p-1.5 space-y-1">
+            <FieldStub label="Full name" />
+            <FieldStub label="Phone · pre-filled" filled />
+            <FieldStub label="Email" />
+            <FieldStub label="Class" />
+          </div>
+          {/* Submit */}
+          <div className="bg-[#1877F2] rounded p-1 text-center">
+            <span className="text-[8px] font-semibold text-white">Submit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldStub({ label, filled }: { label: string; filled?: boolean }) {
+  return (
+    <div className="border border-border rounded-sm px-1 py-[3px]">
+      <div className="text-[6.5px] text-text-tertiary">{label}</div>
+      <div className={`text-[8px] ${filled ? "text-text-primary" : "text-text-tertiary/60"}`}>
+        {filled ? "+91 98XXX XXXXX" : "·"}
+      </div>
+    </div>
+  );
+}
+
+/** Standalone landing-page card — schematic preview with editable
+ *  settings via chat. */
+function LandingPagePreview({ form }: { form: typeof SAMPLE_FORMS[number] }) {
+  const status = FORM_STATUS_PILL[form.status];
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Preview canvas — schematic, not a real screenshot */}
       <div
-        className="relative aspect-[16/9] border-b border-border-subtle"
-        style={{
-          background: "linear-gradient(135deg, #FAFAFA 0%, #F0F0F0 100%)",
-        }}
+        className="relative aspect-[16/10] border-b border-border-subtle"
+        style={{ background: "linear-gradient(135deg, #FAFAFA 0%, #F0F0F0 100%)" }}
       >
-        {isLanding ? <LandingPageMock title={form.name} /> : <LeadFormMock title={form.name} />}
+        <LandingMockBody />
         <span
-          className={`pill ${statusPill} absolute top-1.5 right-1.5`}
+          className={`pill ${status.pill} absolute top-1.5 right-1.5`}
           style={{ fontSize: 10 }}
         >
-          {statusLabel}
+          {status.label}
         </span>
       </div>
       <div className="px-3 py-2.5">
         <div className="text-[12.5px] font-medium text-text-primary truncate">{form.name}</div>
         <div className="text-[11px] text-text-tertiary mt-0.5 flex items-center justify-between">
-          <span>{isLanding ? "Landing page" : "Lead form"} · {form.personaName}</span>
+          <span>{form.personaName}</span>
           <button
             type="button"
             className="inline-flex items-center gap-0.5 text-text-secondary hover:text-text-primary"
@@ -1562,7 +2204,7 @@ function FormPreviewCard({ form }: { form: typeof SAMPLE_FORMS[number] }) {
   );
 }
 
-function LandingPageMock({ title }: { title: string }) {
+function LandingMockBody() {
   return (
     <div className="absolute inset-0 p-3 flex flex-col">
       <div className="h-2 w-12 rounded-full bg-text-primary/30 mb-2" />
@@ -1574,22 +2216,6 @@ function LandingPageMock({ title }: { title: string }) {
         <div className="rounded-sm bg-white/70 border border-border-subtle" />
       </div>
       <div className="mt-2 h-3.5 w-20 rounded bg-text-primary self-start" />
-      <span className="sr-only">{title}</span>
-    </div>
-  );
-}
-
-function LeadFormMock({ title }: { title: string }) {
-  return (
-    <div className="absolute inset-0 p-3 flex flex-col">
-      <div className="h-2.5 w-1/2 rounded-full bg-text-primary/80 mb-2" />
-      <div className="space-y-1.5 flex-1">
-        <div className="h-3 rounded-sm bg-white/80 border border-border-subtle" />
-        <div className="h-3 rounded-sm bg-white/80 border border-border-subtle" />
-        <div className="h-3 rounded-sm bg-white/80 border border-border-subtle w-3/4" />
-      </div>
-      <div className="mt-2 h-3.5 w-16 rounded bg-text-primary self-start" />
-      <span className="sr-only">{title}</span>
     </div>
   );
 }
@@ -1649,6 +2275,147 @@ function MiniStat({ label, value }: { label: string; value: number }) {
     <div className="bg-white border border-border rounded-card p-3">
       <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider">{label}</div>
       <div className="text-stat-md text-text-primary tabular">{value}</div>
+    </div>
+  );
+}
+
+/* ─── Voice Agent attach ────────────────────────────────────── */
+
+const CHANNEL_ICON: Record<"Voice" | "WhatsApp" | "SMS", typeof Mic> = {
+  Voice: Phone,
+  WhatsApp: MessageSquare,
+  SMS: MessageSquare,
+};
+
+function VoiceAgentStep() {
+  const workflow = useSpotStore((s) => s.workflow)!;
+  const attachVoiceAgent = useSpotStore((s) => s.attachVoiceAgent);
+  const selected = workflow.attachedVoiceAgentId;
+  // Recommend Sherpa as the default since it's the balanced fit.
+  const recommendedId = "agent-sherpa";
+
+  return (
+    <div className="px-5 py-5">
+      <StepHeader
+        title="Attach a Voice AI agent"
+        blurb="Outbound campaigns route through the agent you pick. Skip if you'd rather run paid-only — outbound stays off."
+      />
+
+      <div className="space-y-2.5 mb-3">
+        {VOICE_AGENTS.map((a) => {
+          const isSelected = selected === a.id;
+          const isRecommended = a.id === recommendedId;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => attachVoiceAgent(isSelected ? null : a.id)}
+              className={`w-full text-left bg-white border-2 rounded-card p-4 transition-colors ${
+                isSelected
+                  ? "border-[#111] shadow-card-hover"
+                  : "border-border hover:border-text-tertiary"
+              }`}
+              role="radio"
+              aria-checked={isSelected}
+            >
+              <div className="flex items-start gap-3">
+                {/* Avatar / initial */}
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-[12.5px] font-semibold ${
+                    isSelected ? "bg-[#111] text-white" : "bg-surface-secondary text-text-secondary"
+                  }`}
+                >
+                  {a.name.charAt(0)}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                    <span className="text-[13.5px] font-semibold text-text-primary">
+                      {a.name}
+                    </span>
+                    {isRecommended && (
+                      <span className="pill pill-info" style={{ fontSize: 9.5 }}>
+                        <Sparkles size={9} strokeWidth={2} />
+                        Spot recommends
+                      </span>
+                    )}
+                    <span className="flex-1" />
+                    {a.channels.map((c) => {
+                      const Ico = CHANNEL_ICON[c];
+                      return (
+                        <span
+                          key={c}
+                          className="inline-flex items-center gap-0.5 text-[10.5px] text-text-tertiary"
+                          title={c}
+                        >
+                          <Ico size={10} strokeWidth={1.6} />
+                          {c}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[12px] text-text-secondary leading-snug mb-2">{a.workflow}</p>
+
+                  <div className="flex items-center gap-4 text-[11.5px]">
+                    <div className="flex items-center gap-1">
+                      <span className="text-text-tertiary">Qual rate</span>
+                      <span className="tabular font-medium text-text-primary">{a.qualRate}%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-text-tertiary">Connect</span>
+                      <span className="tabular font-medium text-text-primary">
+                        {a.connectRate}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-text-tertiary">Number</span>
+                      <span className="mono text-text-primary">{a.number}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-text-tertiary mt-1.5 italic leading-snug">
+                    Best for: {a.bestFor}
+                  </div>
+                </div>
+
+                {/* Selection indicator */}
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? "bg-[#111] border-[#111]" : "border-text-tertiary/40"
+                  }`}
+                >
+                  {isSelected && <Check size={11} strokeWidth={3} className="text-white" />}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Skip option */}
+      <button
+        type="button"
+        onClick={() => attachVoiceAgent(null)}
+        className={`w-full text-left rounded-card p-3 border-2 border-dashed transition-colors ${
+          selected === null
+            ? "border-text-primary bg-surface-page"
+            : "border-border hover:border-text-tertiary"
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <X size={14} strokeWidth={1.6} className="text-text-tertiary" />
+          <div className="flex-1">
+            <div className="text-[12.5px] font-medium text-text-primary">No outbound · paid-only</div>
+            <div className="text-[11px] text-text-tertiary">
+              Skip the Voice AI lane. Leads land in your CRM; nurture is your problem.
+            </div>
+          </div>
+          {selected === null && (
+            <div className="w-5 h-5 rounded-full border-2 bg-[#111] border-[#111] flex items-center justify-center flex-shrink-0">
+              <Check size={11} strokeWidth={3} className="text-white" />
+            </div>
+          )}
+        </div>
+      </button>
     </div>
   );
 }

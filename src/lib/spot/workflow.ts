@@ -26,6 +26,7 @@ export type WorkflowStep =
   | "resize-qa" // Resize Agent + QA review per variant
   | "forms"
   | "campaigns"
+  | "voice-agent" // Pick a Voice AI agent for outreach (or skip)
   | "done";
 
 export const STEP_ORDER: WorkflowStep[] = [
@@ -38,6 +39,7 @@ export const STEP_ORDER: WorkflowStep[] = [
   "resize-qa",
   "forms",
   "campaigns",
+  "voice-agent",
   "done",
 ];
 
@@ -47,11 +49,12 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
   "product-setup": "Product memory",
   kickoff: "Kickoff",
   personas: "Personas",
-  "media-plan": "Media plan",
+  "media-plan": "Plan",
   angles: "Creatives",
   "resize-qa": "Resize & QA",
   forms: "Forms & pages",
   campaigns: "Campaign structure",
+  "voice-agent": "Voice agent",
   done: "Live",
 };
 
@@ -64,6 +67,7 @@ export const VISIBLE_STEPS: WorkflowStep[] = [
   "resize-qa",
   "forms",
   "campaigns",
+  "voice-agent",
 ];
 
 export type WorkflowBudget = {
@@ -103,6 +107,8 @@ export type LaunchWorkflow = {
    * after the fake API delay so the canvas reveals the content.
    */
   kickoffReady: boolean;
+  /** Voice AI agent the user picked at the voice-agent step. */
+  attachedVoiceAgentId: string | null;
 };
 
 export const EMPTY_APPROVALS: WorkflowApprovals = {
@@ -232,112 +238,204 @@ export const LAUNCH_PERSONAS: (LaunchPersona & {
   },
 ];
 
-// Each channel can carry several *ad types* (lead form, click-to-WA,
-// landing page, etc). The plan is per-channel × per-ad-type, with a
-// per-ad-type availability flag — e.g. click-to-WhatsApp is unavailable
-// when the WhatsApp account isn't connected, but the user can click to
-// connect it from the canvas.
-export type AdTypeAvailability = "available" | "needs-connection" | "coming-soon";
+// Each channel has its own campaign structure. Meta uses a 3-bucket
+// model (experiment / scaling / cost-cap) that mirrors how Spot
+// actually reasons about media — test what's new, scale what wins,
+// cost-cap what's mature. Google splits Search and Discover into their
+// own channels. Outreach handles Voice + WhatsApp.
+export type AdTypeAvailability = "available" | "needs-connection";
 
-export type ChannelPlan = {
-  channel: "Meta Ads" | "Google Ads" | "Outreach";
-  iconKey: "meta" | "google" | "outreach";
-  share: number; // share of total budget
-  rationale: string;
-  adTypes: {
-    name: string;
-    description: string;
-    personas: string[]; // persona names targeted
-    availability: AdTypeAvailability;
-    /** Connection key — if set, the row carries a Connect action that
-     *  flips this to "available" once the user pretends to connect. */
-    connectionKey?: "whatsapp";
-    /** Share of *channel* budget for this ad type. */
-    budgetShare: number;
-  }[];
+export type CampaignBucket =
+  // Meta
+  | "experiment"
+  | "scaling"
+  | "cost-cap"
+  // Google Search
+  | "search-brand"
+  | "search-category"
+  | "search-competitor"
+  // Google Discover
+  | "discover-cold"
+  | "discover-retarget"
+  | "discover-lookalike"
+  // Outreach
+  | "voice"
+  | "whatsapp";
+
+export type CampaignInPlan = {
+  id: string;
+  kind: CampaignBucket;
+  /** Display name on the card. */
+  name: string;
+  /** Why we're running it — Spot's reasoning. */
+  purpose: string;
+  /** Personas + angles included. */
+  targets: string[];
+  /** Share of channel budget. */
+  budgetShare: number;
+  availability: AdTypeAvailability;
+  connectionKey?: "whatsapp";
 };
 
-export function generateChannelPlans(
+export type Channel = {
+  id: "meta" | "google-search" | "google-discover" | "outreach";
+  name: string;
+  share: number; // share of total plan budget
+  /** Channel-level reasoning. */
+  rationale: string;
+  campaigns: CampaignInPlan[];
+};
+
+/** Generate the launch plan. Reasoning is informed by which personas
+ *  are new vs. existing — experiment campaigns target new + under-
+ *  performing personas, scaling campaigns lift the winners, cost-cap
+ *  controls the mature spend. */
+export function generatePlan(
   _budget: number,
   whatsAppConnected: boolean = false,
-): ChannelPlan[] {
+): Channel[] {
   return [
     {
-      channel: "Meta Ads",
-      iconKey: "meta",
+      id: "meta",
+      name: "Meta Ads",
       share: 0.55,
-      rationale: "Strongest BOFU on parent personas. Three ad-type variants split across cohorts.",
-      adTypes: [
+      rationale: "Three-bucket model · experiment new personas, scale winners, cost-cap the mature ones.",
+      campaigns: [
         {
-          name: "Lead form ads",
-          description: "Native Meta lead form · pre-filled name + phone · instant-WhatsApp follow-up.",
-          personas: ["Engineer Parent", "Doctor Parent"],
+          id: "meta-experiment",
+          kind: "experiment",
+          name: "Experiment · new personas + angles",
+          purpose:
+            "Test The School Counsellor Referral (new) and 2 fresh angles on the underperforming Coaching Hopper cohort. Small budget — we're buying data, not leads.",
+          targets: ["School Counsellor (new)", "Coaching Hopper · 2 new angles"],
+          budgetShare: 0.15,
           availability: "available",
-          budgetShare: 0.5,
         },
         {
-          name: "Click-to-WhatsApp",
-          description: whatsAppConnected
-            ? "Tap → WhatsApp Business · counsellor flow handled by WhatsApp Agent."
-            : "Tap → WhatsApp Business · connect a WA Business account to enable.",
-          personas: ["Engineer Parent", "Self-Studier"],
-          availability: whatsAppConnected ? "available" : "needs-connection",
-          connectionKey: "whatsapp",
-          budgetShare: 0.3,
-        },
-        {
-          name: "Landing page",
-          description: "Tap → branded landing page with demo-class booking + curriculum preview.",
-          personas: ["Engineer Parent", "Coaching Hopper"],
-          availability: "available",
-          budgetShare: 0.2,
-        },
-      ],
-    },
-    {
-      channel: "Google Ads",
-      iconKey: "google",
-      share: 0.3,
-      rationale: "Captures high-intent — branded + category search and Discover surfaces.",
-      adTypes: [
-        {
-          name: "Search ads",
-          description: "Brand defense + category queries ('JEE online coaching', 'IIT prep at home').",
-          personas: ["Generic · high intent"],
-          availability: "available",
-          budgetShare: 0.65,
-        },
-        {
-          name: "Discover ads",
-          description: "Native Discover feed surfacing on YouTube and Google Discover homepage.",
-          personas: ["Engineer Parent", "Self-Studier"],
-          availability: "available",
-          budgetShare: 0.35,
-        },
-      ],
-    },
-    {
-      channel: "Outreach",
-      iconKey: "outreach",
-      share: 0.15,
-      rationale: "Warm-lead outbound · Voice AI for parents, WhatsApp for student follow-ups.",
-      adTypes: [
-        {
-          name: "Voice AI campaign",
-          description: "Calls placed by Voice AI on enriched parent contacts from Revspot graph.",
-          personas: ["Engineer Parent", "Doctor Parent"],
-          availability: "available",
+          id: "meta-scaling",
+          kind: "scaling",
+          name: "Scaling · proven personas × winning angles",
+          purpose:
+            "Lift budget on Engineer Parent × mentor-led hook (best CPL last qtr) and Self-Studier × doubt-clearing reel. Highest BOFU history.",
+          targets: ["Engineer Parent", "Self-Studier"],
           budgetShare: 0.55,
+          availability: "available",
         },
         {
-          name: "WhatsApp campaign",
-          description: whatsAppConnected
-            ? "Multi-turn qualification + demo-class booking via WhatsApp Agent."
-            : "Multi-turn qualification — needs WhatsApp Business connected.",
-          personas: ["Engineer Parent", "Self-Studier", "Coaching Hopper"],
+          id: "meta-cost-cap",
+          kind: "cost-cap",
+          name: "Cost cap · mature spend",
+          purpose:
+            "Cost-capped at ₹420 CPL on Engineer Parent's evergreen lead-form variant. Hold floor while scaling explores ceiling.",
+          targets: ["Engineer Parent · evergreen"],
+          budgetShare: 0.3,
+          availability: "available",
+        },
+      ],
+    },
+    {
+      id: "google-search",
+      name: "Google Search",
+      share: 0.18,
+      rationale: "High-intent capture — brand defense, category queries, competitor bidding.",
+      campaigns: [
+        {
+          id: "gs-brand",
+          kind: "search-brand",
+          name: "Brand defense",
+          purpose:
+            "Defend 'Guyju's JEE Crack' + branded variants. Cheap, near-100% intent.",
+          targets: ["Brand keywords", "Branded misspellings"],
+          budgetShare: 0.3,
+          availability: "available",
+        },
+        {
+          id: "gs-category",
+          kind: "search-category",
+          name: "Category queries",
+          purpose:
+            "Capture 'JEE online coaching', 'IIT prep at home', 'best JEE classes for Class 11' searches.",
+          targets: ["Category keywords · ~340 phrases"],
+          budgetShare: 0.5,
+          availability: "available",
+        },
+        {
+          id: "gs-competitor",
+          kind: "search-competitor",
+          name: "Competitor bidding",
+          purpose:
+            "Bid on competitor brand queries (Allen, Aakash, FIITJEE online). Higher CPL but high-intent switchers.",
+          targets: ["Competitor brand queries"],
+          budgetShare: 0.2,
+          availability: "available",
+        },
+      ],
+    },
+    {
+      id: "google-discover",
+      name: "Google Discover",
+      share: 0.12,
+      rationale: "Native feed surfaces — feed top-of-funnel, retarget visitors, lookalike on winners.",
+      campaigns: [
+        {
+          id: "gd-cold",
+          kind: "discover-cold",
+          name: "Cold Discover · top-of-funnel",
+          purpose:
+            "Broad Engineer-Parent + Self-Studier audience on YouTube + Discover homepage. Brand + category awareness.",
+          targets: ["Engineer Parent", "Self-Studier"],
+          budgetShare: 0.45,
+          availability: "available",
+        },
+        {
+          id: "gd-retarget",
+          kind: "discover-retarget",
+          name: "Retargeting · visitors + form abandoners",
+          purpose:
+            "Re-engage site visitors and demo-class form abandoners. Tight 30-day window, premium creative.",
+          targets: ["Site visitors 30d", "Form abandoners"],
+          budgetShare: 0.35,
+          availability: "available",
+        },
+        {
+          id: "gd-lookalike",
+          kind: "discover-lookalike",
+          name: "Lookalike · top demo attendees",
+          purpose:
+            "1% lookalike on Class 11 parents who attended a demo class in the last 30 days. Quality > volume.",
+          targets: ["Lookalike · top demo attendees 30d"],
+          budgetShare: 0.2,
+          availability: "available",
+        },
+      ],
+    },
+    {
+      id: "outreach",
+      name: "Outreach",
+      share: 0.15,
+      rationale: "Warm-lead outbound on Voice + WhatsApp · attaches a Voice AI agent at the deploy step.",
+      campaigns: [
+        {
+          id: "or-voice",
+          kind: "voice",
+          name: "Voice AI · parents",
+          purpose:
+            "Outbound calls on enriched parent contacts from Revspot's audience graph. Voice agent picks up the demo-class booking flow.",
+          targets: ["Engineer Parent", "Doctor Parent"],
+          budgetShare: 0.55,
+          availability: "available",
+        },
+        {
+          id: "or-whatsapp",
+          kind: "whatsapp",
+          name: "WhatsApp · student follow-up",
+          purpose: whatsAppConnected
+            ? "Multi-turn qualification + demo-class booking via WhatsApp Agent on Click-to-WA leads."
+            : "Multi-turn qualification — needs a WhatsApp Business account connected before it can run.",
+          targets: ["Engineer Parent", "Self-Studier"],
+          budgetShare: 0.45,
           availability: whatsAppConnected ? "available" : "needs-connection",
           connectionKey: "whatsapp",
-          budgetShare: 0.45,
         },
       ],
     },
@@ -384,34 +482,107 @@ export const SAMPLE_ANGLES: AnglePack[] = [
   },
 ];
 
-/** Non-persona-specific Google Search ad copies. Drafted by the
- *  Creative Agent for the Google · Search ad type in the media plan. */
-export type SearchAdCopy = {
-  id: string;
+/** One headline/description combination inside a Search Ad group.
+ *  Google rotates these — more variants generally lift Ad Strength. */
+export type SearchAdVariant = {
   headline: string;
   description: string;
-  /** Comma-separated keyword group this targets. */
-  keywords: string;
 };
 
-export const SAMPLE_SEARCH_ADS: SearchAdCopy[] = [
+/** A Google Search ad group — primary copy + multiple variants the
+ *  AI generated. Strength reflects Google's diagnostic. */
+export type SearchAdGroup = {
+  id: string;
+  campaign: "Brand" | "Category" | "Competitor";
+  primaryHeadline: string;
+  primaryDescription: string;
+  variants: SearchAdVariant[];
+  keywords: string;
+  adStrength: "excellent" | "good" | "average";
+};
+
+export const SAMPLE_SEARCH_ADS: SearchAdGroup[] = [
   {
-    id: "sa-1",
-    headline: "Guyju's JEE Crack · Live cohort, IIT mentors",
-    description: "Class 11/12 prep with live doubt-clearing, weekly mocks, and 24-mo replay access. Book a free demo.",
-    keywords: "jee online coaching, iit prep online, jee classes class 11",
+    id: "sa-brand",
+    campaign: "Brand",
+    primaryHeadline: "Guyju's JEE Crack · Class 11 + 12",
+    primaryDescription:
+      "Live cohort with IIT-alum mentors. Weekly mocks. 24-mo recordings. Book a free demo class.",
+    variants: [
+      {
+        headline: "Guyju's JEE Crack · live online cohort",
+        description: "Class 11/12 prep with IIT-alum mentors and weekly all-India mocks.",
+      },
+      {
+        headline: "Guyju's JEE program · Class 11 + 12",
+        description: "Live doubts answered in-class · 24-month replay · 60-student cap.",
+      },
+      {
+        headline: "Guyju's official JEE coaching",
+        description: "Two-year JEE Mains + Advanced program. Free demo class today.",
+      },
+      {
+        headline: "Join Guyju's JEE cohort online",
+        description: "Mentor-led classes capped at 60. Try a free class before you decide.",
+      },
+    ],
+    keywords: "guyju's jee, guyjus jee crack, guyjus iit coaching, guyju jee classes",
+    adStrength: "excellent",
   },
   {
-    id: "sa-2",
-    headline: "Switching coaching? Try Guyju's JEE",
-    description: "Mentor-led classes capped at 60. Bring your old syllabus — we cover the gap. Free demo class today.",
-    keywords: "switch coaching, fiitjee alternative, allen alternative",
+    id: "sa-category",
+    campaign: "Category",
+    primaryHeadline: "JEE online coaching · live mentors",
+    primaryDescription:
+      "Class 11/12 prep with live doubts, weekly all-India mocks, and 24-month recordings. Free demo.",
+    variants: [
+      {
+        headline: "JEE online coaching · live cohort",
+        description: "Mentor-led classes capped at 60 · weekly mocks. Take a free demo today.",
+      },
+      {
+        headline: "Best JEE classes for Class 11",
+        description: "Live doubt-clearing + weekly mocks ranked all-India. 24-mo replay access.",
+      },
+      {
+        headline: "IIT prep online · live + mentor-led",
+        description: "Cohort capped at 60 students. IIT-alum mentors. Try a free class first.",
+      },
+      {
+        headline: "Online JEE Mains + Advanced",
+        description: "Two-year prep with personal study planner and weekly mocks. Demo class free.",
+      },
+      {
+        headline: "Free JEE mock · ranked all-India",
+        description: "See where your child stands against 1.2L+ JEE aspirants. Instant report.",
+      },
+    ],
+    keywords: "jee online coaching, iit prep online, jee classes class 11, best jee coaching online",
+    adStrength: "excellent",
   },
   {
-    id: "sa-3",
-    headline: "Free JEE mock · ranked all-India",
-    description: "See where your child stands against 1.2L+ JEE aspirants. Free mock, instant report. No card needed.",
-    keywords: "free jee mock, jee rank predictor, jee test",
+    id: "sa-competitor",
+    campaign: "Competitor",
+    primaryHeadline: "Switching coaching? Try Guyju's JEE",
+    primaryDescription:
+      "Mentor-led classes capped at 60. Bring your old syllabus — we cover the gap. Free demo class today.",
+    variants: [
+      {
+        headline: "Looking for an Allen alternative?",
+        description: "Live cohort capped at 60. We honour your existing syllabus. Free demo.",
+      },
+      {
+        headline: "Switching from FIITJEE? Guyju's helps",
+        description: "Cover the gap mid-year · live doubt-clearing · mentor 1:1 monthly.",
+      },
+      {
+        headline: "Aakash alternative · online + mentor-led",
+        description: "No 200-student auditorium. Cohort of 60. Try one class before you switch.",
+      },
+    ],
+    keywords:
+      "allen alternative, fiitjee alternative, aakash online review, switch jee coaching",
+    adStrength: "good",
   },
 ];
 
@@ -503,6 +674,70 @@ export type CampaignStructure = {
   }[];
 };
 
+/** Library of Voice AI agents the workspace has access to. Each has
+ *  a different channel mix and follow-up workflow — the right one
+ *  depends on how warm the cohort is and how aggressive the nurture. */
+export type VoiceAgentOption = {
+  id: string;
+  /** Friendly name. */
+  name: string;
+  /** Channels the agent uses. */
+  channels: ("Voice" | "WhatsApp" | "SMS")[];
+  /** One-line workflow narrative. */
+  workflow: string;
+  /** Phone number assigned. */
+  number: string;
+  /** Past performance. */
+  qualRate: number; // % of calls that produce a qualified lead
+  connectRate: number; // % of dialled numbers that connect
+  /** Best-fit tag — when Spot would pick this one. */
+  bestFor: string;
+};
+
+export const VOICE_AGENTS: VoiceAgentOption[] = [
+  {
+    id: "agent-scout",
+    name: "Scout",
+    channels: ["Voice"],
+    workflow: "Voice-only · 2 call attempts, no follow-up. Best when speed beats nurture.",
+    number: "+91 80-1234-5678",
+    qualRate: 14,
+    connectRate: 71,
+    bestFor: "High-volume cohorts where leads decay fast",
+  },
+  {
+    id: "agent-sherpa",
+    name: "Sherpa",
+    channels: ["Voice", "WhatsApp"],
+    workflow: "Voice first · auto-follow-up on WhatsApp if the call drops. One nudge, 24h later.",
+    number: "+91 80-4567-8901",
+    qualRate: 22,
+    connectRate: 76,
+    bestFor: "Balanced cohorts · proven workhorse for Engineer Parent",
+  },
+  {
+    id: "agent-anchor",
+    name: "Anchor",
+    channels: ["Voice", "WhatsApp"],
+    workflow:
+      "Voice + 3-touch WhatsApp nurture sequence over 7 days. Handles demo-class booking end-to-end.",
+    number: "+91 80-7890-1234",
+    qualRate: 31,
+    connectRate: 81,
+    bestFor: "Premium products with longer consideration · NRI parents, NEET cohort",
+  },
+  {
+    id: "agent-compass",
+    name: "Compass",
+    channels: ["WhatsApp"],
+    workflow: "WhatsApp-only · multi-turn qualification. Cheaper, lower intent.",
+    number: "+91 80-2345-6789",
+    qualRate: 9,
+    connectRate: 92,
+    bestFor: "Tier-2/3 Self-Studier cohorts where calls don't convert",
+  },
+];
+
 export const SAMPLE_STRUCTURE: CampaignStructure[] = [
   {
     id: "draft-c1",
@@ -582,6 +817,11 @@ export const STEP_TOOL_CALL: Partial<Record<WorkflowStep, StepToolCall>> = {
     detail: "compiling campaign → ad-set → ad tree on Meta and Google…",
     delayMs: 4200,
   },
+  "voice-agent": {
+    agent: "agents.list",
+    detail: "loading Voice AI agent library + matching against your cohorts…",
+    delayMs: 3200,
+  },
   done: {
     agent: "deploy.push",
     detail: "pushing to Meta and Google ad accounts…",
@@ -623,7 +863,7 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Plan's on the right — split per channel with ad types and persona targeting. **Click-to-WhatsApp** is greyed out (needs a WhatsApp Business account). No budget set yet, so I'm running this as a baseline experiment.",
+            text: "Plan's on the right — three-bucket Meta model (experiment / scaling / cost-cap), Google Search + Discover split, and an Outreach lane for Voice + WhatsApp. Reasoning mirrors what we did with personas — experiment on the new ones, scale the winners, cost-cap the mature spend.",
           },
           {
             type: "step-cta",
@@ -685,12 +925,28 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "3 campaigns, mapped to your approved personas. Once I deploy, edits go through me — Revspot stays read-only on Meta + Google.",
+            text: "3 campaigns mapped to your approved personas. After you confirm I'll ask which Voice AI agent should handle outbound, then deploy.",
           },
           {
             type: "step-cta",
-            label: "Deploy to Meta + Google",
-            helper: "I'll push live and mirror data on /campaigns within a few minutes.",
+            label: "Approve structure, pick voice agent",
+            helper: "Next: attach a Voice AI agent or skip outbound.",
+          },
+        ],
+      };
+    case "voice-agent":
+      return {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: "Pick a Voice AI agent for outreach. Each handles voice + WhatsApp follow-up differently. I've put **Sherpa** on top — it's the proven fit for Engineer Parent. Skip if you'd rather run paid-only.",
+          },
+          {
+            type: "step-cta",
+            label: "Approve & deploy",
+            helper: "I'll deploy campaigns + attach the agent (or skip) to all outbound flows.",
+            refineHint: "or pick a different agent from the canvas",
           },
         ],
       };
