@@ -165,6 +165,18 @@ export type ResearchedMemory = {
   brief: { icon: string; label: string; value: string }[];
 };
 
+/** Which question of the chat-driven new-product setup is currently
+ *  active. The right canvas displays only what's been captured so far;
+ *  the left chat asks each question and accepts the answer. */
+export type ProductSetupStage = "name" | "url" | "files" | "ready" | "complete";
+
+export type ProductSetupAnswers = {
+  name?: string;
+  url?: string;
+  /** File names · the demo doesn't actually parse files. */
+  files?: string[];
+};
+
 export type LaunchWorkflow = {
   kind: "launch-campaign";
   step: WorkflowStep;
@@ -185,6 +197,10 @@ export type LaunchWorkflow = {
   kickoffReady: boolean;
   /** Voice AI agent the user picked at the voice-agent step. */
   attachedVoiceAgentId: string | null;
+  /** Chat-driven product setup state. Only meaningful while step is
+   *  "product-setup"; ignored after. */
+  productSetupStage?: ProductSetupStage;
+  productSetupAnswers?: ProductSetupAnswers;
 };
 
 /**

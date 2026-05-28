@@ -498,191 +498,157 @@ const FILE_KIND_ICON: Record<UploadedFile["kind"], typeof FileText> = {
   doc: FileText,
 };
 
+/**
+ * Product setup · DISPLAY ONLY.
+ *
+ * The right canvas reflects what Spot has captured so far from the
+ * chat-driven Q&A on the left. No inputs here — the canvas is the
+ * "what we know" view, the chat is the "tell me what you know" view.
+ * As the user answers questions in the chat composer, this canvas
+ * fills in stage by stage.
+ */
 function ProductSetupStep() {
-  const startDeepResearch = useSpotStore((s) => s.startDeepResearch);
-  const exit = useSpotStore((s) => s.exitWorkflow);
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  // Tracks whether a file is currently being dragged over the drop zone
-  // — drives the visual hover state on the dashed border.
-  const [dragOver, setDragOver] = useState(false);
-
-  const canStart = name.trim().length > 1 || url.trim().length > 5 || files.length > 0;
-
-  const ingest = (incoming: FileList | File[]) => {
-    const arr = Array.from(incoming).map((f) => ({
-      id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name: f.name,
-      size: f.size,
-      kind: inferKind(f),
-    }));
-    setFiles((prev) => [...prev, ...arr]);
-  };
-
-  const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
-
-  const submit = () => {
-    if (!canStart) return;
-    const label = name.trim() || extractDomainName(url) || "New product";
-    // Pass file names through to deep research so Spot can mention them
-    // in the chat trail. The store accepts an optional second arg.
-    startDeepResearch(label, files.map((f) => f.name));
-  };
+  const wf = useSpotStore((s) =>
+    s.workflow && s.workflow.kind === "launch-campaign" ? s.workflow : null,
+  );
+  if (!wf) return null;
+  const answers = wf.productSetupAnswers ?? {};
+  const stage = wf.productSetupStage ?? "name";
+  const activeIs = (s: typeof stage) => stage === s;
 
   return (
-    <div className="px-5 py-8 max-w-[640px] mx-auto">
-      {/* Intro */}
-      <div className="text-center mb-6">
+    <div className="px-5 py-8 max-w-[560px] mx-auto">
+      <div className="text-center mb-5">
         <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] mb-3">
           <Package size={16} strokeWidth={1.6} className="text-text-secondary" />
         </div>
-        <h2 className="text-section-header text-text-primary">Tell me about the product</h2>
-        <p className="text-meta text-text-secondary mt-1.5 max-w-[440px] mx-auto">
-          Drop a name, paste a URL, or upload your existing collateral — brochures, decks,
-          curriculum PDFs. I'll fold all of it into the product memory.
+        <h2 className="text-section-header text-text-primary">New product brief</h2>
+        <p className="text-meta text-text-secondary mt-1.5 max-w-[420px] mx-auto">
+          I'm filling this in as we talk. <span className="text-text-primary font-medium">Answer in the chat on the left.</span>
         </p>
       </div>
 
-      {/* Form */}
-      <div className="bg-white border border-border rounded-card p-5 space-y-4">
-        <div>
-          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
-            Product name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Guyju's Spoken English Pro"
-            className="w-full h-10 px-3 rounded-input border border-border text-[14px] focus:outline-none focus:border-text-primary placeholder:text-text-tertiary"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && canStart) submit();
-            }}
-          />
-        </div>
-
-        <div>
-          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
-            Brand site or landing page <span className="text-text-tertiary normal-case font-normal">· optional</span>
-          </label>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://guyjus.com/spoken-english"
-            className="w-full h-10 px-3 rounded-input border border-border text-[13px] focus:outline-none focus:border-text-primary placeholder:text-text-tertiary"
-          />
-          <div className="text-[11px] text-text-tertiary mt-1">
-            I'll crawl /about, /curriculum, /pricing and cross-check the audience graph.
-          </div>
-        </div>
-
-        {/* File upload — drag-and-drop zone + file picker. Inputs above
-            are content signals; this is the "drop your existing knowledge"
-            slot. Multiple files, mixed types. */}
-        <div>
-          <label className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider block mb-1.5">
-            Upload collateral <span className="text-text-tertiary normal-case font-normal">· optional · PDFs, decks, brochures, demo videos</span>
-          </label>
-          <label
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              if (e.dataTransfer.files?.length) ingest(e.dataTransfer.files);
-            }}
-            className={`relative flex flex-col items-center justify-center gap-1.5 h-[88px] rounded-input border-2 border-dashed cursor-pointer transition-colors ${
-              dragOver
-                ? "border-text-primary bg-surface-page"
-                : "border-border hover:border-border-hover bg-surface-page/40"
-            }`}
-          >
-            <Upload size={14} strokeWidth={1.6} className="text-text-secondary" />
-            <div className="text-[12.5px] text-text-secondary text-center">
-              <span className="text-text-primary font-medium">Click to upload</span> or drag and drop
-            </div>
-            <div className="text-[10.5px] text-text-tertiary">PDF · PPT · MP4 · PNG · DOC — up to 50 MB</div>
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.ppt,.pptx,.key,.doc,.docx,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp"
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              onChange={(e) => {
-                if (e.target.files?.length) ingest(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
-
-          {files.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {files.map((f) => {
-                const Icon = FILE_KIND_ICON[f.kind];
-                return (
-                  <div
-                    key={f.id}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-input bg-surface-page border border-border-subtle"
-                  >
-                    <Icon size={12} strokeWidth={1.6} className="text-text-secondary flex-shrink-0" />
-                    <span className="text-[12px] text-text-primary truncate flex-1">{f.name}</span>
-                    <span className="text-[10.5px] text-text-tertiary tabular flex-shrink-0">{humanSize(f.size)}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(f.id)}
-                      className="text-text-tertiary hover:text-text-primary flex-shrink-0"
-                      aria-label="Remove file"
-                    >
-                      <X size={11} strokeWidth={1.8} />
-                    </button>
-                  </div>
-                );
-              })}
-              <div className="text-[10.5px] text-text-tertiary mt-1 inline-flex items-center gap-1">
-                <Paperclip size={9} strokeWidth={1.6} />
-                {files.length} file{files.length === 1 ? "" : "s"} attached — I'll parse and fold into memory.
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="pt-1 flex items-center gap-2">
-          <button
-            type="button"
-            disabled={!canStart}
-            onClick={submit}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Search size={12} strokeWidth={2} />
-            Start deep research
-          </button>
-          <button
-            type="button"
-            onClick={exit}
-            className="inline-flex items-center h-9 px-3 rounded-button text-[12px] text-text-secondary hover:text-text-primary"
-          >
-            Cancel
-          </button>
-          <span className="flex-1" />
-          <span className="text-[11px] text-text-tertiary">~3s research</span>
-        </div>
+      {/* Captured fields — display only, filling in as the user answers */}
+      <div className="bg-white border border-border rounded-card overflow-hidden">
+        <BriefRow
+          label="Product name"
+          value={answers.name}
+          placeholder="What should I call it?"
+          active={activeIs("name")}
+        />
+        <BriefRow
+          label="Brand URL"
+          value={answers.url}
+          placeholder="https://… (optional)"
+          active={activeIs("url")}
+        />
+        <BriefRow
+          label="Attachments"
+          value={
+            answers.files && answers.files.length > 0
+              ? answers.files.join(" · ")
+              : undefined
+          }
+          placeholder="Drop PDFs, decks, brochures (optional)"
+          active={activeIs("files")}
+          mono
+        />
       </div>
 
-      {/* What I'll do */}
-      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-4 mt-4">
-        <div className="flex items-start gap-2.5">
-          <SpotMark size={16} />
-          <div className="text-[12px] text-text-secondary leading-relaxed">
-            <span className="text-text-primary font-medium">What I'll do:</span> spin up the
-            Deep Research Agent · {files.length > 0 ? "parse your uploads · " : ""}synthesise USPs
-            and the do-not-mention list · check the audience graph for persona overlap · write
-            everything to product memory and walk you through it on the next canvas.
-          </div>
+      {/* Stage hint */}
+      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mt-4 flex items-start gap-2.5">
+        <SpotMark size={16} />
+        <div className="text-[12px] text-text-secondary leading-relaxed">
+          {stage === "name" && (
+            <>
+              <span className="text-text-primary font-medium">Step 1 · Name.</span> Type the
+              product name in the chat on the left.
+            </>
+          )}
+          {stage === "url" && (
+            <>
+              <span className="text-text-primary font-medium">Step 2 · URL.</span> Paste a URL,
+              or type <code className="text-[11.5px] bg-white border border-border px-1 rounded-sm font-mono">skip</code> to
+              continue without one.
+            </>
+          )}
+          {stage === "files" && (
+            <>
+              <span className="text-text-primary font-medium">Step 3 · Files.</span> Use the
+              Attach button in the chat composer to upload PDFs, decks, or brochures — or
+              type <code className="text-[11.5px] bg-white border border-border px-1 rounded-sm font-mono">skip</code> to
+              start deep research now.
+            </>
+          )}
+          {stage === "ready" && (
+            <>
+              <span className="text-text-primary font-medium">Got everything.</span> Starting
+              deep research on{" "}
+              <span className="text-text-primary font-medium">{answers.name}</span>…
+            </>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One row in the captured-fields card. Three states:
+ *   · empty + active → shows a placeholder and a pulsing ring (Spot
+ *     is waiting on this answer right now)
+ *   · empty + inactive → plain placeholder
+ *   · filled → green check + the captured value
+ */
+function BriefRow({
+  label,
+  value,
+  placeholder,
+  active,
+  mono,
+}: {
+  label: string;
+  value: string | undefined;
+  placeholder: string;
+  active: boolean;
+  mono?: boolean;
+}) {
+  const hasValue = !!value && value.length > 0;
+  return (
+    <div
+      className={`px-4 py-3 border-b border-border-subtle last:border-0 flex items-start gap-3 ${
+        active ? "bg-[#FAF8F2]" : ""
+      }`}
+    >
+      <div className="flex-shrink-0 mt-0.5">
+        {hasValue ? (
+          <CheckCircle2 size={13} strokeWidth={2} className="text-[#15803D]" />
+        ) : active ? (
+          <span className="relative inline-flex items-center justify-center w-3.5 h-3.5">
+            <span className="absolute inset-0 rounded-full bg-[#C9A86A] opacity-40 animate-ping" />
+            <span className="relative w-1.5 h-1.5 rounded-full bg-[#C9A86A]" />
+          </span>
+        ) : (
+          <span className="inline-block w-3.5 h-3.5 rounded-full border border-border-subtle" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-0.5">
+          {label}
+        </div>
+        {hasValue ? (
+          <div
+            className={`text-[13px] text-text-primary break-words ${
+              mono ? "font-mono text-[12px]" : ""
+            }`}
+          >
+            {value}
+          </div>
+        ) : (
+          <div className={`text-[12.5px] ${active ? "text-text-secondary" : "text-text-tertiary"}`}>
+            {placeholder}
+          </div>
+        )}
       </div>
     </div>
   );

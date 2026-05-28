@@ -10,6 +10,7 @@ import {
   type CampaignDiveWorkflow,
   type DiagnosticWorkflow,
   type LaunchWorkflow,
+  type ProductSetupAnswers,
   type SpotWorkflow,
   type WorkflowBudget,
   type WorkflowKind,
@@ -54,6 +55,14 @@ type PanelState = {
   startLaunchFlow: (project: { id: string; name: string }) => void;
   /** Start the workflow at the product-setup step (new product flow). */
   startNewProductFlow: () => void;
+  /** Handle a chat-driven answer during the product-setup Q&A. Each
+   *  call advances the stage (name → url → files → ready) and appends
+   *  Spot's next question. The final "ready" stage triggers
+   *  startDeepResearch automatically. */
+  handleProductSetupAnswer: (text: string) => void;
+  /** Attach files during product-setup. Mirrors the attachment as a
+   *  user message in the chat. */
+  attachProductSetupFiles: (fileNames: string[]) => void;
   /** Spot doesn't recognise the product — fake-research it in real-time. */
   startDeepResearch: (productName: string, attachedFiles?: string[]) => void;
   /** Start the Scale workflow against an existing product. */
@@ -304,8 +313,10 @@ export const useSpotStore = create<PanelState>((set) => ({
     }, 4500);
   },
 
-  // Kicks off the new-product flow. Step 1 is product memory setup;
-  // every later step inherits the product the user just created.
+  // Kicks off the chat-driven new-product flow. The right canvas
+  // becomes a display-only "Brief building" view; the left chat asks
+  // for name → url → files in sequence. Each user answer flows
+  // through handleProductSetupAnswer below and advances the stage.
   startNewProductFlow: () =>
     set(() => ({
       open: true,
@@ -325,20 +336,162 @@ export const useSpotStore = create<PanelState>((set) => ({
         researchedMemory: null,
         kickoffReady: true,
         attachedVoiceAgentId: null,
+        productSetupStage: "name",
+        productSetupAnswers: {},
       },
       thread: [
         {
           role: "spot",
           parts: [
-            { type: "headline", text: "Let's start from scratch.", verdict: "info" },
+            { type: "headline", text: "Let's set up a new product.", verdict: "info" },
             {
               type: "text",
-              text: "Tell me about the product on the right — brand, USPs, things to avoid. I'll build the memory layer first; everything downstream uses it.",
+              text:
+                "I'll fill the brief on the right as we talk · just answer here in chat. " +
+                "First — **what should I call it?**",
             },
           ],
         },
       ],
     })),
+
+  // Chat-driven product-setup Q&A · advances stage by stage. Each call
+  // appends the user's answer as a chat message, stores the answer,
+  // and either appends Spot's next question or triggers deep research
+  // once all fields are captured.
+  handleProductSetupAnswer: (text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const state = useSpotStore.getState();
+    const wf = state.workflow;
+    if (!wf || wf.kind !== "launch-campaign" || wf.step !== "product-setup") return;
+
+    const stage = wf.productSetupStage ?? "name";
+    const answers: ProductSetupAnswers = { ...(wf.productSetupAnswers ?? {}) };
+    const userMsg: SpotMessage = { role: "user", text: trimmed };
+
+    // "skip" / "none" treated as explicit "no value" — accepted on
+    // optional stages (url, files), rejected on required (name).
+    const skipped =
+      stage !== "name" && /^(skip|none|no|nope|nada|nothing)\b/i.test(trimmed);
+
+    if (stage === "name") {
+      answers.name = trimmed;
+      const nextWorkflow: LaunchWorkflow = {
+        ...wf,
+        productName: trimmed,
+        productSetupAnswers: answers,
+        productSetupStage: "url",
+      };
+      const reply: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: `Got it · **${trimmed}**.\n\nDo you have a brand URL or landing page I can crawl? Paste it here, or type **skip** if you don't have one yet.`,
+          },
+        ],
+      };
+      set((s) => ({
+        workflow: nextWorkflow,
+        thread: [...s.thread, userMsg, reply],
+      }));
+      return;
+    }
+
+    if (stage === "url") {
+      if (!skipped) answers.url = trimmed;
+      const nextWorkflow: LaunchWorkflow = {
+        ...wf,
+        productSetupAnswers: answers,
+        productSetupStage: "files",
+      };
+      const acknowledged = skipped
+        ? "No URL · that's fine."
+        : `Reading **${trimmed}**.`;
+      const reply: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: `${acknowledged}\n\nAnything else worth sharing? Brochures, decks, internal PDFs — drop them in chat with the **Attach** button below, or type **skip** to start research.`,
+          },
+        ],
+      };
+      set((s) => ({
+        workflow: nextWorkflow,
+        thread: [...s.thread, userMsg, reply],
+      }));
+      return;
+    }
+
+    if (stage === "files") {
+      // The user is either skipping or saying something like "no, just go".
+      const nextWorkflow: LaunchWorkflow = {
+        ...wf,
+        productSetupAnswers: answers,
+        productSetupStage: "ready",
+      };
+      const reply: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: `Perfect — starting deep research on **${answers.name}** now.`,
+          },
+        ],
+      };
+      set((s) => ({
+        workflow: nextWorkflow,
+        thread: [...s.thread, userMsg, reply],
+      }));
+      // Kick off deep research after a brief beat so the reply lands.
+      setTimeout(() => {
+        const cur = useSpotStore.getState();
+        if (cur.workflow?.step !== "product-setup") return;
+        cur.startDeepResearch(answers.name ?? "Untitled product", answers.files ?? []);
+      }, 700);
+      return;
+    }
+  },
+
+  // Files attached via the composer's Attach button during the files
+  // stage. Mirrors as a user message ("📎 Attached · file1.pdf, file2.pdf")
+  // and stores the names in the workflow.
+  attachProductSetupFiles: (fileNames) => {
+    if (fileNames.length === 0) return;
+    const state = useSpotStore.getState();
+    const wf = state.workflow;
+    if (
+      !wf ||
+      wf.kind !== "launch-campaign" ||
+      wf.step !== "product-setup" ||
+      wf.productSetupStage !== "files"
+    )
+      return;
+
+    const answers: ProductSetupAnswers = {
+      ...(wf.productSetupAnswers ?? {}),
+      files: [...(wf.productSetupAnswers?.files ?? []), ...fileNames],
+    };
+    const userMsg: SpotMessage = {
+      role: "user",
+      text: `📎 Attached · ${fileNames.join(", ")}`,
+    };
+    const reply: SpotMessage = {
+      role: "spot",
+      parts: [
+        {
+          type: "text",
+          text: `Got ${fileNames.length} file${fileNames.length === 1 ? "" : "s"} · I'll parse ${fileNames.length === 1 ? "it" : "them"} as part of the research. Drop more files or type **skip** to start.`,
+        },
+      ],
+    };
+    set((s) => ({
+      workflow: { ...wf, productSetupAnswers: answers },
+      thread: [...s.thread, userMsg, reply],
+    }));
+  },
 
   // The user mentioned a product we don't have on file. Instead of
   // crashing on "no memory found", we kick off a deep-research arc —

@@ -81,6 +81,25 @@ function timeGreeting() {
   return "Good evening";
 }
 
+/** Context-aware placeholder for the chat composer. Most flows just
+ *  say "Ask Spot anything…"; the product-setup Q&A swaps in stage-
+ *  specific hints so the user knows what to type next. */
+function composerPlaceholderFor(workflow: SpotWorkflow | null): string | undefined {
+  if (
+    !workflow ||
+    workflow.kind !== "launch-campaign" ||
+    workflow.step !== "product-setup"
+  ) {
+    return undefined;
+  }
+  const stage = workflow.productSetupStage ?? "name";
+  if (stage === "name") return "What should I call the product?";
+  if (stage === "url") return "Paste a URL · or type 'skip'";
+  if (stage === "files")
+    return "Attach files via 📎 · or type 'skip' to start research";
+  return "Ask Spot anything…";
+}
+
 export default function SpotPage() {
   const user = useCurrentUser();
   const scope = useSpotStore((s) => s.scope);
@@ -182,6 +201,17 @@ export default function SpotPage() {
     if (!t) return;
     setDraft("");
 
+    // Chat-driven product-setup Q&A · route the answer through the
+    // store's stage machine instead of the generic askSpot path.
+    if (
+      workflow &&
+      workflow.kind === "launch-campaign" &&
+      workflow.step === "product-setup"
+    ) {
+      useSpotStore.getState().handleProductSetupAnswer(t);
+      return;
+    }
+
     // Launch intent — branch on whether the product is known.
     const intent = detectLaunchIntent(t);
     if (intent && !workflow) {
@@ -224,7 +254,7 @@ export default function SpotPage() {
         {/* Left — chat. Goes full-width when the canvas is minimized. */}
         <div
           className={`flex flex-col border-r border-border bg-[var(--chat-bg)] transition-all ${
-            canvasOpen ? "w-[440px]" : "flex-1"
+            canvasOpen ? "w-[528px]" : "flex-1"
           }`}
         >
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border-subtle bg-white/70 backdrop-blur-sm">
@@ -287,6 +317,15 @@ export default function SpotPage() {
               scopeOpen={scopeOpen}
               onScopeOpenChange={setScopeOpen}
               inputRef={inputRef}
+              placeholder={composerPlaceholderFor(workflow)}
+              onAttachFiles={
+                workflow.kind === "launch-campaign" &&
+                workflow.step === "product-setup" &&
+                workflow.productSetupStage === "files"
+                  ? (names) =>
+                      useSpotStore.getState().attachProductSetupFiles(names)
+                  : undefined
+              }
             />
           </div>
         </div>
@@ -471,6 +510,8 @@ function Composer({
   scopeOpen,
   onScopeOpenChange,
   inputRef,
+  placeholder,
+  onAttachFiles,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -480,7 +521,16 @@ function Composer({
   scopeOpen: boolean;
   onScopeOpenChange: (b: boolean) => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  placeholder?: string;
+  /** Optional file-attach handler. When provided, the Attach button
+   *  opens a file picker; selected files are passed back as names. */
+  onAttachFiles?: (fileNames: string[]) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleAttachClick = () => {
+    if (!onAttachFiles) return;
+    fileInputRef.current?.click();
+  };
   return (
     <div className="composer">
       <textarea
@@ -491,7 +541,7 @@ function Composer({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        placeholder="Ask Spot anything…"
+        placeholder={placeholder ?? "Ask Spot anything…"}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -502,12 +552,32 @@ function Composer({
       <div className="flex items-center gap-1.5 px-2 py-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 h-7 px-2 rounded-button text-text-secondary hover:text-text-primary hover:bg-surface-secondary text-[12px]"
-          title="Attach files"
+          onClick={handleAttachClick}
+          className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-button text-[12px] ${
+            onAttachFiles
+              ? "text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
+              : "text-text-tertiary cursor-default"
+          }`}
+          title={onAttachFiles ? "Attach files" : "Attach (available during product setup)"}
         >
           <Paperclip size={13} strokeWidth={1.6} />
           Attach
         </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,.mp4,.mov,.webm"
+          onChange={(e) => {
+            if (!onAttachFiles) return;
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            const names = Array.from(files).map((f) => f.name);
+            onAttachFiles(names);
+            e.target.value = "";
+          }}
+        />
         <ScopePicker
           scope={scope}
           onChange={onChangeScope}
