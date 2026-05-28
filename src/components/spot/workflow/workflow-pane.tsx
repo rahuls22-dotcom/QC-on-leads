@@ -95,22 +95,54 @@ const canvasReveal: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: "easeOut" } },
 };
 
+// File tabs the right pane exposes · this is the Claude-Code-style
+// file browser of the product's memory: memory.md / plan.md /
+// dashboard.html / assets/. The step rail is gone — workflows are
+// agentic, not procedural, so we surface them as files instead of
+// chips.
+type FileTabKey = "memory" | "plan" | "dashboard" | "assets";
+
+const FILE_TABS: { key: FileTabKey; label: string; file: string; icon: typeof FileText }[] = [
+  { key: "memory", label: "Memory", file: "memory.md", icon: FileText },
+  { key: "plan", label: "Plan", file: "plan.md", icon: TrendingUp },
+  { key: "dashboard", label: "Dashboard", file: "dashboard.html", icon: ChartPie },
+  { key: "assets", label: "Assets", file: "assets/", icon: ImageIcon },
+];
+
+/** Default tab to show based on the current workflow step. The user
+ *  can switch tabs freely but step transitions auto-focus the most
+ *  relevant file. */
+function defaultTabForStep(step: WorkflowStep): FileTabKey {
+  if (step === "product-setup" || step === "deep-research" || step === "kickoff")
+    return "memory";
+  if (step === "launch-plan" || step.endsWith("-plan") || step.endsWith("-clarify"))
+    return "plan";
+  if (step === "launch-building") return "plan";
+  if (step === "launch-review") return "assets";
+  if (step.endsWith("-live") || step.endsWith("-analyze")) return "dashboard";
+  if (step === "campaign-dive") return "dashboard";
+  return "memory";
+}
+
 export function WorkflowPane() {
   const workflow = useSpotStore((s) => s.workflow);
   const toggleCanvas = useSpotStore((s) => s.toggleCanvas);
   const exitWorkflow = useSpotStore((s) => s.exitWorkflow);
-  const gotoStep = useSpotStore((s) => s.gotoStep);
+
+  // Active file tab — initialised from the workflow step, then
+  // user-controlled. We update whenever the step changes, so step
+  // transitions still pull the user to the relevant file.
+  const [activeTab, setActiveTab] = useState<FileTabKey>(() =>
+    workflow ? defaultTabForStep(workflow.step) : "memory",
+  );
+  useEffect(() => {
+    if (workflow) setActiveTab(defaultTabForStep(workflow.step));
+  }, [workflow?.step]);
 
   if (!workflow) return null;
-  const Icon = STEP_ICONS[workflow.step];
-  // The visible step rail depends on the active workflow kind — each
-  // diagnostic flow has its own short rail (Analyze · Plays · Impact ·
-  // Deploy) instead of the launch flow's 8-step rail.
-  const visibleSteps = VISIBLE_STEPS_BY_KIND[workflow.kind];
-  const currentIdx = visibleSteps.indexOf(workflow.step);
 
-  // Action verb in the header changes per workflow kind so the same
-  // chrome reads correctly for every flow.
+  // Header verb adapts per workflow kind so the chrome reads correctly
+  // ("Scaling Guyju's JEE Crack" vs. "Launching Guyju's Spoken English").
   const headerVerb =
     workflow.kind === "scale"
       ? "Scaling"
@@ -121,19 +153,20 @@ export function WorkflowPane() {
           : workflow.kind === "campaign-dive"
             ? "Spot it ·"
             : "Launching ·";
+  const headerTitle =
+    workflow.kind === "campaign-dive" ? workflow.entityName : workflow.productName;
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header — workflow title + canvas controls */}
+      {/* Header — product context + canvas controls */}
       <div className="border-b border-border-subtle bg-surface-page">
         <div className="px-5 py-3 flex items-center gap-3">
-          <Icon size={15} strokeWidth={1.6} className="text-text-primary" />
           <div className="flex-1 min-w-0">
             <div className="text-[11px] text-text-tertiary leading-tight">
-              {headerVerb} {workflow.productName}
+              {headerVerb} {headerTitle}
             </div>
-            <div className="text-section-header text-text-primary leading-tight">
-              {STEP_LABELS[workflow.step]}
+            <div className="text-[14px] font-semibold text-text-primary leading-tight">
+              memory / {slugFor(workflow.productId, workflow.productName)}
             </div>
           </div>
           <button
@@ -153,127 +186,374 @@ export function WorkflowPane() {
             <X size={14} strokeWidth={1.6} />
           </button>
         </div>
-        {workflow.step !== "deep-research" && workflow.step !== "product-setup" && workflow.step !== "done" && (
-          <div className="px-5 pb-3 flex items-center gap-1.5 overflow-x-auto">
-            {visibleSteps.map((s, i) => {
-              const done = i < currentIdx;
-              const active = i === currentIdx;
-              const Ico = STEP_ICONS[s];
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => (done ? gotoStep(s) : undefined)}
-                  disabled={!done}
-                  className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-[10.5px] font-medium whitespace-nowrap transition-colors ${
-                    active
-                      ? "bg-[#111] text-[#FAFAF8]"
-                      : done
-                        ? "bg-white border border-border text-text-primary hover:border-border-hover cursor-pointer"
-                        : "bg-surface-secondary text-text-tertiary"
-                  }`}
+
+        {/* File tabs · Claude-Code style. Filename in monospace, active
+            tab gets a darker bottom border. */}
+        <div className="flex items-end px-5">
+          {FILE_TABS.map((t) => {
+            const Icon = t.icon;
+            const active = t.key === activeTab;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setActiveTab(t.key)}
+                className={`relative inline-flex items-center gap-1.5 py-2.5 px-3 text-[12px] font-medium transition-colors whitespace-nowrap ${
+                  active ? "text-text-primary" : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <Icon size={11} strokeWidth={1.7} />
+                <span>{t.label}</span>
+                <span
+                  className="text-[10px] font-mono text-text-tertiary ml-0.5"
+                  style={{ opacity: active ? 0.7 : 0.4 }}
                 >
-                  {done ? (
-                    <CheckCircle2 size={10} strokeWidth={2} />
-                  ) : (
-                    <Ico size={10} strokeWidth={1.8} />
-                  )}
-                  {STEP_LABELS[s]}
-                </button>
-              );
-            })}
-          </div>
-        )}
+                  {t.file}
+                </span>
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute left-3 right-3 -bottom-px h-0.5 bg-text-primary rounded-full"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Body — read-only display */}
+      {/* Body — file content */}
       <div className="flex-1 overflow-y-auto">
-        <StepBody workflow={workflow} />
+        <FileBody workflow={workflow} tab={activeTab} />
       </div>
     </div>
   );
 }
 
-/* ─── Step body router ───────────────────────────────────────── */
+/** Convert a productId / productName to a slug for the header breadcrumb. */
+function slugFor(productId: string | null, productName: string): string {
+  if (productId) return productId.replace(/^prod-/, "");
+  return productName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
-function StepBody({ workflow }: { workflow: SpotWorkflow }) {
-  // When the user advances to a new step, the workflow.step flips
-  // immediately but the corresponding agent (tool-call) is still
-  // "running" in the chat. The right pane shows a loader during that
-  // window so the canvas doesn't reveal data before the agent is done.
-  //
-  // Kickoff has its own loader (KickoffSkeleton) gated by
-  // workflow.kickoffReady; we leave that alone.
-  const isAgentRunning = useSpotStore((s) =>
-    s.thread.some(
-      (m) =>
-        m.role === "spot" &&
-        m.parts.some((p) => p.type === "tool-call" && p.status === "running"),
-    ),
-  );
-  const wantsGenericLoader =
-    isAgentRunning &&
-    !!STEP_TOOL_CALL[workflow.step] &&
-    workflow.step !== "kickoff";
-  if (wantsGenericLoader) {
-    const tc = STEP_TOOL_CALL[workflow.step]!;
-    return (
-      <StepLoader
-        stepLabel={STEP_LABELS[workflow.step]}
-        agent={tc.agent}
-        detail={tc.detail}
-      />
-    );
-  }
+/* ─── File body router ──────────────────────────────────────────
+ *
+ * Each tab renders the corresponding file:
+ *   · memory     → memory.md as rendered markdown (with live "building"
+ *                  overlay for product-setup / deep-research / kickoff
+ *                  while not ready)
+ *   · plan       → plan.md (with proposed-changes diff on diagnostic
+ *                  flows once the workflow proposes updates)
+ *   · dashboard  → dashboard.html rich performance view
+ *   · assets     → assets/ grid of creatives + search ads + landing
+ *                  pages + forms (mirrors /memory > Assets)
+ * ─────────────────────────────────────────────────────────────── */
 
-  // Campaign-dive has its own single-step canvas.
+function FileBody({
+  workflow,
+  tab,
+}: {
+  workflow: SpotWorkflow;
+  tab: FileTabKey;
+}) {
+  // Campaign-dive keeps its dedicated single-pane view — it's tied to a
+  // specific entity, not a product memory.
   if (workflow.kind === "campaign-dive") {
     return <CampaignDiveStep workflow={workflow} />;
   }
-  // Diagnostic flows (scale / optimize / test-angles) have their own
-  // step components — dispatch to DiagnosticStep which knows how to
-  // render any of their step keys.
+
+  // Active step controls overlays · "Spot is updating memory…",
+  // "Spot is building the plan…", etc.
+  const step = workflow.step;
+  const isBuilding =
+    step === "deep-research" ||
+    step === "launch-building" ||
+    step === "scale-plan" ||
+    step === "opt-plan" ||
+    step === "ang-plan";
+
+  if (tab === "memory") {
+    return <MemoryFileView workflow={workflow} buildingOverlay={isBuilding && tab === "memory"} />;
+  }
+  if (tab === "plan") {
+    return <PlanFileView workflow={workflow} buildingOverlay={isBuilding} />;
+  }
+  if (tab === "dashboard") {
+    return <DashboardFileView workflow={workflow} />;
+  }
+  if (tab === "assets") {
+    return <AssetsFileView workflow={workflow} buildingOverlay={step === "launch-building"} />;
+  }
+  return null;
+}
+
+/* ─── File views ───────────────────────────────────────────────── */
+
+import { MEMORY_FILES, memoryFilesFor } from "@/lib/spot/memory-files";
+import { Markdown } from "@/components/memory/md-render";
+
+/** Resolve the product id Spot is working on — could be the workflow's
+ *  productId (existing product) or null (new product flow), in which
+ *  case we synthesise a partial memory from setup answers. */
+function getProductFiles(workflow: SpotWorkflow) {
+  if (workflow.kind === "campaign-dive") {
+    return memoryFilesFor(workflow.productId);
+  }
   if (workflow.kind !== "launch-campaign") {
-    return <DiagnosticStep workflow={workflow} />;
+    return memoryFilesFor(workflow.productId);
+  }
+  if (workflow.productId) return memoryFilesFor(workflow.productId);
+  return null;
+}
+
+function MemoryFileView({
+  workflow,
+  buildingOverlay,
+}: {
+  workflow: SpotWorkflow;
+  buildingOverlay: boolean;
+}) {
+  const files = getProductFiles(workflow);
+
+  // New product flow · memory file is being built. Show whatever the
+  // user has answered so far as a sketch markdown document.
+  if (!files && workflow.kind === "launch-campaign") {
+    const answers = workflow.productSetupAnswers ?? {};
+    const partial = buildPartialMemoryMd(workflow.productName, answers);
+    return (
+      <div className="relative">
+        <div className="px-6 py-5 max-w-[720px]">
+          <Markdown source={partial} />
+        </div>
+        {buildingOverlay && <BuildingOverlay label="Spot is building this file…" />}
+      </div>
+    );
   }
 
-  switch (workflow.step) {
-    case "deep-research":
-      return <DeepResearchStep workflow={workflow} />;
-    case "product-setup":
-      return <ProductSetupStep />;
-    case "kickoff":
-      return <KickoffStep workflow={workflow} />;
-    // New consolidated launch steps
-    case "launch-plan":
-      return <LaunchPlanStep workflow={workflow} />;
-    case "launch-building":
-      return <LaunchBuildingStep workflow={workflow} />;
-    case "launch-review":
-      return <LaunchReviewStep workflow={workflow} />;
-    // Legacy launch steps — unreachable in the new STEP_ORDER but
-    // kept compiling in case an in-flight workflow references them.
-    case "personas":
-      return <PersonasStep />;
-    case "media-plan":
-      return <MediaPlanStep />;
-    case "angles":
-      return <CreativesStep />;
-    case "resize-qa":
-      return <ResizeQaStep />;
-    case "forms":
-      return <FormsStep />;
-    case "campaigns":
-      return <CampaignsStep />;
-    case "voice-agent":
-      return <VoiceAgentStep />;
-    case "done":
-      return <DoneStep workflow={workflow} />;
-    default:
-      // Diagnostic-flow steps shouldn't reach here (handled above), but
-      // TypeScript needs an exhaustive default for the union.
-      return null;
+  if (!files) {
+    return <EmptyFile label="No memory yet." />;
   }
+  return (
+    <div className="relative">
+      <div className="px-6 py-5 max-w-[720px]">
+        <Markdown source={files.productInfoMd} />
+      </div>
+      {buildingOverlay && <BuildingOverlay label="Spot is updating memory…" />}
+    </div>
+  );
+}
+
+function PlanFileView({
+  workflow,
+  buildingOverlay,
+}: {
+  workflow: SpotWorkflow;
+  buildingOverlay: boolean;
+}) {
+  const files = getProductFiles(workflow);
+  // New product · no plan yet, show a placeholder.
+  if (!files) {
+    return (
+      <div className="relative">
+        <div className="px-6 py-5 max-w-[720px]">
+          <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-3">
+            Plan
+          </h1>
+          <p className="text-[13px] text-text-secondary leading-relaxed">
+            No plan yet. After deep research completes, Spot will draft the launch
+            plan here — a written, day-by-day timeline you can approve in chat.
+          </p>
+        </div>
+        {buildingOverlay && <BuildingOverlay label="Spot is drafting the plan…" />}
+      </div>
+    );
+  }
+
+  // Existing product · render the plan.md content.
+  return (
+    <div className="relative">
+      <div className="px-6 py-5 max-w-[720px]">
+        <Markdown source={files.planMd} />
+      </div>
+      {buildingOverlay && (
+        <BuildingOverlay label="Spot is proposing plan changes…" />
+      )}
+    </div>
+  );
+}
+
+function DashboardFileView({ workflow }: { workflow: SpotWorkflow }) {
+  const files = getProductFiles(workflow);
+  if (!files) {
+    return (
+      <EmptyFile label="No dashboard yet · campaigns haven't started." />
+    );
+  }
+  const perf = files.performance;
+  return (
+    <div className="px-6 py-5">
+      <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
+        Dashboard
+      </h1>
+      <div className="text-[12px] text-text-secondary mb-4">{perf.headline}</div>
+      <div className="grid grid-cols-4 gap-2.5 mb-5">
+        {perf.metrics.map((m) => {
+          const isZero = Math.abs(m.delta) < 0.5;
+          const good = m.invertDelta ? m.delta < 0 : m.delta > 0;
+          const color = isZero
+            ? "text-text-tertiary"
+            : good
+              ? "text-[#15803D]"
+              : "text-[#B91C1C]";
+          const arrow = isZero ? "→" : m.delta > 0 ? "↑" : "↓";
+          return (
+            <div key={m.key} className="bg-white border border-border rounded-card p-3">
+              <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+                {m.label}
+              </div>
+              <div className="text-[17px] font-semibold text-text-primary tabular leading-none">
+                {m.value}
+              </div>
+              <div className={`text-[11px] tabular mt-1.5 ${color}`}>
+                {arrow} {Math.abs(m.delta).toFixed(1)}%{" "}
+                <span className="text-text-tertiary">vs prior</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="bg-white border border-border rounded-card p-4">
+        <div className="flex items-center gap-1.5 mb-3">
+          <TrendingUp size={11} strokeWidth={1.7} className="text-text-secondary" />
+          <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+            Channel mix
+          </div>
+        </div>
+        <div className="flex h-2 rounded-full overflow-hidden mb-3">
+          {perf.channelMix.map((c) => (
+            <div
+              key={c.name}
+              style={{ width: `${c.share}%`, background: c.color }}
+              title={`${c.name} · ${c.share}%`}
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {perf.channelMix.map((c) => (
+            <div key={c.name} className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: c.color }}
+              />
+              <div className="min-w-0">
+                <div className="text-[11px] text-text-secondary truncate">{c.name}</div>
+                <div className="text-[12.5px] font-semibold text-text-primary tabular">
+                  {c.share}%
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssetsFileView({
+  workflow,
+  buildingOverlay,
+}: {
+  workflow: SpotWorkflow;
+  buildingOverlay: boolean;
+}) {
+  const files = getProductFiles(workflow);
+  if (!files) {
+    return <EmptyFile label="No assets yet · Spot writes them here after the plan is approved." />;
+  }
+  const { creatives, searchAds, landingPages, forms } = files.assets;
+  return (
+    <div className="relative">
+      <div className="px-6 py-5">
+        <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
+          Assets
+        </h1>
+        <p className="text-[12px] text-text-secondary mb-4">
+          {creatives.length} creatives · {searchAds.length} search ads · {landingPages.length} landing
+          pages · {forms.length} forms
+        </p>
+        <a
+          href="/memory"
+          className="inline-flex items-center gap-1 text-[11.5px] text-text-tertiary hover:text-text-primary"
+        >
+          See full asset library in Memory → Assets
+        </a>
+      </div>
+      {buildingOverlay && <BuildingOverlay label="Spot is generating creatives…" />}
+    </div>
+  );
+}
+
+/** Tiny overlay that sits on top of a file view while Spot is updating
+ *  it. Keeps the file visible behind so the user sees the BEFORE state. */
+function BuildingOverlay({ label }: { label: string }) {
+  return (
+    <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
+      <div className="inline-flex items-center gap-3 bg-white border border-border rounded-card px-4 py-3 shadow-card-hover pointer-events-auto">
+        <SpotLoader mode="orbit" size={20} className="!gap-0" />
+        <div className="text-[13px] font-semibold text-text-primary">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyFile({ label }: { label: string }) {
+  return (
+    <div className="h-full flex items-center justify-center px-8 py-16 text-center">
+      <div className="text-[13px] text-text-tertiary">{label}</div>
+    </div>
+  );
+}
+
+/** Build a partial memory.md sketch from the setup answers so the user
+ *  can see the memory growing as they chat. */
+function buildPartialMemoryMd(
+  productName: string,
+  answers: { name?: string; url?: string; files?: string[] },
+): string {
+  const lines: string[] = [];
+  if (answers.name) {
+    lines.push(`# ${answers.name}`, "");
+    lines.push("_Guyju's · category to be confirmed_", "");
+  } else {
+    lines.push(`# ${productName}`, "");
+    lines.push("_Tell me the product name in chat — I'll write it here._", "");
+  }
+  lines.push("## Source inputs", "");
+  if (answers.url) lines.push(`- **Brand URL** · ${answers.url}`);
+  else lines.push("- _URL pending · paste it in chat or type 'skip'._");
+  if (answers.files && answers.files.length > 0) {
+    lines.push(`- **Attached files** · ${answers.files.join(", ")}`);
+  } else {
+    lines.push("- _Files pending · use the 📎 button or type 'skip'._");
+  }
+  lines.push("", "## Memory · pending");
+  lines.push(
+    "",
+    "Once you finish answering, the Deep Research Agent will crawl your URL, " +
+      "parse your files, and synthesise:",
+    "",
+    "- A product brief (duration, cohort, curriculum, outcomes)",
+    "- Suggested pricing plans based on category benchmarks",
+    "- Promotional offers based on the competitive landscape",
+    "- USPs to lead with",
+    "- A do-not-mention list",
+    "",
+    "_I'll fill this file in automatically as I work._",
+  );
+  return lines.join("\n");
 }
 
 /**

@@ -400,6 +400,112 @@ export const PRODUCTS: ProductSummary[] = [
     },
     updatedAt: "2026-05-18",
   },
+  {
+    // Pre-baked Spoken English product · used in demos so Spot has a
+    // fresh memory to walk through end-to-end. Status is "drafting" —
+    // the product was just created, no campaigns running yet.
+    id: "prod-guyjus-spoken-english",
+    name: "Guyju's Spoken English",
+    category: "EdTech · Adult Learning",
+    client: "Guyju's",
+    tagline:
+      "Live cohort-based Spoken English program for working adults · 12-week curriculum with 1:1 mentor sessions and weekly real-world conversation labs.",
+    brief: [
+      { icon: "📅", label: "Duration", value: "12 weeks · cohort-led" },
+      { icon: "👥", label: "Cohort size", value: "Capped at 40 · live small groups" },
+      { icon: "🎙️", label: "Format", value: "4 live classes/week · 90 min · evenings IST" },
+      { icon: "👨‍🏫", label: "Mentors", value: "12 mentors · CEFR-certified · 1:1 weekly" },
+      { icon: "🗣️", label: "Practice labs", value: "Weekly real-world scenarios · interviews, presentations, calls" },
+      { icon: "🎯", label: "Outcome", value: "B2 (upper-intermediate) fluency for working adults" },
+      { icon: "🎞️", label: "Access", value: "All sessions recorded · 18 months access" },
+    ],
+    pricing: [
+      { name: "12-week cohort", cost: "₹24,500", cadence: "one-shot", badge: "Most picked" },
+      { name: "12-week · EMI", cost: "₹2,200", cadence: "/month · 12 months" },
+      { name: "Intensive · 6 weeks", cost: "₹16,500", cadence: "one-shot · double pace" },
+    ],
+    offers: [
+      { label: "Early-bird · 15% off", meta: "first 21 days" },
+      { label: "Referral · ₹2K credit", meta: "stackable" },
+      { label: "100% refund · first 14 days", meta: "no questions" },
+      { label: "Free placement-assessment call", meta: "all leads" },
+    ],
+    usps: [
+      "Small-cohort format (capped at 40) — real speaking time, not lecture format",
+      "Mentor 1:1 every week · personalised pronunciation + grammar feedback",
+      "Weekly real-world labs — practise interviews, presentations, work calls",
+      "Built for working adults · evening slots, 18-month replay access",
+    ],
+    avoid: [
+      "Don't promise specific job/salary outcomes · keep claims on fluency framing",
+      "Avoid framing as 'easy' or 'no effort' — flagged as misleading by legal",
+      "Skip comparisons to Duolingo / Babbel by name · competitive landscape varies by region",
+    ],
+    learnings: [
+      {
+        id: "l1",
+        kind: "audience",
+        summary: "Working professionals (24-35) convert 2.7× better than students on the same creative.",
+        evidence: "First trial cohort · audience split test",
+      },
+      {
+        id: "l2",
+        kind: "creative",
+        summary: "Real-world scenario hooks ('Job interview · live mock') beat generic 'speak fluently' by 38% CTR.",
+        evidence: "Pre-launch creative tests · last 14 days",
+      },
+    ],
+    personas: [
+      { id: "pers-self-studier", name: "The Self-Studier" },
+    ],
+    collateral: [
+      { name: "Spoken English · Curriculum overview.pdf", kind: "pdf", size: "5.2 MB" },
+      { name: "Sample mentor session — 30 min.mp4", kind: "video", size: "92 MB" },
+      { name: "Cohort schedule + sample week.pdf", kind: "pdf", size: "1.8 MB" },
+    ],
+    memory: [
+      {
+        id: "m1",
+        at: "2026-05-28",
+        who: "Spot",
+        kind: "brief",
+        summary:
+          "Memory built from deep research · brand site, category benchmarks, audience graph. Saved USPs, pricing, offers, do-not-mention list.",
+      },
+      {
+        id: "m2",
+        at: "2026-05-28",
+        who: "Spot",
+        kind: "creative-feedback",
+        summary:
+          "Pre-launch test: real-world scenario hooks beat generic fluency framing by 38% CTR. Locking as primary direction.",
+      },
+      {
+        id: "m3",
+        at: "2026-05-28",
+        who: "Ankit Purohit",
+        kind: "constraint",
+        summary:
+          "Don't compare to Duolingo / Babbel by name in copy. Competitive landscape varies by region.",
+      },
+    ],
+    readiness: 0.62,
+    performance: {
+      window: "Last 7 days · pre-launch",
+      totalSpend: 0,
+      totalLeads: 0,
+      verifiedLeads: 0,
+      qualifiedLeads: 0,
+      avgCpl: 0,
+      costPerVerifiedLead: 0,
+      costPerQualifiedLead: 0,
+      verificationRate: 0,
+      qualificationRate: 0,
+      activeCampaigns: 0,
+      health: "on-track",
+    },
+    updatedAt: "2026-05-28",
+  },
 ];
 
 export function readinessLabel(r: number): { label: string; tone: "ok" | "warn" | "info" } {

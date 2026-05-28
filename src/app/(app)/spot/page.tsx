@@ -81,6 +81,58 @@ function timeGreeting() {
   return "Good evening";
 }
 
+/**
+ * Resize handle between the chat panel (left) and canvas (right).
+ * Pointer-down arms a window-level drag listener; pointer-up releases.
+ * The parent owns chat width state; we just emit deltas via onResize.
+ */
+function ResizeHandle({
+  chatWidth,
+  onResize,
+}: {
+  chatWidth: number;
+  onResize: (nextWidth: number) => void;
+}) {
+  const startDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = chatWidth;
+    const onMove = (ev: PointerEvent) => {
+      onResize(startWidth + (ev.clientX - startX));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+  return (
+    <div
+      onPointerDown={startDrag}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize chat panel"
+      className="group relative w-1 cursor-col-resize bg-border hover:bg-border-hover transition-colors flex-shrink-0"
+    >
+      {/* Wider invisible hit target so the user doesn't have to be pixel-precise. */}
+      <div className="absolute inset-y-0 -left-2 -right-2" />
+      {/* Tiny visual cue on hover · 3 vertical dots in the middle. */}
+      <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
+        <div className="flex flex-col gap-0.5">
+          <span className="w-[2px] h-[2px] rounded-full bg-text-secondary" />
+          <span className="w-[2px] h-[2px] rounded-full bg-text-secondary" />
+          <span className="w-[2px] h-[2px] rounded-full bg-text-secondary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Context-aware placeholder for the chat composer. Most flows just
  *  say "Ask Spot anything…"; the product-setup Q&A swaps in stage-
  *  specific hints so the user knows what to type next. */
@@ -115,6 +167,9 @@ export default function SpotPage() {
   const resumeWorkflow = useSpotStore((s) => s.resumeWorkflow);
 
   const [draft, setDraft] = useState("");
+  // Chat-panel width (px) — user-resizable via the divider drag handle.
+  // Default to a generous 620 so the chat is the primary surface.
+  const [chatWidth, setChatWidth] = useState(620);
   const [pending, setPending] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -251,11 +306,11 @@ export default function SpotPage() {
   if (workflow && !viewHomeOverride) {
     return (
       <div className="h-screen flex bg-[var(--chat-bg)]">
-        {/* Left — chat. Goes full-width when the canvas is minimized. */}
+        {/* Left — chat. Resizable via the drag handle on the right edge.
+            Goes full-width when the canvas is minimized. */}
         <div
-          className={`flex flex-col border-r border-border bg-[var(--chat-bg)] transition-all ${
-            canvasOpen ? "w-[528px]" : "flex-1"
-          }`}
+          className="flex flex-col border-r border-border bg-[var(--chat-bg)]"
+          style={canvasOpen ? { width: `${chatWidth}px`, flex: "0 0 auto" } : { flex: 1 }}
         >
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border-subtle bg-white/70 backdrop-blur-sm">
             <button
@@ -329,6 +384,18 @@ export default function SpotPage() {
             />
           </div>
         </div>
+
+        {/* Drag handle — user controls chat width. 4px visible band with
+            a wider invisible hit-target. Cursor flips to col-resize on
+            hover. */}
+        {canvasOpen && (
+          <ResizeHandle
+            chatWidth={chatWidth}
+            onResize={(next) =>
+              setChatWidth(Math.max(420, Math.min(next, window.innerWidth - 480)))
+            }
+          />
+        )}
 
         {/* Right — workflow canvas. Collapses (instead of unmounting)
             when the user minimises; state stays intact. */}
