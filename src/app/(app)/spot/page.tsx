@@ -43,7 +43,7 @@ import { useSpotStore } from "@/lib/spot/store";
 import { generateReply } from "@/lib/spot/replies";
 import { useCurrentUser } from "@/lib/workspace-store";
 import { projectsList } from "@/lib/campaign-data";
-import { PAST_CHATS, SPOT_QUEUE, type QueueItem, type QueueStatus } from "@/lib/spot/mock-history";
+import { SPOT_SESSIONS, type SpotSession } from "@/lib/spot/mock-history";
 import type { SpotMessage, SpotScope } from "@/lib/spot/types";
 import { WorkflowPane } from "@/components/spot/workflow/workflow-pane";
 import { PRODUCTS, diagnoseProduct } from "@/lib/products-data";
@@ -104,7 +104,14 @@ export default function SpotPage() {
   // Drop the legacy `open` flag — the route is the surface now.
   useEffect(() => {
     closePanel();
-  }, [closePanel]);
+    // Default chat scope back to Workspace whenever the user lands on
+    // /spot without an active workflow. Without this, the scope sticks
+    // on whatever the last workflow set it to (a product or campaign).
+    if (!workflow) {
+      setScope({ kind: "workspace", label: "Workspace" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Honour a pending askSpot() call (e.g. arriving here from another page).
   useEffect(() => {
@@ -415,14 +422,13 @@ export default function SpotPage() {
         </div>
       </div>
 
-      {/* Lower half: wider canvas. Active products row + Past chats +
-          Spot's queue. Sits well below the fold so Spot stays the focus —
+      {/* Lower half: wider canvas. Active products row + Sessions
+          panel. Sits well below the fold so Spot stays the focus —
           users can scroll for context but the hero owns the welcome. */}
       <div className="max-w-[1200px] mx-auto w-full px-6 pt-20 pb-20">
         <ActiveProductsRail />
-        <div className="grid grid-cols-2 gap-3 mt-5">
-          <PastChatsCard />
-          <QueueCard />
+        <div className="mt-5">
+          <SessionsCard />
         </div>
       </div>
     </div>
@@ -817,67 +823,88 @@ function ProductMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PastChatsCard() {
+/**
+ * Sessions panel · one card replaces the old PastChats + Queue split.
+ * Every session Spot is working on — actively executing, awaiting
+ * approval, or recently completed — lives here. The UI is the same
+ * row shape for all three states; the right-side affordance differs:
+ *   · executing       → orbit loader + progress bar
+ *   · needs-approval  → "Review" button
+ *   · completed       → subtle "View" link
+ */
+function SessionsCard() {
   const workflow = useSpotStore((s) => s.workflow);
   const viewHomeOverride = useSpotStore((s) => s.viewHomeOverride);
   const resumeWorkflow = useSpotStore((s) => s.resumeWorkflow);
-  // The current workflow, if any, shows as the topmost chat — it's the
-  // most-recent "conversation" the user has with Spot.
-  const activeWorkflowItem = workflow && viewHomeOverride;
+
+  // Pinned at top: the user's current parked workflow (if any) — they
+  // get a quick way back into whatever they were doing.
+  const showParked = !!workflow && viewHomeOverride;
+
+  // Sort sessions: executing first, then approval-needed, then done.
+  const order: SpotSession["status"][] = ["executing", "needs-approval", "completed"];
+  const sessions = [...SPOT_SESSIONS].sort(
+    (a, b) => order.indexOf(a.status) - order.indexOf(b.status),
+  );
+  const needCount = sessions.filter((s) => s.status === "needs-approval").length;
+  const runningCount = sessions.filter((s) => s.status === "executing").length;
 
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      <PanelHeader
-        icon={<MessageCircle size={12} strokeWidth={1.8} />}
-        title="Past chats"
-        action="See all"
-      />
+      <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-2">
+        <SpotMark size={12} />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+          Sessions
+        </span>
+        <span className="flex-1" />
+        {needCount > 0 && (
+          <span className="pill pill-warn" style={{ fontSize: 10 }}>
+            {needCount} need review
+          </span>
+        )}
+        {runningCount > 0 && (
+          <span className="text-[11px] text-text-secondary inline-flex items-center gap-1">
+            <span className="inline-flex w-1.5 h-1.5 rounded-full bg-[#15803D] relative">
+              <span className="absolute inset-0 rounded-full bg-[#15803D] opacity-50 animate-ping" />
+            </span>
+            {runningCount} executing
+          </span>
+        )}
+      </div>
       <ul className="divide-y divide-border-subtle">
-        {activeWorkflowItem && workflow && (
+        {showParked && workflow && (
           <li>
             <button
               type="button"
               onClick={resumeWorkflow}
-              className="w-full text-left px-3.5 py-3 hover-row flex items-start gap-2.5"
+              className="w-full text-left px-4 py-3 hover-row flex items-center gap-3"
             >
-              <SpotMark size={14} className="mt-0.5 flex-shrink-0" />
+              <SpotLoader mode="orbit" size={18} className="!gap-0 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                  <span className="text-[13px] font-medium text-text-primary truncate">
-                    Launching {workflow.productName}
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[13px] font-semibold text-text-primary truncate">
+                    {workflow.kind === "campaign-dive"
+                      ? `Spot it · ${workflow.entityName}`
+                      : `${workflow.kind === "launch-campaign" ? "Launching" : workflow.kind === "scale" ? "Scaling" : workflow.kind === "optimize" ? "Optimizing" : "Testing angles ·"} ${workflow.productName}`}
                   </span>
-                  <span className="pill pill-info" style={{ fontSize: 9.5, padding: "0 5px" }}>
-                    In progress
+                  <span className="pill pill-info" style={{ fontSize: 9.5 }}>
+                    Your current session
                   </span>
                 </div>
-                <div className="text-[11.5px] text-text-tertiary mb-1">
-                  Paused on {workflow.step} · just now
-                </div>
-                <div className="text-[12px] text-text-secondary truncate">
-                  Resume to keep going from where we left off.
+                <div className="text-[11.5px] text-text-secondary leading-snug">
+                  Tap to resume from where you left off.
                 </div>
               </div>
-              <ChevronRight size={13} className="text-text-tertiary mt-0.5 flex-shrink-0" />
+              <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] text-[11px] font-medium flex-shrink-0">
+                Resume
+                <ArrowRight size={11} strokeWidth={2} />
+              </span>
             </button>
           </li>
         )}
-        {PAST_CHATS.map((c) => (
-          <li key={c.id}>
-            <button
-              type="button"
-              className="w-full text-left px-3.5 py-3 hover-row flex items-start gap-2.5"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[13px] font-medium text-text-primary truncate">{c.title}</span>
-                </div>
-                <div className="text-[11.5px] text-text-tertiary mb-1">
-                  {c.scope} · {c.when}
-                </div>
-                <div className="text-[12px] text-text-secondary truncate">{c.preview}</div>
-              </div>
-              <ChevronRight size={13} className="text-text-tertiary mt-0.5 flex-shrink-0" />
-            </button>
+        {sessions.map((s) => (
+          <li key={s.id}>
+            <SessionRow session={s} />
           </li>
         ))}
       </ul>
@@ -885,85 +912,93 @@ function PastChatsCard() {
   );
 }
 
-function QueueCard() {
-  const needsApproval = SPOT_QUEUE.filter((q) => q.status === "needs-approval");
-  const otherCount = SPOT_QUEUE.length - needsApproval.length;
-  return (
-    <div className="bg-white border border-border rounded-card overflow-hidden">
-      <PanelHeader
-        icon={<Clock size={12} strokeWidth={1.8} />}
-        title="Spot's queue"
-        action={`${needsApproval.length} need you`}
-        actionTone="warn"
-      />
-      <ul className="divide-y divide-border-subtle">
-        {SPOT_QUEUE.slice(0, 5).map((q) => (
-          <li key={q.id}>
-            <QueueRow item={q} />
-          </li>
-        ))}
-      </ul>
-      {otherCount > 5 && (
-        <div className="px-3.5 py-2 text-[11px] text-text-tertiary text-center border-t border-border-subtle">
-          + {otherCount} more in history
-        </div>
-      )}
-    </div>
-  );
-}
+const KIND_TONE: Record<SpotSession["kind"], { ring: string; text: string }> = {
+  launch: { ring: "bg-[#EFF6FF]", text: "text-[#1D4ED8]" },
+  scale: { ring: "bg-[#F0FDF4]", text: "text-[#15803D]" },
+  optimize: { ring: "bg-[#FEF3C7]", text: "text-[#92400E]" },
+  "test-angles": { ring: "bg-[#FEE7F2]", text: "text-[#9D174D]" },
+  "campaign-dive": { ring: "bg-surface-secondary", text: "text-text-secondary" },
+  other: { ring: "bg-surface-secondary", text: "text-text-secondary" },
+};
 
-function QueueRow({ item }: { item: QueueItem }) {
-  const Icon = STATUS_ICON[item.status];
-  const isApprove = item.status === "needs-approval";
+function SessionRow({ session }: { session: SpotSession }) {
+  const isExecuting = session.status === "executing";
+  const isApproval = session.status === "needs-approval";
+  const isDone = session.status === "completed";
+
   return (
-    <div className="px-3.5 py-3 hover-row flex items-start gap-2.5">
-      <div
-        className={`flex items-center justify-center w-5 h-5 rounded-full flex-shrink-0 mt-0.5 ${STATUS_RING[item.status]}`}
-      >
-        <Icon size={11} strokeWidth={2} className={STATUS_ICON_COLOR[item.status]} />
+    <div className="px-4 py-3 hover-row flex items-start gap-3">
+      {/* Left affordance — orbit when executing, status ring otherwise */}
+      <div className="flex-shrink-0 flex items-center justify-center mt-0.5">
+        {isExecuting ? (
+          <SpotLoader mode="orbit" size={18} className="!gap-0" />
+        ) : (
+          <div
+            className={`w-7 h-7 rounded-full flex items-center justify-center ${
+              isApproval ? "bg-[#FEF3C7]" : "bg-[#F0FDF4]"
+            }`}
+          >
+            {isApproval ? (
+              <Clock size={12} strokeWidth={1.8} className="text-[#92400E]" />
+            ) : (
+              <CheckCircle2 size={12} strokeWidth={2} className="text-[#15803D]" />
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Middle — title, scope, current step / detail */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-          <span className="text-[13px] font-medium text-text-primary leading-tight">{item.title}</span>
-          {item.agent && (
-            <span className="pill" style={{ fontSize: 9.5, padding: "1px 5px" }}>
-              {item.agent}
-            </span>
-          )}
+          <span className="text-[13px] font-semibold text-text-primary leading-tight">
+            {session.title}
+          </span>
         </div>
-        <div className="text-[12px] text-text-secondary leading-snug line-clamp-2">{item.detail}</div>
-        <div className="text-[11px] text-text-tertiary mt-1">{item.when}</div>
+        <div className="text-[11px] text-text-tertiary mb-1">
+          {session.scope} · {session.when}
+        </div>
+        <div className="text-[12px] text-text-secondary leading-snug line-clamp-2">
+          {isExecuting && session.currentStep ? session.currentStep : session.detail}
+        </div>
+        {/* Executing: progress bar */}
+        {isExecuting && typeof session.progress === "number" && (
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex-1 h-1 rounded-full bg-surface-page overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#15803D] to-[#22C55E] transition-all duration-500"
+                style={{ width: `${session.progress}%` }}
+              />
+            </div>
+            <span className="text-[10.5px] text-text-tertiary tabular flex-shrink-0">
+              {Math.round(session.progress)}%
+              {session.eta && ` · ${session.eta}`}
+            </span>
+          </div>
+        )}
       </div>
-      {isApprove && (
+
+      {/* Right affordance — Review for approval, View for done */}
+      {isApproval && (
         <button
           type="button"
-          className="apply-btn flex-shrink-0 mt-0.5"
-          style={{ height: 24, padding: "0 8px", fontSize: 11 }}
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium flex-shrink-0"
         >
-          Approve
+          <SpotMark size={10} />
+          Review
+        </button>
+      )}
+      {isDone && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11px] text-text-tertiary hover:text-text-primary flex-shrink-0"
+        >
+          View
+          <ChevronRight size={11} strokeWidth={1.8} />
         </button>
       )}
     </div>
   );
 }
-
-const STATUS_ICON: Record<QueueStatus, typeof Check> = {
-  "needs-approval": Clock,
-  running: Loader2,
-  done: CheckCircle2,
-};
-
-const STATUS_RING: Record<QueueStatus, string> = {
-  "needs-approval": "bg-[#FEF3C7]",
-  running: "bg-[#EFF6FF]",
-  done: "bg-[#F0FDF4]",
-};
-
-const STATUS_ICON_COLOR: Record<QueueStatus, string> = {
-  "needs-approval": "text-[#92400E]",
-  running: "text-[#1D4ED8] animate-spin",
-  done: "text-[#15803D]",
-};
 
 function PanelHeader({
   icon,

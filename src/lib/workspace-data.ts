@@ -51,8 +51,8 @@ export type AppUser = {
 export const USERS: AppUser[] = [
   {
     id: "u-head-marketing",
-    name: "Priya Mehra",
-    email: "priya.mehra@guyjus.com",
+    name: "Ankit Purohit",
+    email: "ankit.purohit@guyjus.com",
     role: "admin",
     workspaceIds: WORKSPACES.map((w) => w.id),
     defaultWorkspaceId: "ws-south",
