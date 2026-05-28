@@ -674,9 +674,18 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
                 Spot-researched
               </span>
               <span className="text-[11px] text-text-tertiary">just now</span>
+              <span className="flex-1" />
+              <span className="text-[10.5px] text-text-tertiary inline-flex items-center gap-1">
+                <Pencil size={9} strokeWidth={1.8} />
+                Click any field to edit
+              </span>
             </div>
             <div className="text-card-title text-text-primary mt-1.5">{workflow.productName}</div>
-            <p className="text-[13px] text-text-secondary leading-relaxed mt-1">{researched.tagline}</p>
+            <EditableValue
+              value={researched.tagline}
+              multiline
+              className="text-[13px] text-text-secondary leading-relaxed mt-1 block"
+            />
           </div>
 
           {/* Structured brief — what the product IS */}
@@ -690,7 +699,10 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
                     <span className="text-text-tertiary text-[11.5px] flex-shrink-0">
                       {row.label}:
                     </span>
-                    <span className="text-text-primary truncate">{row.value}</span>
+                    <EditableValue
+                      value={row.value}
+                      className="text-text-primary flex-1 min-w-0"
+                    />
                   </div>
                 ))}
               </div>
@@ -711,20 +723,28 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
                       key={i}
                       className="flex items-baseline justify-between gap-2 py-1 border-b border-border-subtle last:border-0"
                     >
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[12.5px] font-medium text-text-primary truncate">
-                          {p.name}
-                        </span>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <EditableValue
+                          value={p.name}
+                          className="text-[12.5px] font-medium text-text-primary truncate"
+                        />
                         {p.badge && (
-                          <span className="text-[10px] text-text-tertiary mt-0.5">{p.badge}</span>
+                          <EditableValue
+                            value={p.badge}
+                            className="text-[10px] text-text-tertiary mt-0.5"
+                          />
                         )}
                       </div>
                       <div className="flex items-baseline gap-1 flex-shrink-0">
-                        <span className="text-[13px] font-semibold text-text-primary tabular">
-                          {p.cost}
-                        </span>
+                        <EditableValue
+                          value={p.cost}
+                          className="text-[13px] font-semibold text-text-primary tabular"
+                        />
                         {p.cadence && (
-                          <span className="text-[10.5px] text-text-tertiary">{p.cadence}</span>
+                          <EditableValue
+                            value={p.cadence}
+                            className="text-[10.5px] text-text-tertiary"
+                          />
                         )}
                       </div>
                     </div>
@@ -746,11 +766,15 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
                         strokeWidth={2}
                         className="text-[#15803D] flex-shrink-0 mt-0.5"
                       />
-                      <span className="text-text-primary">{o.label}</span>
+                      <EditableValue
+                        value={o.label}
+                        className="text-text-primary flex-1 min-w-0"
+                      />
                       {o.meta && (
-                        <span className="text-[10.5px] text-text-tertiary ml-auto flex-shrink-0">
-                          {o.meta}
-                        </span>
+                        <EditableValue
+                          value={o.meta}
+                          className="text-[10.5px] text-text-tertiary flex-shrink-0"
+                        />
                       )}
                     </li>
                   ))}
@@ -769,8 +793,8 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
               <ul className="space-y-1.5">
                 {researched.usps.map((u, i) => (
                   <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
-                    <span className="text-text-tertiary">·</span>
-                    <span>{u}</span>
+                    <span className="text-text-tertiary flex-shrink-0">·</span>
+                    <EditableValue value={u} multiline className="flex-1 min-w-0" />
                   </li>
                 ))}
               </ul>
@@ -783,8 +807,8 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
               <ul className="space-y-1.5">
                 {researched.avoid.map((a, i) => (
                   <li key={i} className="text-[12.5px] text-text-primary flex gap-2 leading-snug">
-                    <span className="text-text-tertiary">·</span>
-                    <span>{a}</span>
+                    <span className="text-text-tertiary flex-shrink-0">·</span>
+                    <EditableValue value={a} multiline className="flex-1 min-w-0" />
                   </li>
                 ))}
               </ul>
@@ -1028,10 +1052,15 @@ function EditableValue({
           setEditing(true);
         }
       }}
-      className={`${className} cursor-text rounded-[3px] hover:bg-surface-secondary/60 px-0.5 -mx-0.5 transition-colors`}
+      className={`${className} cursor-text rounded-[3px] hover:bg-surface-secondary/60 hover:[box-shadow:0_1px_0_0_rgba(0,0,0,0.18)_inset] px-0.5 -mx-0.5 transition-all inline-flex items-baseline gap-1 group/edit`}
       title="Click to edit"
     >
-      {current}
+      <span className="truncate">{current}</span>
+      <Pencil
+        size={9}
+        strokeWidth={1.8}
+        className="text-text-tertiary/0 group-hover/edit:text-text-tertiary/70 transition-colors flex-shrink-0"
+      />
     </span>
   );
 }
