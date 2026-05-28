@@ -1,596 +1,608 @@
 "use client";
 
-// Memory hub — Spot's brain, one route.
+// Memory · product-centric.
 //
-// We used to scatter Products / Personas / Creatives / Performance /
-// Change history across five top-level nav items. That made the rail
-// noisy and the platform feel sprawling. This page consolidates all of
-// them into a single tabbed surface. Spot reads from this brain before
-// it acts; humans read from it to audit what Spot has learned.
+// Layout:
 //
-// Tabs:
-//   · Products        — long-lived briefs + USPs + avoid list per product
-//   · Personas        — cross-product audience archetypes
-//   · Creatives       — every angle/asset Spot has built, aggregated
-//   · Performance     — spend + leads rolled up by product
-//   · Change history  — append-only timeline of memory writes
+//   ┌──────────────┬────────────────────────────────────────────┐
+//   │ Products     │ [ Brief | Plan | Performance | Assets ]    │
+//   │ (sidebar)    │                                            │
+//   │  • JEE Crack │  (tab content fills the rest of the area)  │
+//   │  • NEET Pro  │                                            │
+//   │  • Foundation│                                            │
+//   └──────────────┴────────────────────────────────────────────┘
 //
-// Products + Personas reuse their existing standalone page components.
-// We hide their internal page headers via a Tailwind arbitrary variant
-// so Memory's own header is the only one in view.
+// Each product behaves like a project inside memory. Inside that
+// project sit four "files":
+//
+//   product-info.md   → Brief tab (rendered markdown)
+//   plan.md           → Plan tab (rendered markdown)
+//   performance.html  → Performance tab (interactive dashboard)
+//   assets/           → Assets tab (creatives + landing pages + forms)
 
 import { useState } from "react";
 import {
   Brain,
   Package,
-  Users,
-  Image as ImageIcon,
+  FileText,
+  Target,
   TrendingUp,
-  History,
+  Boxes,
+  CheckCircle2,
+  Image as ImageIcon,
   Film,
   Layout,
-  Clock,
+  Smartphone,
   ArrowUpRight,
-  Target,
-  ChevronRight,
-  Eye,
-  Zap,
-  CheckCircle2,
 } from "lucide-react";
-import ProductsPage from "../products/page";
-import PersonasPage from "../personas/page";
-import { PRODUCTS, type ProductSummary } from "@/lib/products-data";
-import { PERSONAS, type PersonaCreative } from "@/lib/personas-data";
-import { SpotMark } from "@/components/spot/spot-mark";
-import { useSpotStore } from "@/lib/spot/store";
-import {
-  PRODUCT_PLANS,
-  PLAN_STATUS_TONE,
-  PLAN_STATUS_LABEL,
-  PLAN_ORIGIN_LABEL,
-  type ProductPlan,
-} from "@/lib/spot/extended-flows";
+import { PRODUCTS } from "@/lib/products-data";
+import { MEMORY_FILES, memoryFilesFor, type ProductMemoryFiles } from "@/lib/spot/memory-files";
+import { PRODUCT_PLANS, PLAN_STATUS_TONE, PLAN_STATUS_LABEL } from "@/lib/spot/extended-flows";
+import { Markdown } from "@/components/memory/md-render";
 
-type TabKey = "products" | "plans" | "personas" | "creatives" | "performance" | "changelog";
+type TabKey = "brief" | "plan" | "performance" | "assets";
 
-const TABS: { key: TabKey; label: string; icon: typeof Package; sub: string }[] = [
-  { key: "products", label: "Products", icon: Package, sub: "Briefs · USPs · constraints" },
-  { key: "plans", label: "Plans", icon: Target, sub: "Long-lived strategy per product" },
-  { key: "personas", label: "Personas", icon: Users, sub: "Cross-product archetypes" },
-  { key: "creatives", label: "Creatives", icon: ImageIcon, sub: "Every angle Spot has built" },
-  { key: "performance", label: "Performance", icon: TrendingUp, sub: "Spend + leads · 30d roll-up" },
-  { key: "changelog", label: "Change history", icon: History, sub: "Append-only memory writes" },
+const TABS: { key: TabKey; label: string; icon: typeof FileText; file: string }[] = [
+  { key: "brief", label: "Product brief", icon: FileText, file: "product-info.md" },
+  { key: "plan", label: "Plan", icon: Target, file: "plan.md" },
+  { key: "performance", label: "Performance", icon: TrendingUp, file: "performance.html" },
+  { key: "assets", label: "Assets", icon: Boxes, file: "assets/" },
 ];
 
 export default function MemoryPage() {
-  const [tab, setTab] = useState<TabKey>("products");
+  const [productId, setProductId] = useState(PRODUCTS[0]?.id ?? "");
+  const [tab, setTab] = useState<TabKey>("brief");
+  const files = memoryFilesFor(productId);
 
   return (
     <div>
-      {/* Memory header */}
-      <div className="flex items-start justify-between mb-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
-            <Brain size={18} strokeWidth={1.5} className="text-text-secondary" />
-          </div>
-          <div>
-            <div className="text-meta text-text-secondary mb-0.5">Spot's brain</div>
-            <h1 className="text-page-title text-text-primary">Memory</h1>
-            <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
-              Everything Spot knows about your products, audiences, creatives and the changes you've made — in one
-              place. Spot reads from here before it ever touches an ad account.
-            </p>
-          </div>
+      {/* Page header */}
+      <div className="flex items-start gap-3 mb-5">
+        <div className="w-10 h-10 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
+          <Brain size={18} strokeWidth={1.5} className="text-text-secondary" />
+        </div>
+        <div>
+          <div className="text-meta text-text-secondary mb-0.5">Spot's brain</div>
+          <h1 className="text-page-title text-text-primary">Memory</h1>
+          <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
+            Every product is a project here. Each project carries four files Spot reads
+            from before it acts — product brief, current plan, performance, and assets.
+          </p>
         </div>
       </div>
 
-      {/* Tab nav */}
-      <div className="flex items-center gap-0.5 mb-5 border-b border-border-subtle overflow-x-auto -mx-1 px-1">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-medium transition-colors whitespace-nowrap ${
-                active
-                  ? "text-text-primary"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              <Icon size={13} strokeWidth={1.7} />
-              {t.label}
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute left-2.5 right-2.5 -bottom-px h-0.5 bg-text-primary rounded-full"
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Two-pane layout · products column + tabbed content */}
+      <div className="grid grid-cols-[240px_1fr] gap-4">
+        {/* Left · products list */}
+        <ProductsList active={productId} onSelect={setProductId} />
 
-      {/* Tab body */}
-      <div>
-        {tab === "products" && (
-          <div className="[&>div>div:first-child]:hidden">
-            <ProductsPage />
-          </div>
-        )}
-        {tab === "plans" && <PlansTab />}
-        {tab === "personas" && (
-          <div className="[&>div>div:first-child]:hidden">
-            <PersonasPage />
-          </div>
-        )}
-        {tab === "creatives" && <CreativesTab />}
-        {tab === "performance" && <PerformanceTab />}
-        {tab === "changelog" && <ChangelogTab />}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Plans tab ──────────────────────────────────────────────── */
-
-/**
- * Each product gets ONE long-lived plan. Spot keeps working on it,
- * surfaces recommendations against it, and updates it as performance
- * data comes in. The tab shows: status, goal, current phase, next
- * decision date, pending recommendations count, and the plan's
- * append-only history.
- */
-function PlansTab() {
-  const active = PRODUCT_PLANS.filter((p) => p.status === "active").length;
-  const drafting = PRODUCT_PLANS.filter((p) => p.status === "drafting").length;
-  const totalRecs = PRODUCT_PLANS.reduce((s, p) => s + p.pendingRecs, 0);
-
-  return (
-    <div>
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <Stat label="Total plans" value={PRODUCT_PLANS.length} />
-        <Stat label="Active" value={active} />
-        <Stat label="Drafting" value={drafting} />
-        <Stat label="Pending approvals" value={totalRecs} />
-      </div>
-      <div className="space-y-3">
-        {PRODUCT_PLANS.map((plan) => (
-          <PlanCardFull key={plan.id} plan={plan} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PlanCardFull({ plan }: { plan: ProductPlan }) {
-  const product = PRODUCTS.find((p) => p.id === plan.productId);
-  const currentPhase = plan.phases[plan.currentPhase - 1];
-
-  return (
-    <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border-subtle flex items-start gap-3">
-        <div className="w-9 h-9 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
-          <Target size={15} strokeWidth={1.6} className="text-text-secondary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="text-[10.5px] text-text-tertiary uppercase tracking-wider">
-              {product?.name || plan.productId}
-            </span>
-            <span className="text-[10.5px] text-text-tertiary">·</span>
-            <span className="text-[10.5px] text-text-secondary">
-              {PLAN_ORIGIN_LABEL[plan.origin]}
-            </span>
-            <span className={`pill ${PLAN_STATUS_TONE[plan.status]}`}>
-              {PLAN_STATUS_LABEL[plan.status]}
-            </span>
-            {plan.pendingRecs > 0 && (
-              <span className="pill pill-warn">
-                {plan.pendingRecs} pending approval{plan.pendingRecs === 1 ? "" : "s"}
-              </span>
-            )}
-          </div>
-          <div className="text-[13.5px] font-semibold text-text-primary leading-snug">
-            {plan.goal}
-          </div>
-          <div className="text-[11.5px] text-text-tertiary mt-1">
-            {plan.dayLabel}
-            {plan.nextDecision !== "—" && ` · next decision ${plan.nextDecision}`}
-          </div>
-        </div>
-      </div>
-
-      {/* Phase timeline strip */}
-      <div className="px-4 py-3 border-b border-border-subtle bg-surface-page">
-        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary mb-2">
-          Phase timeline
-        </div>
-        <div className="flex items-center gap-2">
-          {plan.phases.map((p, i) => {
-            const isCurrent = i === plan.currentPhase - 1;
-            const isPast = i < plan.currentPhase - 1;
-            return (
-              <div
-                key={p.id}
-                className={`flex-1 rounded-card border p-2.5 ${
-                  isCurrent
-                    ? "border-text-primary bg-white shadow-card-hover"
-                    : isPast
-                      ? "border-border bg-white opacity-60"
-                      : "border-border-subtle bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-1">
-                  {isPast ? (
-                    <CheckCircle2 size={10} strokeWidth={2} className="text-[#15803D]" />
-                  ) : isCurrent ? (
-                    <span className="inline-flex w-2 h-2 rounded-full bg-[#22C55E]" />
-                  ) : (
-                    <span className="inline-flex w-2 h-2 rounded-full bg-text-tertiary/40" />
-                  )}
-                  <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-medium">
-                    {p.week}
-                  </span>
-                </div>
-                <div
-                  className={`text-[12px] leading-snug ${
-                    isCurrent ? "text-text-primary font-medium" : "text-text-secondary"
-                  }`}
-                >
-                  {p.title}
-                </div>
-                <div className="text-[10.5px] text-text-tertiary mt-1">{p.dates}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Current actions + history */}
-      <div className="grid grid-cols-2 divide-x divide-border-subtle">
-        {currentPhase && (
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Zap size={11} strokeWidth={1.7} className="text-text-secondary" />
-              <div className="label-section">Current actions</div>
+        {/* Right · tabs + content for the active product */}
+        {files && (
+          <div className="bg-white border border-border rounded-card overflow-hidden">
+            {/* Product header inside the detail pane */}
+            <ProductHeader files={files} />
+            {/* Tab navigation */}
+            <TabNav tab={tab} onChange={setTab} files={files} />
+            {/* Tab content */}
+            <div className="px-6 py-5">
+              {tab === "brief" && <BriefTab files={files} />}
+              {tab === "plan" && <PlanTab files={files} />}
+              {tab === "performance" && <PerformanceTab files={files} />}
+              {tab === "assets" && <AssetsTab files={files} />}
             </div>
-            <ul className="space-y-1.5">
-              {currentPhase.actions.slice(0, 3).map((a, i) => (
-                <li
-                  key={i}
-                  className="text-[12px] text-text-primary leading-relaxed flex gap-1.5"
-                >
-                  <ChevronRight
-                    size={10}
-                    strokeWidth={1.8}
-                    className="text-text-tertiary flex-shrink-0 mt-0.5"
-                  />
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Clock size={11} strokeWidth={1.7} className="text-text-secondary" />
-            <div className="label-section">Recent history</div>
-          </div>
-          <ol className="space-y-2">
-            {plan.history.slice(-3).reverse().map((h, i) => (
-              <li key={i} className="flex gap-2">
-                <div className="flex flex-col items-center pt-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#111]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] text-text-tertiary mb-0.5">
-                    {h.at} · {h.who === "Spot" ? <SpotMark size={9} /> : null} {h.who}
-                  </div>
-                  <div className="text-[12px] text-text-primary leading-relaxed">{h.entry}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
       </div>
     </div>
   );
 }
 
-/* ─── Creatives tab ──────────────────────────────────────────── */
+/* ─── Products column (left) ───────────────────────────────────── */
 
-const KIND_ICON: Record<PersonaCreative["kind"], typeof ImageIcon> = {
-  image: ImageIcon,
-  video: Film,
-  carousel: Layout,
-};
-
-const STATE_DOT: Record<PersonaCreative["state"], string> = {
-  live: "bg-[#22C55E]",
-  ready: "bg-[#F5A623]",
-  shell: "bg-[#D4D4D4]",
-};
-
-const STATE_LABEL: Record<PersonaCreative["state"], string> = {
-  live: "Live",
-  ready: "Ready",
-  shell: "Shell",
-};
-
-/**
- * Aggregate creatives across every persona — flat grid with persona +
- * product tags so people can scan what's been built. Heavy-handed
- * filtering UI lives on the standalone /creatives route; this is the
- * memory-side view.
- */
-function CreativesTab() {
-  const askSpot = useSpotStore((s) => s.askSpot);
-  const all = PERSONAS.flatMap((p) =>
-    p.creatives.map((c) => ({
-      ...c,
-      personaName: p.shortLabel,
-      productName: PRODUCTS.find((pr) => pr.id === c.productId)?.name ?? "—",
-    })),
-  );
-  const live = all.filter((c) => c.state === "live").length;
-  const ready = all.filter((c) => c.state === "ready").length;
-  const shell = all.filter((c) => c.state === "shell").length;
-
+function ProductsList({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+}) {
   return (
-    <div>
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <Stat label="Total creatives" value={all.length} />
-        <Stat label="Live" value={live} />
-        <Stat label="Ready" value={ready} />
-        <Stat label="Concept" value={shell} />
-      </div>
-
-      <div className="bg-white border border-border rounded-card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="label-section">Every creative · {all.length}</div>
-          <button
-            type="button"
-            onClick={() => askSpot("Draft a new creative angle — pick the strongest performer last week and iterate.")}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
-          >
-            <SpotMark size={11} />
-            Draft new angle
-          </button>
-        </div>
-        <div className="grid grid-cols-4 gap-3">
-          {all.map((c) => {
-            const KIcon = KIND_ICON[c.kind];
-            return (
-              <div
-                key={c.id}
-                className="rounded-card border border-border bg-white overflow-hidden hover:border-border-hover transition-colors"
-              >
-                <div
-                  className="relative aspect-[4/3] w-full"
-                  style={{
-                    background: `linear-gradient(135deg, hsl(${c.hue} 60% 92%) 0%, hsl(${c.hue} 50% 78%) 100%)`,
-                  }}
-                >
-                  <div className="absolute top-2 left-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/85 backdrop-blur-sm">
-                    <KIcon size={10} strokeWidth={1.8} />
-                  </div>
-                  <div className="absolute top-2 right-2 text-[9.5px] font-medium text-text-secondary bg-white/85 px-1.5 rounded-sm">
-                    {c.format}
-                  </div>
-                  <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${STATE_DOT[c.state]}`} />
-                    <span className="text-[10px] font-medium text-text-primary bg-white/85 px-1.5 py-0.5 rounded-sm">
-                      {STATE_LABEL[c.state]}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-2.5">
-                  <div className="text-[12px] font-medium text-text-primary truncate">{c.label}</div>
-                  <div className="text-[11px] text-text-tertiary truncate mt-0.5">
-                    {c.productName}
-                  </div>
-                  <div className="text-[10.5px] text-text-tertiary mt-1 inline-flex items-center gap-1">
-                    <Users size={9} strokeWidth={1.6} />
-                    {c.personaName}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Performance tab ─────────────────────────────────────────── */
-
-function inr(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1000000 ? 1 : 2)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n}`;
-}
-
-const HEALTH_TONE: Record<ProductSummary["performance"]["health"], string> = {
-  "on-track": "pill-ok",
-  "needs-attention": "pill-warn",
-  underperforming: "pill-err",
-};
-const HEALTH_LABEL: Record<ProductSummary["performance"]["health"], string> = {
-  "on-track": "On track",
-  "needs-attention": "Needs attention",
-  underperforming: "Underperforming",
-};
-
-/**
- * Cross-product roll-up. Same numbers each product page surfaces, but
- * laid out comparatively so it's a "where's the money going" view.
- */
-function PerformanceTab() {
-  const totalSpend = PRODUCTS.reduce((s, p) => s + p.performance.totalSpend, 0);
-  const totalLeads = PRODUCTS.reduce((s, p) => s + p.performance.totalLeads, 0);
-  const totalQual = PRODUCTS.reduce((s, p) => s + p.performance.qualifiedLeads, 0);
-  const blendedCpl = totalLeads ? Math.round(totalSpend / totalLeads) : 0;
-
-  return (
-    <div>
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        <Stat label="Spend · 30d" value={inr(totalSpend)} />
-        <Stat label="Leads · 30d" value={totalLeads.toLocaleString("en-IN")} />
-        <Stat label="Qualified · 30d" value={totalQual.toLocaleString("en-IN")} />
-        <Stat label="Blended CPL" value={inr(blendedCpl)} />
-      </div>
-
-      <div className="bg-white border border-border rounded-card overflow-hidden">
-        <div className="grid grid-cols-[1.4fr_repeat(6,1fr)_120px] gap-3 px-4 py-2.5 border-b border-border bg-surface-page text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
-          <div>Product</div>
-          <div className="text-right">Spend</div>
-          <div className="text-right">Leads</div>
-          <div className="text-right">Verified</div>
-          <div className="text-right">Qual</div>
-          <div className="text-right">CPL</div>
-          <div className="text-right">CPQL</div>
-          <div>Health</div>
-        </div>
-        {PRODUCTS.map((p, i) => {
-          const perf = p.performance;
-          return (
-            <div
-              key={p.id}
-              className={`grid grid-cols-[1.4fr_repeat(6,1fr)_120px] gap-3 px-4 py-3 items-center hover-row ${
-                i < PRODUCTS.length - 1 ? "border-b border-border-subtle" : ""
-              }`}
-            >
-              <div className="min-w-0">
-                <div className="text-[13px] font-medium text-text-primary truncate">{p.name}</div>
-                <div className="text-[11px] text-text-tertiary truncate">
-                  {perf.activeCampaigns} active campaign{perf.activeCampaigns === 1 ? "" : "s"}
-                </div>
-              </div>
-              <div className="text-right text-[13px] text-text-primary tabular">{inr(perf.totalSpend)}</div>
-              <div className="text-right text-[13px] text-text-primary tabular">
-                {perf.totalLeads.toLocaleString("en-IN")}
-              </div>
-              <div className="text-right text-[13px] text-text-primary tabular">
-                {perf.verifiedLeads.toLocaleString("en-IN")}
-                <div className="text-[10.5px] text-text-tertiary">{perf.verificationRate}%</div>
-              </div>
-              <div className="text-right text-[13px] text-text-primary tabular">
-                {perf.qualifiedLeads.toLocaleString("en-IN")}
-                <div className="text-[10.5px] text-text-tertiary">{perf.qualificationRate}%</div>
-              </div>
-              <div className="text-right text-[13px] text-text-primary tabular">{inr(perf.avgCpl)}</div>
-              <div className="text-right text-[13px] text-text-primary tabular">{inr(perf.costPerQualifiedLead)}</div>
-              <div>
-                <span className={`pill ${HEALTH_TONE[perf.health]}`}>{HEALTH_LABEL[perf.health]}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 text-[11.5px] text-text-tertiary inline-flex items-center gap-1">
-        <ArrowUpRight size={11} strokeWidth={1.6} />
-        <a href="/campaigns" className="hover:text-text-primary">Open the full Campaigns dashboard</a>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Changelog tab ────────────────────────────────────────────── */
-
-type ChangelogEntry = {
-  at: string;
-  who: string;
-  kind: string;
-  tone: string;
-  productName: string;
-  summary: string;
-};
-
-const MEMORY_TONE: Record<ProductSummary["memory"][number]["kind"], string> = {
-  brief: "bg-surface-secondary text-text-secondary",
-  usp: "pill-info",
-  "persona-link": "pill-info",
-  "creative-feedback": "pill-ok",
-  constraint: "pill-warn",
-};
-
-const MEMORY_LABEL: Record<ProductSummary["memory"][number]["kind"], string> = {
-  brief: "Brief",
-  usp: "USP",
-  "persona-link": "Persona",
-  "creative-feedback": "Learning",
-  constraint: "Constraint",
-};
-
-/**
- * Cross-product append-only changelog. Pulls every memory entry across
- * every product, sorted newest-first. This is the audit log that proves
- * what Spot has learned and where the boundaries are.
- */
-function ChangelogTab() {
-  const entries: ChangelogEntry[] = PRODUCTS.flatMap((p) =>
-    p.memory.map((m) => ({
-      at: m.at,
-      who: m.who,
-      kind: MEMORY_LABEL[m.kind],
-      tone: MEMORY_TONE[m.kind],
-      productName: p.name,
-      summary: m.summary,
-    })),
-  ).sort((a, b) => (a.at < b.at ? 1 : -1));
-
-  return (
-    <div className="bg-white border border-border rounded-card p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-1.5">
-          <Clock size={13} strokeWidth={1.6} className="text-text-secondary" />
-          <div className="label-section">Memory · what Spot has learned</div>
-        </div>
-        <span className="text-[11px] text-text-tertiary">
-          Append-only · {entries.length} entries · newest first
+    <div className="bg-white border border-border rounded-card overflow-hidden h-fit">
+      <div className="px-3 py-2.5 border-b border-border-subtle flex items-center gap-1.5">
+        <Package size={11} strokeWidth={1.8} className="text-text-tertiary" />
+        <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+          Projects · {PRODUCTS.length}
         </span>
       </div>
-      <ol className="space-y-3">
-        {entries.map((e, i) => (
-          <li key={i} className="flex gap-3">
-            <div className="flex flex-col items-center pt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#111]" />
-              {i < entries.length - 1 && <div className="w-px flex-1 bg-border-subtle mt-1" />}
-            </div>
-            <div className="flex-1 pb-1">
-              <div className="flex items-center flex-wrap gap-2 mb-0.5">
-                <span className={`pill ${e.tone}`}>{e.kind}</span>
-                <span className="text-[11.5px] text-text-tertiary">{e.at}</span>
-                <span className="text-[11.5px] text-text-tertiary">·</span>
-                <span className="text-[11.5px] text-text-secondary inline-flex items-center gap-1">
-                  {e.who === "Spot" ? <SpotMark size={11} /> : null}
-                  {e.who}
-                </span>
-                <span className="text-[11.5px] text-text-tertiary">·</span>
-                <span className="text-[11.5px] text-text-primary font-medium">{e.productName}</span>
-              </div>
-              <div className="text-[13px] text-text-primary leading-relaxed">{e.summary}</div>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <ul>
+        {PRODUCTS.map((p) => {
+          const plan = PRODUCT_PLANS.find((pl) => pl.productId === p.id);
+          const isActive = p.id === active;
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(p.id)}
+                className={`w-full text-left px-3 py-2.5 border-l-[3px] transition-colors ${
+                  isActive
+                    ? "border-l-text-primary bg-surface-page"
+                    : "border-l-transparent hover:bg-surface-page/60"
+                }`}
+              >
+                <div className="text-[12.5px] font-semibold text-text-primary leading-tight mb-0.5 truncate">
+                  {p.name}
+                </div>
+                <div className="text-[10.5px] text-text-tertiary truncate mb-1">
+                  {p.category}
+                </div>
+                {plan && (
+                  <span className={`pill ${PLAN_STATUS_TONE[plan.status]}`} style={{ fontSize: 9.5 }}>
+                    {PLAN_STATUS_LABEL[plan.status]} · plan
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
 
-/* ─── Shared bits ──────────────────────────────────────────────── */
+/* ─── Product detail header (inside the right pane) ────────────── */
 
-function Stat({ label, value }: { label: string; value: number | string }) {
+function ProductHeader({ files }: { files: ProductMemoryFiles }) {
+  const product = PRODUCTS.find((p) => p.id === files.productId);
+  return (
+    <div className="px-6 py-4 border-b border-border-subtle flex items-start gap-3">
+      <div className="w-9 h-9 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
+        <Package size={14} strokeWidth={1.6} className="text-text-secondary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary mb-0.5">
+          {product?.client} · {product?.category}
+        </div>
+        <h2 className="text-[18px] font-semibold text-text-primary leading-tight">
+          {files.productName}
+        </h2>
+        {product && (
+          <div className="text-[12px] text-text-secondary mt-1 leading-snug">
+            {product.tagline}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tab nav ──────────────────────────────────────────────────── */
+
+function TabNav({
+  tab,
+  onChange,
+  files,
+}: {
+  tab: TabKey;
+  onChange: (k: TabKey) => void;
+  files: ProductMemoryFiles;
+}) {
+  const tabCounts: Partial<Record<TabKey, string>> = {
+    assets: `${files.assets.creatives.length + files.assets.landingPages.length + files.assets.forms.length}`,
+  };
+  return (
+    <div className="flex items-end px-6 border-b border-border-subtle bg-surface-page">
+      {TABS.map((t) => {
+        const Icon = t.icon;
+        const active = t.key === tab;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => onChange(t.key)}
+            className={`relative inline-flex items-center gap-1.5 py-3 px-3 text-[12.5px] font-medium transition-colors whitespace-nowrap ${
+              active ? "text-text-primary" : "text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            <Icon size={12} strokeWidth={1.7} />
+            <span>{t.label}</span>
+            {tabCounts[t.key] && (
+              <span className="text-[10px] text-text-tertiary tabular">
+                {tabCounts[t.key]}
+              </span>
+            )}
+            <span
+              className="text-[10px] text-text-tertiary font-mono ml-0.5"
+              style={{ opacity: active ? 0.7 : 0.4 }}
+            >
+              {t.file}
+            </span>
+            {active && (
+              <span
+                aria-hidden
+                className="absolute left-3 right-3 -bottom-px h-0.5 bg-text-primary rounded-full"
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── Brief tab · markdown content ─────────────────────────────── */
+
+function BriefTab({ files }: { files: ProductMemoryFiles }) {
+  return (
+    <div className="max-w-[720px]">
+      <Markdown source={files.productInfoMd} />
+    </div>
+  );
+}
+
+/* ─── Plan tab · markdown content ──────────────────────────────── */
+
+function PlanTab({ files }: { files: ProductMemoryFiles }) {
+  return (
+    <div className="max-w-[720px]">
+      <Markdown source={files.planMd} />
+    </div>
+  );
+}
+
+/* ─── Performance tab · interactive dashboard ──────────────────── */
+
+function PerformanceTab({ files }: { files: ProductMemoryFiles }) {
+  const perf = files.performance;
+  return (
+    <div>
+      <div className="mb-4">
+        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+          Snapshot · {perf.headline}
+        </div>
+      </div>
+
+      {/* Metric grid */}
+      <div className="grid grid-cols-4 gap-2.5 mb-5">
+        {perf.metrics.map((m) => (
+          <PerfMetricCard key={m.key} metric={m} />
+        ))}
+      </div>
+
+      {/* Side-by-side · spend curve + leads curve */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <ChartCard
+          title="Daily spend"
+          subtitle="Last 14 days · ₹"
+          values={perf.spendCurve}
+          color="#1D4ED8"
+        />
+        <ChartCard
+          title="Daily leads"
+          subtitle="Last 14 days"
+          values={perf.leadsCurve}
+          color="#15803D"
+        />
+      </div>
+
+      {/* Channel mix */}
+      <div className="bg-white border border-border rounded-card p-4">
+        <div className="flex items-center gap-1.5 mb-3">
+          <TrendingUp size={11} strokeWidth={1.7} className="text-text-secondary" />
+          <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+            Channel mix · 30d
+          </div>
+        </div>
+        <div className="flex h-2 rounded-full overflow-hidden mb-3">
+          {perf.channelMix.map((c) => (
+            <div
+              key={c.name}
+              style={{ width: `${c.share}%`, background: c.color }}
+              title={`${c.name} · ${c.share}%`}
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {perf.channelMix.map((c) => (
+            <div key={c.name} className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: c.color }}
+              />
+              <div className="min-w-0">
+                <div className="text-[11px] text-text-secondary truncate">{c.name}</div>
+                <div className="text-[12.5px] font-semibold text-text-primary tabular">
+                  {c.share}%
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PerfMetricCard({
+  metric,
+}: {
+  metric: import("@/lib/spot/memory-files").ProductPerformanceMetric;
+}) {
+  const isZero = Math.abs(metric.delta) < 0.5;
+  const good = metric.invertDelta ? metric.delta < 0 : metric.delta > 0;
+  const color = isZero
+    ? "text-text-tertiary"
+    : good
+      ? "text-[#15803D]"
+      : "text-[#B91C1C]";
+  const arrow = isZero ? "→" : metric.delta > 0 ? "↑" : "↓";
   return (
     <div className="bg-white border border-border rounded-card p-3">
-      <div className="text-[11.5px] text-text-tertiary mb-1">{label}</div>
-      <div className="text-stat-md text-text-primary tabular">{value}</div>
+      <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+        {metric.label}
+      </div>
+      <div className="text-[18px] font-semibold text-text-primary tabular leading-none">
+        {metric.value}
+      </div>
+      <div className={`text-[11px] tabular mt-1.5 ${color}`}>
+        {arrow} {Math.abs(metric.delta).toFixed(1)}%
+        <span className="text-text-tertiary"> vs prior</span>
+      </div>
+    </div>
+  );
+}
+
+function ChartCard({
+  title,
+  subtitle,
+  values,
+  color,
+}: {
+  title: string;
+  subtitle: string;
+  values: number[];
+  color: string;
+}) {
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values);
+  const range = Math.max(max - min, 1);
+  const w = 320;
+  const h = 64;
+  const stepX = w / (values.length - 1);
+  // Path for the line.
+  const pts = values.map((v, i) => {
+    const x = i * stepX;
+    const y = h - ((v - min) / range) * (h - 8) - 4;
+    return [x, y];
+  });
+  const linePath = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
+  // Area fill — line + close path along bottom.
+  const areaPath = `${linePath} L ${w} ${h} L 0 ${h} Z`;
+  return (
+    <div className="bg-white border border-border rounded-card p-4">
+      <div className="flex items-baseline justify-between mb-2">
+        <div>
+          <div className="text-[12.5px] font-semibold text-text-primary">{title}</div>
+          <div className="text-[10.5px] text-text-tertiary">{subtitle}</div>
+        </div>
+        <div className="text-[11px] text-text-tertiary tabular">
+          Latest · {values[values.length - 1].toLocaleString("en-IN")}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: 64 }} aria-hidden>
+        <defs>
+          <linearGradient id={`g-${title.replace(/\s/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#g-${title.replace(/\s/g, "")})`} />
+        <path
+          d={linePath}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Assets tab ──────────────────────────────────────────────── */
+
+function AssetsTab({ files }: { files: ProductMemoryFiles }) {
+  const { creatives, landingPages, forms } = files.assets;
+  return (
+    <div className="space-y-5">
+      {/* Creatives */}
+      <section>
+        <AssetSectionHeader
+          icon={ImageIcon}
+          title="Creatives"
+          count={creatives.length}
+          subtitle="Every angle Spot has built for this product, across all linked personas."
+        />
+        {creatives.length === 0 ? (
+          <div className="text-[12.5px] text-text-tertiary italic px-1">
+            No creatives yet — Spot writes them here as it builds.
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-2.5">
+            {creatives.map((c) => (
+              <CreativeCard key={c.id} c={c} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Landing pages */}
+      <section>
+        <AssetSectionHeader
+          icon={Smartphone}
+          title="Landing pages"
+          count={landingPages.length}
+          subtitle="Mobile-first pages Spot has built for this product."
+        />
+        <div className="grid grid-cols-3 gap-2.5">
+          {landingPages.map((lp) => (
+            <LandingPageCard key={lp.id} lp={lp} />
+          ))}
+        </div>
+      </section>
+
+      {/* Forms */}
+      <section>
+        <AssetSectionHeader
+          icon={Layout}
+          title="Lead forms"
+          count={forms.length}
+          subtitle="Meta lead forms + click-to-WhatsApp scripts."
+        />
+        <div className="grid grid-cols-2 gap-2.5">
+          {forms.map((f) => (
+            <FormCard key={f.id} f={f} />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AssetSectionHeader({
+  icon: Icon,
+  title,
+  count,
+  subtitle,
+}: {
+  icon: typeof FileText;
+  title: string;
+  count: number;
+  subtitle: string;
+}) {
+  return (
+    <div className="mb-3">
+      <div className="flex items-baseline gap-2 mb-0.5">
+        <Icon size={12} strokeWidth={1.7} className="text-text-secondary" />
+        <span className="text-[13px] font-semibold text-text-primary">{title}</span>
+        <span className="text-[11px] text-text-tertiary tabular">{count}</span>
+      </div>
+      <div className="text-[11px] text-text-tertiary leading-snug">{subtitle}</div>
+    </div>
+  );
+}
+
+function CreativeCard({
+  c,
+}: {
+  c: import("@/lib/spot/memory-files").MemoryCreative;
+}) {
+  const Icon = c.kind === "video" ? Film : c.kind === "carousel" ? Layout : ImageIcon;
+  const stateColor =
+    c.state === "live" ? "bg-[#22C55E]" : c.state === "ready" ? "bg-[#F5A623]" : "bg-[#D4D4D4]";
+  return (
+    <div className="bg-white border border-border rounded-card overflow-hidden">
+      <div
+        className="relative aspect-[4/3] w-full"
+        style={{
+          background: `linear-gradient(135deg, hsl(${c.hue} 60% 90%), hsl(${c.hue} 50% 70%))`,
+        }}
+      >
+        <div className="absolute top-2 left-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/85 backdrop-blur-sm">
+          <Icon size={10} strokeWidth={1.7} />
+        </div>
+        <div className="absolute top-2 right-2 text-[9.5px] font-medium text-text-secondary bg-white/85 px-1.5 rounded-sm">
+          {c.format}
+        </div>
+        <div className="absolute bottom-2 left-2 inline-flex items-center gap-1 bg-white/90 px-1.5 py-0.5 rounded-sm text-[9.5px] font-medium">
+          <span className={`w-1.5 h-1.5 rounded-full ${stateColor}`} />
+          <span className="capitalize">{c.state}</span>
+        </div>
+      </div>
+      <div className="p-2.5">
+        <div className="text-[11.5px] font-medium text-text-primary leading-snug line-clamp-2 min-h-[2.6em]">
+          {c.label}
+        </div>
+        <div className="text-[10.5px] text-text-tertiary mt-1">{c.personaName}</div>
+      </div>
+    </div>
+  );
+}
+
+function LandingPageCard({
+  lp,
+}: {
+  lp: import("@/lib/spot/memory-files").MemoryLandingPage;
+}) {
+  return (
+    <div className="bg-white border border-border rounded-card p-3 flex items-start gap-3">
+      <div className="w-14 h-24 rounded-[6px] bg-gradient-to-b from-[#FAF8F2] to-white border border-border-subtle flex-shrink-0 relative overflow-hidden">
+        <div className="absolute top-1.5 left-1.5 right-1.5 h-1.5 rounded-full bg-text-tertiary/20" />
+        <div className="absolute top-4 left-1.5 right-1.5 space-y-1">
+          <div className="h-1 rounded-full bg-text-tertiary/15 w-3/4" />
+          <div className="h-1 rounded-full bg-text-tertiary/15 w-full" />
+          <div className="h-1 rounded-full bg-text-tertiary/15 w-2/3" />
+        </div>
+        <div className="absolute bottom-1.5 left-1.5 right-1.5 h-2 rounded-[2px] bg-[#1877F2]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[12px] font-semibold text-text-primary truncate flex-1">
+            {lp.title}
+          </span>
+          <span
+            className={`pill ${lp.status === "live" ? "pill-ok" : "pill"}`}
+            style={{ fontSize: 9 }}
+          >
+            {lp.status}
+          </span>
+        </div>
+        <div className="text-[10.5px] text-text-tertiary mb-1.5">{lp.personaName}</div>
+        <div className="text-[11px] text-text-secondary space-y-0.5">
+          <div>{lp.sections} sections</div>
+          <div>{lp.visits30d.toLocaleString("en-IN")} visits · 30d</div>
+          <div>{lp.conversionRate}% conv rate</div>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 mt-2 text-[10.5px] text-text-tertiary hover:text-text-primary"
+        >
+          <ArrowUpRight size={9} strokeWidth={1.8} />
+          Preview
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FormCard({ f }: { f: import("@/lib/spot/memory-files").MemoryForm }) {
+  const kindLabel =
+    f.kind === "lead-form"
+      ? "Meta lead form"
+      : f.kind === "click-to-whatsapp"
+        ? "Click-to-WhatsApp"
+        : "Phone form";
+  return (
+    <div className="bg-white border border-border rounded-card p-3">
+      <div className="flex items-start gap-2.5">
+        <CheckCircle2 size={13} strokeWidth={1.7} className="text-[#15803D] mt-0.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[12.5px] font-semibold text-text-primary truncate flex-1">
+              {f.title}
+            </span>
+            <span className="pill pill-ok" style={{ fontSize: 9 }}>
+              {f.status}
+            </span>
+          </div>
+          <div className="text-[10.5px] text-text-tertiary mb-1.5">
+            {kindLabel} · {f.personaName}
+          </div>
+          <div className="text-[11px] text-text-secondary">
+            {f.fields} fields · {f.submissions30d.toLocaleString("en-IN")} submissions / 30d
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
