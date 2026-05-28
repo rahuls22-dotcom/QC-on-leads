@@ -156,13 +156,14 @@ export function WorkflowPane() {
   const headerTitle =
     workflow.kind === "campaign-dive" ? workflow.entityName : workflow.productName;
 
-  // Product-setup with no answers yet → no memory exists, so the
-  // canvas shouldn't pretend a file is open. Show a clean "awaiting
-  // input" pane instead, and hide the file picker.
+  // While the user is mid-card on the left (any sub-step of product
+  // setup), nothing meaningful exists to preview yet on the right.
+  // Show a clean "awaiting input" pane instead, and hide the file
+  // picker. The state covers the whole product-setup step so there's
+  // no flicker between question-answer and deep-research kickoff.
   const isAwaitingSetup =
     workflow.kind === "launch-campaign" &&
-    workflow.step === "product-setup" &&
-    !workflow.productSetupAnswers?.name;
+    workflow.step === "product-setup";
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -405,6 +406,66 @@ const NEW_PRODUCT_RESEARCH_LABELS = [
   "Building the product brief",
 ];
 
+/** Stringify the in-memory ResearchedMemory shape back into the same
+ *  markdown form the existing memory files use. Lets the same Markdown
+ *  renderer pick up the freshly-researched product without any new
+ *  card components. */
+function researchedMemoryToMd(
+  productName: string,
+  m: import("@/lib/spot/workflow").ResearchedMemory,
+): string {
+  const brief = m.brief
+    .map((r) => `- ${r.icon} **${r.label}** · ${r.value}`)
+    .join("\n");
+  const pricing = m.pricing
+    .map(
+      (p) =>
+        `- **${p.name}** · ${p.cost}${p.cadence ? ` ${p.cadence}` : ""}${p.badge ? ` · _${p.badge}_` : ""}`,
+    )
+    .join("\n");
+  const offers = m.offers
+    .map((o) => `- ${o.label}${o.meta ? ` · _${o.meta}_` : ""}`)
+    .join("\n");
+  const usps = m.usps.map((u) => `- ${u}`).join("\n");
+  const avoid = m.avoid.map((a) => `- ${a}`).join("\n");
+  const sources = m.sources.map((s) => `- ${s}`).join("\n");
+
+  return `# ${productName}
+
+_Freshly researched · Memory just built_
+
+${m.tagline}
+
+## Product brief
+
+${brief}
+
+## Pricing
+
+${pricing}
+
+## Offers
+
+${offers}
+
+## USPs · lead with these
+
+${usps}
+
+## Do not mention
+
+${avoid}
+
+## Sources I checked
+
+${sources}
+
+---
+
+_Memory built just now · Brand-new product · Edit any field in chat_
+`;
+}
+
 function MemoryFileView({
   workflow,
   buildingOverlay,
@@ -414,14 +475,13 @@ function MemoryFileView({
 }) {
   const files = getProductFiles(workflow);
 
-  // New product flow · memory is being built from scratch. Show the
-  // SpotLoader with cycling research labels instead of a half-empty
-  // partial-markdown sketch. The loader fills the whole canvas so
-  // the user sees concrete agent progress, not a placeholder.
+  // ── New product · research / building phase ────────────────
+  // No files, no researchedMemory yet — render the cycling Spot
+  // loader so the canvas shows concrete agent progress.
   const isBuildingFromScratch =
     workflow.kind === "launch-campaign" &&
     !files &&
-    !!workflow.productSetupAnswers?.name &&
+    !workflow.researchedMemory &&
     (workflow.step === "deep-research" ||
       (workflow.step === "kickoff" && !workflow.kickoffReady));
 
@@ -442,6 +502,29 @@ function MemoryFileView({
     );
   }
 
+  // ── New product · research complete ────────────────────────
+  // researchedMemory holds the synthesised brief/pricing/etc. Render
+  // it via the same Markdown component used for existing memory so
+  // the user sees the full Notion-grade canvas, not "No memory yet".
+  if (
+    !files &&
+    workflow.kind === "launch-campaign" &&
+    workflow.researchedMemory
+  ) {
+    const md = researchedMemoryToMd(
+      workflow.productName,
+      workflow.researchedMemory,
+    );
+    return (
+      <div className="relative">
+        <div className="px-6 py-5 max-w-[720px]">
+          <Markdown source={md} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Existing product · render product-info.md ─────────────
   if (!files) {
     return <EmptyFile label="No memory yet." />;
   }
@@ -463,19 +546,16 @@ function PlanFileView({
   buildingOverlay: boolean;
 }) {
   const files = getProductFiles(workflow);
-  // New product · no plan yet, show a placeholder.
+  // New product · no plan yet. Show a calm empty state with a
+  // soft icon + one-line explanation instead of bare text.
   if (!files) {
     return (
-      <div className="relative">
-        <div className="px-6 py-5 max-w-[720px]">
-          <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-3">
-            Plan
-          </h1>
-          <p className="text-[13px] text-text-secondary leading-relaxed">
-            No plan yet. After deep research completes, Spot will draft the launch
-            plan here — a written, day-by-day timeline you can approve in chat.
-          </p>
-        </div>
+      <div className="relative h-full">
+        <EmptyCanvas
+          icon={TrendingUp}
+          title="No plan yet"
+          body="Once the memory is approved, Spot will draft a day-by-day launch plan here — personas, media mix, creative briefs — for you to approve in chat."
+        />
         {buildingOverlay && <BuildingOverlay label="Spot is drafting the plan…" />}
       </div>
     );
@@ -498,7 +578,11 @@ function DashboardFileView({ workflow }: { workflow: SpotWorkflow }) {
   const files = getProductFiles(workflow);
   if (!files) {
     return (
-      <EmptyFile label="No dashboard yet · campaigns haven't started." />
+      <EmptyCanvas
+        icon={ChartPie}
+        title="No dashboard yet"
+        body="Campaigns haven't started. Once Spot ships the plan and ads go live, real-time performance — spend, leads, CPL, channel mix — will fill in here."
+      />
     );
   }
   const perf = files.performance;
@@ -580,7 +664,13 @@ function AssetsFileView({
 }) {
   const files = getProductFiles(workflow);
   if (!files) {
-    return <EmptyFile label="No assets yet · Spot writes them here after the plan is approved." />;
+    return (
+      <EmptyCanvas
+        icon={ImageIcon}
+        title="No assets yet"
+        body="Once the plan is approved, Spot will generate creatives, search ads, landing pages, and forms — all of them land in this folder."
+      />
+    );
   }
   const { creatives, searchAds, landingPages, forms } = files.assets;
   return (
@@ -622,6 +712,35 @@ function EmptyFile({ label }: { label: string }) {
   return (
     <div className="h-full flex items-center justify-center px-8 py-16 text-center">
       <div className="text-[13px] text-text-tertiary">{label}</div>
+    </div>
+  );
+}
+
+/**
+ * Polished empty state for tabs that don't have content yet during a
+ * new-product workflow. Soft circular icon + heading + one-line copy,
+ * centred in the canvas. Replaces the plain "No X yet" text walls.
+ */
+function EmptyCanvas({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof FileText;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 py-16 text-center">
+      <div className="w-12 h-12 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center mb-4">
+        <Icon size={18} strokeWidth={1.6} className="text-text-secondary" />
+      </div>
+      <div className="text-[15px] font-semibold text-text-primary mb-1.5">
+        {title}
+      </div>
+      <div className="text-[12.5px] text-text-secondary leading-relaxed max-w-[360px]">
+        {body}
+      </div>
     </div>
   );
 }
