@@ -117,20 +117,51 @@ export const FILE_TABS: {
 ];
 
 /** Default file to focus when a workflow step changes. The chat
- *  header's picker auto-opens this file when the user advances. */
+ *  header's picker auto-opens this file when the user advances.
+ *
+ *  Dashboard is ONLY the home view for `campaign-dive` (Spot it on
+ *  a campaign row). Every other workflow drives the user through
+ *  Plan → Assets, never the dashboard.
+ */
 export function defaultFileForStep(step: WorkflowStep): CanvasFile {
-  if (step === "product-setup" || step === "deep-research" || step === "kickoff")
+  // ── Launch flow ───────────────────────────────────────
+  if (
+    step === "product-setup" ||
+    step === "deep-research" ||
+    step === "kickoff"
+  )
     return "memory";
-  // Test-angles · the plan phase is really about new creatives, so
-  // jump straight to the Assets tab (per spec).
-  if (step === "ang-plan") return "assets";
-  if (step === "launch-plan" || step.endsWith("-plan") || step.endsWith("-clarify"))
-    return "plan";
-  if (step === "launch-building") return "plan";
-  if (step === "launch-review" || step === "launch-deploy" || step === "done")
+  if (step === "launch-plan" || step === "launch-building") return "plan";
+  if (
+    step === "launch-review" ||
+    step === "launch-deploy" ||
+    step === "done"
+  )
     return "assets";
-  if (step.endsWith("-live") || step.endsWith("-analyze")) return "dashboard";
+
+  // ── Scale + Optimize ─────────────────────────────────
+  // Spot analyzes existing performance and updates the plan. The
+  // user wants to see exactly what was updated, so every phase
+  // (analyze → clarify → plan → live) focuses the Plan tab.
+  if (step.startsWith("scale-") || step.startsWith("opt-")) return "plan";
+
+  // ── Test Angles ──────────────────────────────────────
+  // Sequence is: prepare a plan first, then work on the assets
+  // page making new creatives. Analyze/clarify/plan land on Plan;
+  // the live phase (post-approval, creatives being generated)
+  // lands on Assets.
+  if (
+    step === "ang-analyze" ||
+    step === "ang-clarify" ||
+    step === "ang-plan"
+  )
+    return "plan";
+  if (step === "ang-live") return "assets";
+
+  // ── Campaign dive ────────────────────────────────────
+  // The only workflow whose home view is the Dashboard.
   if (step === "campaign-dive") return "dashboard";
+
   return "memory";
 }
 
