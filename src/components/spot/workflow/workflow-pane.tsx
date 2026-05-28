@@ -1170,113 +1170,111 @@ function MemoryFileView({
   );
 }
 
-/**
- * Sub-agents driving the plan build. Same one-at-a-time pacing as
- * the memory loader · slower durations so each stage gets to breathe.
- * Total ~12s, matching the launch-plan tool-call delayMs below.
- */
-const PLAN_BUILD_AGENTS: { id: string; label: string; duration: number }[] = [
-  { id: "personas.draft", label: "Drafting personas from category research", duration: 2200 },
-  { id: "memory.read", label: "Cross-referencing product memory", duration: 1600 },
-  { id: "media.plan", label: "Drafting media mix · Meta · Google · WhatsApp", duration: 2000 },
-  { id: "creative.brief", label: "Composing creative angles per persona", duration: 2200 },
-  { id: "rollout.sequence", label: "Sequencing the 14-day rollout", duration: 2000 },
-  { id: "budget.lock", label: "Locking budget allocations", duration: 1800 },
-];
-
-/** Scripted findings for the plan build — same staged pacing as the
- *  memory loader. The categories map to the agents above so the
- *  feed and the agent strip move in sync. */
-const PLAN_FINDINGS: typeof MEMORY_FINDINGS = [
-  // ── Stage 1 · Persona drafting (0-3s) ──
-  { time: 500, category: "synth", icon: "👥", label: "Persona 1 brief · Working professional" },
-  { time: 1300, category: "synth", icon: "👥", label: "Persona 2 brief · College student" },
-  { time: 2000, category: "synth", icon: "👥", label: "Persona 3 brief · Parent buying for child" },
-  // ── Stage 2 · Memory · cross-reference (3-4s) ──
-  { time: 2700, category: "graph", icon: "🧠", label: "Loaded brief, USPs, avoid list from memory" },
-  { time: 3500, category: "graph", icon: "🧠", label: "Matched 4 USPs to persona pain points" },
-  // ── Stage 3 · Media mix (4-6s) ──
-  { time: 4400, category: "web", icon: "📣", label: "Meta · 3 campaigns · ₹500/day each" },
-  { time: 5200, category: "web", icon: "🔍", label: "Google Search · brand + category terms" },
-  { time: 5900, category: "web", icon: "📱", label: "Click-to-WhatsApp on parent persona" },
-  // ── Stage 4 · Creative angles (6-8s) ──
-  { time: 6700, category: "synth", icon: "✨", label: "Drafted Outcome angle · 3 personas" },
-  { time: 7300, category: "synth", icon: "✨", label: "Drafted Authority angle · 3 personas" },
-  { time: 7900, category: "synth", icon: "✨", label: "Drafted Social-proof angle · 3 personas" },
-  // ── Stage 5 · Rollout sequencing (8-10s) ──
-  { time: 8600, category: "crawl", icon: "📅", label: "Phase 1 · Day 1-2 · Setup tasks compiled" },
-  { time: 9200, category: "crawl", icon: "📅", label: "Phase 2 · Day 3-7 · Launch tasks compiled" },
-  { time: 9800, category: "crawl", icon: "📅", label: "Phase 3 · Day 8-14 · Optimize tasks compiled" },
-  // ── Stage 6 · Budget + write (10-12s) ──
-  { time: 10500, category: "synth", icon: "💰", label: "Total ₹30,800 over 14 days · daily cap ₹2,200" },
-  { time: 11100, category: "write", icon: "✓", label: "Committed plan → plan.md" },
-  { time: 11600, category: "write", icon: "✓", label: "Plan index rebuilt · ready for review" },
-];
 
 /**
- * Plan-building loader · wraps the shared LiveBuildLoader with the
- * plan-specific config (agents, findings, counters). Visually
- * identical to the memory loader by design — same wow surface,
- * just different content streaming through.
+ * Plan-building loader · deliberately minimal. The Spot orb floats
+ * on a dark canvas while a single sentence cycles every ~1.9s. The
+ * copy frames the "no past data" reality of a brand-new product so
+ * the user understands *why* Spot is recommending a conservative
+ * experiment plan instead of just spinning a vague progress bar.
  */
+const PLAN_THOUGHTS = [
+  "Analyzing memory…",
+  "We don't have any existing campaigns or goals yet.",
+  "Let me plan experiment campaigns to figure out what works.",
+  "Personas first — three target groups from the brief.",
+  "Composing creative angles for each persona.",
+  "Drafting media mix · Meta · Google · WhatsApp.",
+  "Sequencing the 14-day rollout in phases.",
+  "Locking budget allocations · conservative caps.",
+  "Building your plan…",
+];
+
 function PlanBuildingLoader({ productName }: { productName: string }) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (PLAN_THOUGHTS.length < 2) return;
+    const id = setInterval(() => {
+      setIdx((i) => (i + 1) % PLAN_THOUGHTS.length);
+    }, 1900);
+    return () => clearInterval(id);
+  }, []);
+
   return (
-    <LiveBuildLoader
-      config={{
-        agentName: "Launch Plan Agent",
-        title: (
-          <>
-            Drafting the launch plan for{" "}
-            <span
-              style={{
-                background:
-                  "linear-gradient(135deg, #8C6D33 0%, #C9A86A 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              {productName}
-            </span>
-          </>
-        ),
-        blurb:
-          "Six agents working in parallel — drafting personas, pulling memory, building media mix, composing creatives, sequencing rollout, locking budget.",
-        agents: PLAN_BUILD_AGENTS,
-        findings: PLAN_FINDINGS,
-        counters: [
-          {
-            icon: "👥",
-            label: "Personas drafted",
-            valueOf: (v) =>
-              v.filter((f) => f.label.startsWith("Persona ")).length,
-          },
-          {
-            icon: "📣",
-            label: "Channels planned",
-            valueOf: (v) =>
-              v.filter(
-                (f) =>
-                  f.label.startsWith("Meta ·") ||
-                  f.label.startsWith("Google ") ||
-                  f.label.startsWith("Click-to-WhatsApp"),
-              ).length,
-          },
-          {
-            icon: "✨",
-            label: "Creative angles",
-            valueOf: (v) =>
-              v.filter((f) => f.label.startsWith("Drafted ") && f.label.includes("angle"))
-                .length * 3, // 3 personas per angle
-          },
-          {
-            icon: "📅",
-            label: "Phases sequenced",
-            valueOf: (v) =>
-              v.filter((f) => f.label.startsWith("Phase ")).length,
-          },
-        ],
-      }}
-    />
+    <div
+      className="h-full flex flex-col items-center justify-center px-8 py-12 text-center"
+      style={{ background: "#0A0A09" }}
+    >
+      {/* Soft gold radial glow behind the orb */}
+      <div className="relative mb-7">
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(201, 168, 106, 0.32) 0%, transparent 65%)",
+            filter: "blur(14px)",
+            transform: "scale(1.6)",
+          }}
+        />
+        <SpotLoader mode="orbit" size={84} className="!gap-0 relative" />
+      </div>
+
+      <div
+        className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider font-semibold mb-2"
+        style={{ color: "#22C55E" }}
+      >
+        <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#22C55E]">
+          <span className="absolute inset-0 rounded-full bg-[#22C55E] opacity-50 animate-ping" />
+        </span>
+        Launch Plan Agent · live
+      </div>
+
+      <h1
+        className="text-[24px] font-semibold tracking-tight leading-tight max-w-[520px]"
+        style={{ color: "#F5F4EF" }}
+      >
+        Building a plan for{" "}
+        <span
+          style={{
+            background:
+              "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          {productName}
+        </span>
+      </h1>
+
+      {/* Cycling thought · key={idx} re-fires the slide-in keyframe */}
+      <div
+        key={idx}
+        className="mt-4 text-[14px] leading-relaxed max-w-[480px]"
+        style={{
+          color: "#A8A8A0",
+          animation: "findingSlide 320ms ease-out",
+          minHeight: "44px",
+        }}
+      >
+        {PLAN_THOUGHTS[idx]}
+      </div>
+
+      {/* Tiny progress dots · vague indicator that something's happening */}
+      <div className="flex items-center gap-1.5 mt-7">
+        {PLAN_THOUGHTS.map((_, i) => (
+          <span
+            key={i}
+            className="rounded-full transition-all duration-300"
+            style={{
+              width: i === idx ? "16px" : "4px",
+              height: "4px",
+              background: i <= idx ? "#C9A86A" : "#2A2A26",
+            }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

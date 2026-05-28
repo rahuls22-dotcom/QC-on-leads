@@ -267,12 +267,8 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <div
           key={key}
-          className="mt-3 mb-8 px-5 py-4 rounded-card border-l-[3px]"
-          style={{
-            borderLeftColor: "#C9A86A",
-            background:
-              "linear-gradient(135deg, #FBF8F0 0%, #F5EFE0 100%)",
-          }}
+          className="mt-3 mb-8 px-5 py-4 rounded-card border-l-[3px] md-tagline"
+          style={{ borderLeftColor: "#C9A86A" }}
         >
           <p className="text-[14.5px] text-text-primary leading-relaxed">
             <Inline text={b.text} />
@@ -350,7 +346,7 @@ function PropertiesBar({ text }: { text: string }) {
       {parts.map((p, i) => (
         <span
           key={i}
-          className="inline-flex items-center h-5 px-2 rounded-full bg-surface-page border border-border-subtle text-[10.5px] uppercase tracking-wider text-text-tertiary font-medium"
+          className="md-property-pill inline-flex items-center h-5 px-2 rounded-full text-[10.5px] uppercase tracking-wider font-medium"
         >
           {p}
         </span>
@@ -462,7 +458,7 @@ function PricingGrid({ items }: { items: string[] }) {
               <div className="text-[11px] text-text-tertiary mt-1">{cadence}</div>
             )}
             {badge && (
-              <div className="mt-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] text-[9.5px] uppercase tracking-wider text-[#8C6D33] font-semibold">
+              <div className="md-price-badge mt-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9.5px] uppercase tracking-wider font-semibold">
                 {badge}
               </div>
             )}
@@ -484,14 +480,18 @@ function OfferPills({ items }: { items: string[] }) {
         return (
           <span
             key={i}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-[#FEF3C7] border border-[#FCE7A1] text-[11.5px] text-[#854D0E]"
+            className="md-offer-pill inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11.5px]"
           >
-            <Sparkles size={10} strokeWidth={1.8} className="text-[#A16207]" />
-            <span className="font-medium">
+            <Sparkles
+              size={10}
+              strokeWidth={1.8}
+              className="md-offer-pill-icon"
+            />
+            <span className="font-medium md-offer-pill-label">
               <Inline text={label} />
             </span>
             {meta && (
-              <span className="text-[10.5px] text-[#A16207]/80">· {meta}</span>
+              <span className="md-offer-pill-meta text-[10.5px]">· {meta}</span>
             )}
           </span>
         );
@@ -500,7 +500,9 @@ function OfferPills({ items }: { items: string[] }) {
   );
 }
 
-/** USPs / Avoid — coloured bordered cards with an icon. */
+/** USPs / Avoid — coloured bordered cards with an icon. Dark-mode
+ *  variants live in globals.css under `.md-dark .md-insight-{tone}`
+ *  so the surface adapts to the canvas theme. */
 function InsightCards({
   items,
   tone,
@@ -510,23 +512,20 @@ function InsightCards({
 }) {
   const Icon = tone === "ok" ? CheckCircle2 : ShieldAlert;
   const iconColour = tone === "ok" ? "#15803D" : "#92400E";
-  const bg = tone === "ok" ? "#F0FDF4" : "#FFFBEB";
-  const border = tone === "ok" ? "#BBF7D0" : "#FCE7A1";
   return (
     <div className="space-y-2 mb-5">
       {items.map((it, i) => (
         <div
           key={i}
-          className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-card border"
-          style={{ background: bg, borderColor: border }}
+          className={`flex items-start gap-2.5 px-3.5 py-2.5 rounded-card border md-insight md-insight-${tone}`}
         >
           <Icon
             size={13}
             strokeWidth={2}
-            className="flex-shrink-0 mt-[3px]"
+            className="flex-shrink-0 mt-[3px] md-insight-icon"
             style={{ color: iconColour }}
           />
-          <div className="text-[13px] text-text-primary leading-relaxed">
+          <div className="text-[13px] text-text-primary leading-relaxed md-insight-text">
             <Inline text={it} />
           </div>
         </div>
@@ -574,14 +573,14 @@ function PersonaChips({ items }: { items: string[] }) {
         >
           <div className="flex items-start gap-3">
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{
-                background:
-                  "linear-gradient(135deg, #FBF8F0 0%, #EBE2C9 100%)",
-                border: "1px solid #E8E3D5",
-              }}
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 md-persona-avatar"
             >
-              <User size={15} strokeWidth={1.7} className="text-[#8C6D33]" />
+              <User
+                size={15}
+                strokeWidth={1.7}
+                className="md-persona-avatar-icon"
+                style={{ color: "#8C6D33" }}
+              />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[14px] font-semibold text-text-primary leading-snug">
@@ -591,14 +590,7 @@ function PersonaChips({ items }: { items: string[] }) {
                 {p!.meta}
               </div>
               <div className="flex items-baseline gap-2 mt-2 pt-2 border-t border-border-subtle">
-                <span
-                  className="inline-flex items-center h-4 px-1.5 rounded-full text-[9.5px] uppercase tracking-wider font-semibold flex-shrink-0"
-                  style={{
-                    background: "#FEF3C7",
-                    color: "#854D0E",
-                    border: "1px solid #FCE7A1",
-                  }}
-                >
+                <span className="inline-flex items-center h-4 px-1.5 rounded-full text-[9.5px] uppercase tracking-wider font-semibold flex-shrink-0 md-pain-pill">
                   Pain
                 </span>
                 <span className="text-[12.5px] text-text-primary leading-snug">
