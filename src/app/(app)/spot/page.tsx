@@ -355,25 +355,31 @@ export default function SpotPage() {
             )}
           </div>
           <div ref={threadScrollRef} className="flex-1 overflow-y-auto scroll px-4 py-4">
-            {thread.map((m, i) => (
-              <MessageBubble key={i} message={m} animate={i === thread.length - 1} />
-            ))}
-            {pending && <TypingDots />}
-            <AgentTrailIndicator working={isAgentRunning || pending} />
+            {/* Bottom-anchored stack — content piles at the bottom of
+                the chat (Claude-style). When there are few messages,
+                the question card sits just above the composer instead
+                of stranded at the top. */}
+            <div className="min-h-full flex flex-col justify-end">
+              {thread.map((m, i) => (
+                <MessageBubble key={i} message={m} animate={i === thread.length - 1} />
+              ))}
+              {pending && <TypingDots />}
+              <AgentTrailIndicator working={isAgentRunning || pending} />
 
-            {/* Inline question card · appears in-thread once Spot has
-                finished preparing the intake. Three sequential
-                questions: name → URL → files. Submitting the last
-                one closes the card and kicks off deep research. */}
-            {workflow.kind === "launch-campaign" &&
-              workflow.step === "product-setup" &&
-              workflow.productSetupModalOpen === true &&
-              !workflow.productSetupAnswers?.name && (
-                <ProductSetupQuestionCard
-                  onSubmit={(data) => submitProductSetupForm(data)}
-                  onClose={() => exitWorkflow()}
-                />
-              )}
+              {/* Inline question card · appears once Spot has finished
+                  preparing the intake. Three sequential questions:
+                  name → URL → files. Submitting the last one closes
+                  the card and kicks off deep research. */}
+              {workflow.kind === "launch-campaign" &&
+                workflow.step === "product-setup" &&
+                workflow.productSetupModalOpen === true &&
+                !workflow.productSetupAnswers?.name && (
+                  <ProductSetupQuestionCard
+                    onSubmit={(data) => submitProductSetupForm(data)}
+                    onClose={() => exitWorkflow()}
+                  />
+                )}
+            </div>
           </div>
           <div className="border-t border-border-subtle px-3 py-3 bg-white/50 backdrop-blur-sm">
             <Composer
@@ -655,42 +661,31 @@ function ProductSetupQuestionCard({
   const continueDisabled = step === 0 && !canSubmit;
 
   return (
-    <div className="my-3">
+    <div className="mt-4 mb-1">
       {/* Context line above the card · mirrors the Claude pattern */}
       <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary mb-2 ml-0.5">
         <Sparkles size={10} strokeWidth={1.7} />
         <span>Setting up a new product · {TOTAL} quick questions</span>
       </div>
 
-      {/* The interactive card itself · dark surface to read as a widget */}
-      <div
-        className="rounded-card overflow-hidden"
-        style={{
-          background: "#1F1F1E",
-          color: "#FAFAF8",
-          boxShadow: "0 10px 30px -10px rgba(0,0,0,0.22)",
-        }}
-      >
+      {/* The interactive card itself · light surface matching the app theme */}
+      <div className="bg-white border border-border rounded-card overflow-hidden shadow-card">
         {/* Header · question + pagination + close */}
         <div className="px-4 pt-4 pb-2.5 flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-[14.5px] font-medium leading-snug">{question}</div>
-            <div
-              className="text-[11.5px] leading-relaxed mt-1"
-              style={{ color: "#A8A8A4" }}
-            >
+            <div className="text-[14.5px] font-medium leading-snug text-text-primary">
+              {question}
+            </div>
+            <div className="text-[11.5px] leading-relaxed mt-1 text-text-tertiary">
               {subtitle}
             </div>
           </div>
-          <div
-            className="flex items-center gap-2.5 text-[11px] flex-shrink-0"
-            style={{ color: "#A8A8A4" }}
-          >
+          <div className="flex items-center gap-2.5 text-[11px] flex-shrink-0 text-text-tertiary">
             <button
               type="button"
               onClick={goPrev}
               disabled={step === 0}
-              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               title="Previous"
             >
               <ChevronLeft size={13} strokeWidth={1.8} />
@@ -702,7 +697,7 @@ function ProductSetupQuestionCard({
               type="button"
               onClick={goNext}
               disabled={continueDisabled}
-              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               title="Next"
             >
               <ChevronRight size={13} strokeWidth={1.8} />
@@ -710,7 +705,7 @@ function ProductSetupQuestionCard({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-white transition-colors ml-0.5"
+              className="inline-flex items-center justify-center w-5 h-5 rounded hover:text-text-primary transition-colors ml-0.5"
               title="Cancel"
             >
               <X size={13} strokeWidth={1.8} />
@@ -731,12 +726,7 @@ function ProductSetupQuestionCard({
                 if (e.key === "Enter" && canSubmit) goNext();
               }}
               placeholder="e.g. Guyju's Spoken English"
-              className="w-full rounded-input px-3 py-2.5 text-[13.5px] outline-none"
-              style={{
-                background: "#2A2A28",
-                color: "#FAFAF8",
-                border: "1px solid #3A3A38",
-              }}
+              className="w-full rounded-input px-3 py-2.5 text-[13.5px] bg-white border border-border text-text-primary placeholder:text-text-tertiary outline-none focus:border-text-primary"
             />
           )}
           {step === 1 && (
@@ -750,12 +740,7 @@ function ProductSetupQuestionCard({
                 if (e.key === "Enter") goNext();
               }}
               placeholder="https://…"
-              className="w-full rounded-input px-3 py-2.5 text-[13.5px] outline-none"
-              style={{
-                background: "#2A2A28",
-                color: "#FAFAF8",
-                border: "1px solid #3A3A38",
-              }}
+              className="w-full rounded-input px-3 py-2.5 text-[13.5px] bg-white border border-border text-text-primary placeholder:text-text-tertiary outline-none focus:border-text-primary"
             />
           )}
           {step === 2 && (
@@ -772,21 +757,20 @@ function ProductSetupQuestionCard({
                   setDragOver(false);
                   if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
                 }}
-                className="rounded-input px-3 py-3.5 text-center cursor-pointer transition-colors"
-                style={{
-                  background: dragOver ? "#2F2F2D" : "#262624",
-                  border: `1px dashed ${dragOver ? "#FAFAF8" : "#3A3A38"}`,
-                }}
+                className={`rounded-input px-3 py-3.5 text-center cursor-pointer transition-colors border border-dashed ${
+                  dragOver
+                    ? "border-text-primary bg-surface-secondary"
+                    : "border-border hover:border-border-hover bg-surface-page"
+                }`}
               >
                 <Paperclip
                   size={12}
                   strokeWidth={1.6}
-                  className="inline mr-1.5 -mt-0.5"
-                  style={{ color: "#A8A8A4" }}
+                  className="inline mr-1.5 -mt-0.5 text-text-tertiary"
                 />
-                <span className="text-[12px]" style={{ color: "#A8A8A4" }}>
+                <span className="text-[12px] text-text-secondary">
                   Drop files or{" "}
-                  <span className="font-medium underline-offset-2 hover:underline" style={{ color: "#FAFAF8" }}>
+                  <span className="font-medium underline-offset-2 hover:underline text-text-primary">
                     click to browse
                   </span>
                 </span>
@@ -808,14 +792,12 @@ function ProductSetupQuestionCard({
                   {fileNames.map((fn, i) => (
                     <div
                       key={`${fn}-${i}`}
-                      className="flex items-center gap-1.5 text-[11.5px] rounded-input px-2 py-1.5"
-                      style={{ background: "#262624", color: "#D6D6D2" }}
+                      className="flex items-center gap-1.5 text-[11.5px] rounded-input px-2 py-1.5 bg-surface-page border border-border-subtle text-text-secondary"
                     >
                       <Paperclip
                         size={11}
                         strokeWidth={1.6}
-                        className="flex-shrink-0"
-                        style={{ color: "#A8A8A4" }}
+                        className="flex-shrink-0 text-text-tertiary"
                       />
                       <span className="flex-1 truncate">{fn}</span>
                       <button
@@ -823,8 +805,7 @@ function ProductSetupQuestionCard({
                         onClick={() =>
                           setFileNames((prev) => prev.filter((_, j) => j !== i))
                         }
-                        className="flex-shrink-0 hover:text-white"
-                        style={{ color: "#A8A8A4" }}
+                        className="flex-shrink-0 text-text-tertiary hover:text-text-primary"
                         title="Remove"
                       >
                         <X size={11} strokeWidth={1.8} />
@@ -844,8 +825,7 @@ function ProductSetupQuestionCard({
             <button
               type="button"
               onClick={goNext}
-              className="text-[12px] py-1.5 px-3 rounded-button transition-colors"
-              style={{ color: "#A8A8A4", background: "transparent" }}
+              className="text-[12px] py-1.5 px-3 rounded-button text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
             >
               Skip
             </button>
@@ -854,11 +834,7 @@ function ProductSetupQuestionCard({
             type="button"
             onClick={goNext}
             disabled={continueDisabled}
-            className="inline-flex items-center gap-1.5 text-[12px] py-1.5 px-3 rounded-button font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            style={{
-              background: continueDisabled ? "#3A3A38" : "#FAFAF8",
-              color: continueDisabled ? "#A8A8A4" : "#1F1F1E",
-            }}
+            className="inline-flex items-center gap-1.5 text-[12px] py-1.5 px-3 rounded-button font-medium bg-[#111] text-[#FAFAF8] hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isLast ? "Start research" : "Continue"}
             <ArrowRight size={11} strokeWidth={2} />
