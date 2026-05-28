@@ -394,6 +394,17 @@ function getProductFiles(workflow: SpotWorkflow) {
   return null;
 }
 
+/** Cycling status labels shown while Spot is researching a brand-new
+ *  product. Each line is a concrete subtask so the loader reads as
+ *  active work-in-progress rather than abstract "thinking". */
+const NEW_PRODUCT_RESEARCH_LABELS = [
+  "Crawling the URL · about, curriculum, pricing pages",
+  "Searching the open web for category signals",
+  "Reading the documents you uploaded",
+  "Synthesizing data into a coherent brief",
+  "Building the product brief",
+];
+
 function MemoryFileView({
   workflow,
   buildingOverlay,
@@ -403,17 +414,30 @@ function MemoryFileView({
 }) {
   const files = getProductFiles(workflow);
 
-  // New product flow · memory file is being built. Show whatever the
-  // user has answered so far as a sketch markdown document.
-  if (!files && workflow.kind === "launch-campaign") {
-    const answers = workflow.productSetupAnswers ?? {};
-    const partial = buildPartialMemoryMd(workflow.productName, answers);
+  // New product flow · memory is being built from scratch. Show the
+  // SpotLoader with cycling research labels instead of a half-empty
+  // partial-markdown sketch. The loader fills the whole canvas so
+  // the user sees concrete agent progress, not a placeholder.
+  const isBuildingFromScratch =
+    workflow.kind === "launch-campaign" &&
+    !files &&
+    !!workflow.productSetupAnswers?.name &&
+    (workflow.step === "deep-research" ||
+      (workflow.step === "kickoff" && !workflow.kickoffReady));
+
+  if (isBuildingFromScratch && workflow.kind === "launch-campaign") {
+    const isMemoryPhase = workflow.step === "kickoff";
     return (
-      <div className="relative">
-        <div className="px-6 py-5 max-w-[720px]">
-          <Markdown source={partial} />
-        </div>
-        {buildingOverlay && <BuildingOverlay label="Spot is building this file…" />}
+      <div className="h-full flex items-center justify-center px-6 py-12">
+        <SpotFullscreen
+          title={
+            isMemoryPhase
+              ? `Building memory for ${workflow.productName}`
+              : `Researching ${workflow.productName}`
+          }
+          messages={NEW_PRODUCT_RESEARCH_LABELS}
+          size={64}
+        />
       </div>
     );
   }

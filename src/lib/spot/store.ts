@@ -427,16 +427,6 @@ export const useSpotStore = create<PanelState>((set) => ({
       text: lines.join("\n"),
     };
 
-    const reply: SpotMessage = {
-      role: "spot",
-      parts: [
-        {
-          type: "text",
-          text: `Got it — starting deep research on **${trimmedName}** now.`,
-        },
-      ],
-    };
-
     const answers: ProductSetupAnswers = {
       name: trimmedName,
       url,
@@ -451,17 +441,20 @@ export const useSpotStore = create<PanelState>((set) => ({
       productSetupModalOpen: false,
     };
 
+    // Append the user's form summary to the thread. No "got it" Spot
+    // reply here — startDeepResearch fires the next Spot message
+    // (including its tool-call) so we don't double-speak.
     set((s) => ({
       workflow: nextWorkflow,
-      thread: [...s.thread, userMsg, reply],
+      thread: [...s.thread, userMsg],
     }));
 
-    // Kick off deep research after a brief beat so the reply lands.
+    // Kick off deep research after a brief beat so the user message lands.
     setTimeout(() => {
       const cur = useSpotStore.getState();
       if (cur.workflow?.step !== "product-setup") return;
       cur.startDeepResearch(trimmedName, files ?? []);
-    }, 700);
+    }, 600);
   },
 
   // Chat-driven product-setup Q&A · advances stage by stage. Each call
@@ -621,11 +614,10 @@ export const useSpotStore = create<PanelState>((set) => ({
     const researchCallId = `tc-research-${Date.now()}`;
     const memoryCallId = `tc-memory-${Date.now()}`;
     const hasFiles = attachedFiles.length > 0;
-    const fileSummary =
-      attachedFiles.length === 1
-        ? `“${attachedFiles[0]}”`
-        : `${attachedFiles.length} files (${attachedFiles.slice(0, 2).join(", ")}${attachedFiles.length > 2 ? ", …" : ""})`;
-    set(() => ({
+    // Append (not replace) the thread so any prior turn — the user's
+    // form submission, intake tool-call, or "launch a campaign for X"
+    // prompt — stays visible above the research narration.
+    set((s) => ({
       open: true,
       maximized: false,
       canvasOpen: true,
@@ -647,19 +639,15 @@ export const useSpotStore = create<PanelState>((set) => ({
         attachedVoiceAgentId: null,
       },
       thread: [
+        ...s.thread,
         {
           role: "spot",
           parts: [
             {
-              type: "headline",
-              text: `I haven't seen "${productName}" yet.`,
-              verdict: "info",
-            },
-            {
               type: "text",
               text: hasFiles
-                ? `I'll parse ${fileSummary} alongside the brand site, pull category signals from the open web, and check our audience graph — then write everything to product memory.`
-                : "Let me spin up the Deep Research Agent — I'll crawl the brand site, pull category signals from the open web, and check our audience graph, then write everything to product memory.",
+                ? `On it — dispatching the Deep Research Agent. Crawling the URL, parsing your ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}, searching the open web, then writing everything to product memory.`
+                : `On it — dispatching the Deep Research Agent. Crawling the URL, searching the open web for category signals, then writing everything to product memory.`,
             },
             {
               type: "tool-call",
