@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, Info, ChevronRight, ArrowRight, Cog } from "lucide-react";
 import { SpotMark } from "./spot-mark";
+import { SpotLoader } from "./spot-loader";
 import { RichText } from "./rich-text";
 import type { SpotFinding, SpotKpi, SpotMessage, SpotPart, Verdict, GuidedKind } from "@/lib/spot/types";
 import { useSpotStore } from "@/lib/spot/store";
@@ -295,21 +296,12 @@ export function MessageBubble({
 }
 
 export function TypingDots() {
+  // Use the brand "Spot is typing" dots — three rounded-square pearls
+  // in a chat bubble. Stop rendering as soon as Spot's first character
+  // streams in (handled by the caller).
   return (
-    <div className="mb-2.5 flex items-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="spot-pulse"
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: "50%",
-            background: "var(--text-2)",
-            animationDelay: `${i * 0.18}s`,
-          }}
-        />
-      ))}
+    <div className="mb-2.5">
+      <SpotLoader mode="dots" />
     </div>
   );
 }

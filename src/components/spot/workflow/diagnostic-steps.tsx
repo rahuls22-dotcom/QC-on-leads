@@ -40,6 +40,7 @@ import type { Variants } from "framer-motion";
 import { useEffect } from "react";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
+import { SpotLoader, SpotFullscreen } from "@/components/spot/spot-loader";
 import type { DiagnosticWorkflow } from "@/lib/spot/workflow";
 import {
   analysisFor,
@@ -501,42 +502,24 @@ function BeautifulMetric({
   );
 }
 
+const ANALYZE_MESSAGES = [
+  "Reading product memory…",
+  "Scanning last-30-day performance…",
+  "Fetching persona signals…",
+  "Auditing competitor moves…",
+  "Running sentiment analysis on comments…",
+  "Synthesising findings…",
+];
+
 function AnalyzeLoader() {
-  const agents = [
-    "memory.read",
-    "campaigns.scan",
-    "personas.fetch",
-    "competitor.scan",
-    "sentiment.audit",
-  ];
   return (
-    <div className="px-5 py-12 flex flex-col items-center text-center">
-      <div className="relative w-14 h-14 mb-5">
-        <SpotMark size={32} className="spot-breath absolute inset-0 m-auto" />
-        <div className="absolute inset-0 rounded-full border-2 border-dashed border-border-subtle animate-[spin_4s_linear_infinite]" />
-      </div>
-      <div className="text-section-header text-text-primary mb-1.5">Analyzing</div>
-      <div className="text-meta text-text-secondary mb-5 max-w-[440px]">
-        Five agents reading recent performance, audience signals, sentiment, competitor moves,
-        and product memory — in parallel.
-      </div>
-      <div className="bg-white border border-border rounded-card p-3.5 max-w-[420px] w-full">
-        <ul className="space-y-2">
-          {agents.map((a, i) => (
-            <li key={a} className="flex items-center gap-2.5 text-[12px]">
-              <span className="relative inline-flex items-center justify-center w-3.5 h-3.5">
-                <span
-                  className="absolute inset-0 rounded-full bg-[#111] opacity-30 animate-ping"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-                <span className="relative w-1.5 h-1.5 rounded-full bg-[#111]" />
-              </span>
-              <span className="font-mono text-text-primary">{a}</span>
-              <span className="text-text-tertiary text-[11px]">running</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="h-full flex items-center justify-center px-5 py-8">
+      <SpotFullscreen
+        title="Analyzing"
+        messages={ANALYZE_MESSAGES}
+        size={64}
+        className="!min-h-[360px]"
+      />
     </div>
   );
 }
@@ -900,44 +883,24 @@ function PhaseCard({
   );
 }
 
+const PLAN_LOADER_MESSAGES = [
+  "Reading product memory…",
+  "Fetching personas + audience graph…",
+  "Auditing recent creatives…",
+  "Pulling competitor positioning…",
+  "Sequencing phases · setting guardrails…",
+  "Composing the plan…",
+];
+
 function PlanLoader() {
-  // Surface what's running in parallel — visually it's a loader but
-  // conceptually it shows "5 agents are working".
-  const agents = [
-    "memory.read",
-    "personas.fetch",
-    "creative.audit",
-    "competitor.scan",
-    "plan.build",
-  ];
   return (
-    <div className="px-5 py-12 flex flex-col items-center text-center">
-      <div className="relative w-14 h-14 mb-5">
-        <SpotMark size={32} className="spot-breath absolute inset-0 m-auto" />
-        <div className="absolute inset-0 rounded-full border-2 border-dashed border-border-subtle animate-[spin_4s_linear_infinite]" />
-      </div>
-      <div className="text-section-header text-text-primary mb-1.5">Building the plan</div>
-      <div className="text-meta text-text-secondary mb-5 max-w-[440px]">
-        Five agents running in parallel · analysing past performance, comparing audiences,
-        synthesising what to do next. ~30 seconds.
-      </div>
-      <div className="bg-white border border-border rounded-card p-3.5 max-w-[420px] w-full">
-        <ul className="space-y-2">
-          {agents.map((a, i) => (
-            <li key={a} className="flex items-center gap-2.5 text-[12px]">
-              <span className="relative inline-flex items-center justify-center w-3.5 h-3.5">
-                <span
-                  className="absolute inset-0 rounded-full bg-[#111] opacity-30 animate-ping"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-                <span className="relative w-1.5 h-1.5 rounded-full bg-[#111]" />
-              </span>
-              <span className="font-mono text-text-primary">{a}</span>
-              <span className="text-text-tertiary text-[11px]">running</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <div className="h-full flex items-center justify-center px-5 py-8">
+      <SpotFullscreen
+        title="Building the plan"
+        messages={PLAN_LOADER_MESSAGES}
+        size={64}
+        className="!min-h-[360px]"
+      />
     </div>
   );
 }

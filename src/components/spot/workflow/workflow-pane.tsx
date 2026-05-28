@@ -38,6 +38,7 @@ import {
   LaunchReviewStep,
 } from "@/components/spot/workflow/launch-build-steps";
 import { SpotMark } from "@/components/spot/spot-mark";
+import { SpotLoader, SpotFullscreen } from "@/components/spot/spot-loader";
 import { PRODUCTS } from "@/lib/products-data";
 
 const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
@@ -283,33 +284,13 @@ function StepLoader({
 }) {
   return (
     <div className="h-full flex flex-col items-center justify-center px-8 py-16 text-center">
-      <div className="relative w-12 h-12 mb-4">
-        <SpotMark size={28} className="spot-breath absolute inset-0 m-auto" />
-        <svg
-          aria-hidden
-          className="absolute inset-0 animate-spin"
-          style={{ width: 48, height: 48, animationDuration: "2.4s" }}
-          viewBox="0 0 48 48"
-        >
-          <circle
-            cx="24"
-            cy="24"
-            r="21"
-            fill="none"
-            stroke="#E8C97A"
-            strokeWidth="1.5"
-            strokeDasharray="30 130"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-      <div className="text-[14px] font-semibold text-text-primary mb-1">
-        Working on {stepLabel.toLowerCase()}…
-      </div>
-      <div className="mono text-[10.5px] text-text-tertiary mb-3">{agent}</div>
-      <div className="text-[12.5px] text-text-secondary max-w-[380px] leading-relaxed">
-        {detail}
-      </div>
+      <SpotLoader
+        mode="orbit"
+        size={56}
+        label={`Working on ${stepLabel.toLowerCase()}…`}
+        sublabel={detail}
+      />
+      <div className="mono text-[10.5px] text-text-tertiary mt-2">{agent}</div>
     </div>
   );
 }
@@ -333,64 +314,38 @@ const RESEARCH_TASKS = [
   { label: "Synthesising USPs and avoid list", status: "queued" as const },
 ];
 
+/** Status messages for the deep-research full-screen loader. Cycle
+ *  every 1.8s so the user sees Spot working through each source.
+ *  Mirrors what the Deep Research Agent narrates in chat. */
+const DEEP_RESEARCH_MESSAGES = [
+  "Crawling the brand site…",
+  "Pulling category signals from the open web…",
+  "Reading competitor positioning…",
+  "Checking the Revspot audience graph for persona overlap…",
+  "Sampling category review sites + parent forums…",
+  "Synthesising USPs and do-not-mention list…",
+];
+
+/** Status for the "Building memory" phase that follows deep research.
+ *  This is the moment Spot is *committing* what it found into the
+ *  product's memory layer — different vibe from research. */
+const BUILDING_MEMORY_MESSAGES = [
+  "Drafting the product tagline…",
+  "Writing the structured brief…",
+  "Proposing pricing plans…",
+  "Composing the offer slate…",
+  "Locking in USPs to lead with…",
+  "Adding the do-not-mention list to memory…",
+];
+
 function DeepResearchStep({ workflow }: { workflow: LaunchWorkflow }) {
   return (
-    <div className="px-5 py-5">
-      <StepHeader
+    <div className="h-full flex items-center justify-center px-5 py-8">
+      <SpotFullscreen
         title={`Researching ${workflow.productName}`}
-        blurb={`Spot didn't have this product on file. The Deep Research Agent is pulling everything it can from public sources and the Revspot audience graph. Memory will auto-populate.`}
+        messages={DEEP_RESEARCH_MESSAGES}
+        size={72}
       />
-
-      <div className="bg-white border border-border rounded-card p-4">
-        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border-subtle">
-          <div className="w-7 h-7 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
-            <Cog
-              size={13}
-              strokeWidth={1.8}
-              className="text-text-secondary animate-spin"
-              style={{ animationDuration: "2s" }}
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[12.5px] font-medium text-text-primary">Deep Research Agent</div>
-            <div className="text-[11px] text-text-tertiary">Running · ~3s</div>
-          </div>
-        </div>
-
-        <ul className="space-y-2">
-          {RESEARCH_TASKS.map((t, i) => {
-            const Icon =
-              t.status === "done" ? CheckCircle2 : t.status === "running" ? Cog : Search;
-            const colorClass =
-              t.status === "done"
-                ? "text-[#15803D]"
-                : t.status === "running"
-                  ? "text-text-secondary"
-                  : "text-text-tertiary";
-            return (
-              <li key={i} className="flex items-center gap-2.5 text-[12.5px]">
-                <Icon
-                  size={11}
-                  strokeWidth={1.8}
-                  className={`${colorClass} flex-shrink-0 ${t.status === "running" ? "animate-spin" : ""}`}
-                  style={t.status === "running" ? { animationDuration: "2s" } : undefined}
-                />
-                <span className={t.status === "queued" ? "text-text-tertiary" : "text-text-primary"}>
-                  {t.label}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className="bg-[#FAF8F2] border border-[#E8E3D5] rounded-card p-3 mt-4 flex items-start gap-2.5">
-        <SpotMark size={16} />
-        <div className="text-[12px] text-text-secondary leading-relaxed">
-          Once research lands, I'll commit a memory entry — same structure as any product
-          you'd configure manually. You can edit any field in chat afterwards.
-        </div>
-      </div>
     </div>
   );
 }
@@ -649,8 +604,24 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
   // render the freshly-researched memory in the same shape.
   const researched = workflow.researchedMemory;
 
-  // Show a shimmer skeleton until the Memory Reader tool-call finishes.
+  // Loading state. Two flavours:
+  //   · After deep research → full-screen "Building memory" with cycling
+  //     status, telegraphing what Spot is writing.
+  //   · Loading existing product memory → quick skeleton shimmer.
   if (!workflow.kickoffReady) {
+    // Heuristic: if there's no productId, we came from deep-research →
+    // building memory. Otherwise we're loading from the library.
+    if (!workflow.productId) {
+      return (
+        <div className="h-full flex items-center justify-center px-5 py-8">
+          <SpotFullscreen
+            title="Building memory…"
+            messages={BUILDING_MEMORY_MESSAGES}
+            size={72}
+          />
+        </div>
+      );
+    }
     return <KickoffSkeleton productName={workflow.productName} />;
   }
 

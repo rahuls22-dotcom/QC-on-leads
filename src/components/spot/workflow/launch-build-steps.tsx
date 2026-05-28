@@ -39,6 +39,7 @@ import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
+import { SpotLoader } from "@/components/spot/spot-loader";
 import type { LaunchWorkflow } from "@/lib/spot/workflow";
 import { LAUNCH_PERSONAS, SAMPLE_FORMS } from "@/lib/spot/workflow";
 
@@ -457,10 +458,7 @@ const BUILD_TASKS = [
 export function LaunchBuildingStep({ workflow }: { workflow: LaunchWorkflow }) {
   return (
     <div className="h-full flex flex-col items-center justify-center px-8 py-16 text-center max-w-[600px] mx-auto">
-      <div className="relative w-16 h-16 mb-5">
-        <SpotMark size={36} className="spot-breath absolute inset-0 m-auto" />
-        <div className="absolute inset-0 rounded-full border-2 border-dashed border-border-subtle animate-[spin_4s_linear_infinite]" />
-      </div>
+      <SpotLoader mode="orbit" size={72} className="mb-5" />
 
       <div className="text-section-header text-text-primary mb-1.5">
         Building {workflow.productName}
