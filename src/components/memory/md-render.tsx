@@ -243,7 +243,7 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <h1
           key={key}
-          className="text-[32px] font-bold text-text-primary tracking-tight leading-[1.15] mt-0 mb-3"
+          className="text-[34px] font-bold text-text-primary tracking-tight leading-[1.1] mt-0 mb-3"
         >
           <Inline text={b.text} />
         </h1>
@@ -256,10 +256,14 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <div
           key={key}
-          className="mt-2 mb-7 px-4 py-3.5 rounded-card border-l-4 bg-[#FAF8F2]"
-          style={{ borderLeftColor: "#C9A86A" }}
+          className="mt-3 mb-8 px-5 py-4 rounded-card border-l-[3px]"
+          style={{
+            borderLeftColor: "#C9A86A",
+            background:
+              "linear-gradient(135deg, #FBF8F0 0%, #F5EFE0 100%)",
+          }}
         >
-          <p className="text-[14px] text-text-primary leading-relaxed">
+          <p className="text-[14.5px] text-text-primary leading-relaxed">
             <Inline text={b.text} />
           </p>
         </div>
@@ -269,13 +273,16 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <h2
           key={key}
-          className="group flex items-baseline gap-2 text-[18px] font-semibold text-text-primary tracking-tight mt-9 mb-3 pb-1.5 border-b border-border-subtle"
+          className="flex items-center gap-2 text-[20px] font-semibold text-text-primary tracking-tight mt-10 mb-4"
         >
           <span
-            className="inline-block w-1 h-1 rounded-full bg-[#C9A86A] mb-1.5"
             aria-hidden
+            className="inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: "#C9A86A" }}
           />
-          <Inline text={b.text} />
+          <span className="flex-1">
+            <Inline text={b.text} />
+          </span>
         </h2>
       );
 
@@ -283,7 +290,7 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <h3
           key={key}
-          className="text-[14px] font-semibold text-text-primary mt-5 mb-2"
+          className="text-[15px] font-semibold text-text-primary mt-6 mb-2.5"
         >
           <Inline text={b.text} />
         </h3>
@@ -293,7 +300,7 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <p
           key={key}
-          className="text-[13.5px] text-text-secondary leading-relaxed mb-4 last:mb-0"
+          className="text-[14px] text-text-secondary leading-[1.7] mb-4 last:mb-0"
         >
           <Inline text={b.text} />
         </p>
@@ -303,7 +310,7 @@ function renderBlock(b: EnrichedBlock, key: number) {
       return (
         <hr
           key={key}
-          className="border-0 border-t border-border-subtle my-7"
+          className="border-0 border-t border-border-subtle my-8"
         />
       );
 
@@ -517,18 +524,79 @@ function InsightCards({
   );
 }
 
-/** Personas — chips with a tiny user icon. */
+/** Try to parse `**Name** · meta · pain: text` from a persona bullet. */
+function parsePersonaRow(raw: string): { name: string; meta: string; pain: string } | null {
+  const m = raw.match(/^\*\*([^*]+)\*\*\s*[·•]\s*(.+?)\s*[·•]\s*pain:\s*(.+)$/i);
+  if (m) return { name: m[1].trim(), meta: m[2].trim(), pain: m[3].trim() };
+  return null;
+}
+
+/** Personas — stacked structured cards with avatar, name, meta,
+ *  and a "Pain" tag-line. Falls back to a plain chip when the row
+ *  doesn't match the expected pattern. */
 function PersonaChips({ items }: { items: string[] }) {
+  const parsed = items.map((it) => parsePersonaRow(it));
+  const allStructured = parsed.every((p) => p !== null);
+
+  if (!allStructured) {
+    return (
+      <div className="flex flex-wrap gap-1.5 mb-5">
+        {items.map((it, i) => (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-white border border-border text-[12px] text-text-primary"
+          >
+            <User size={10} strokeWidth={1.8} className="text-text-tertiary" />
+            <Inline text={it} />
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-1.5 mb-5">
-      {items.map((it, i) => (
-        <span
+    <div className="space-y-2.5 mb-6">
+      {parsed.map((p, i) => (
+        <div
           key={i}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-white border border-border text-[12px] text-text-primary"
+          className="bg-white border border-border-subtle rounded-card px-4 py-3.5 hover:border-border transition-colors"
         >
-          <User size={10} strokeWidth={1.8} className="text-text-tertiary" />
-          <Inline text={it} />
-        </span>
+          <div className="flex items-start gap-3">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{
+                background:
+                  "linear-gradient(135deg, #FBF8F0 0%, #EBE2C9 100%)",
+                border: "1px solid #E8E3D5",
+              }}
+            >
+              <User size={15} strokeWidth={1.7} className="text-[#8C6D33]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-semibold text-text-primary leading-snug">
+                {p!.name}
+              </div>
+              <div className="text-[11.5px] text-text-tertiary mt-0.5 font-mono">
+                {p!.meta}
+              </div>
+              <div className="flex items-baseline gap-2 mt-2 pt-2 border-t border-border-subtle">
+                <span
+                  className="inline-flex items-center h-4 px-1.5 rounded-full text-[9.5px] uppercase tracking-wider font-semibold flex-shrink-0"
+                  style={{
+                    background: "#FEF3C7",
+                    color: "#854D0E",
+                    border: "1px solid #FCE7A1",
+                  }}
+                >
+                  Pain
+                </span>
+                <span className="text-[12.5px] text-text-primary leading-snug">
+                  {p!.pain}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   );

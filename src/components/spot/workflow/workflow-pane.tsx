@@ -318,7 +318,7 @@ export function ChatHeaderFilePicker({ compact = false }: { compact?: boolean })
       </button>
       {open && (
         <div
-          className="absolute top-[calc(100%+4px)] left-0 z-50 bg-white border border-border rounded-card py-1 min-w-[240px]"
+          className="absolute top-[calc(100%+4px)] right-0 z-50 bg-white border border-border rounded-card py-1 min-w-[240px]"
           style={{ boxShadow: "0 8px 28px -8px rgba(0,0,0,0.14)" }}
         >
           <div className="px-3 pt-1 pb-1.5 text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
