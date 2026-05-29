@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─────────────────────────────────────────────────────────────────────────
+ * QC-on-leads — admin design system tokens.
+ *
+ * Tailwind v4 uses CSS-first config via `@theme`. Anything declared here
+ * becomes a Tailwind utility: `--color-primary` → `bg-primary text-primary`,
+ * `--radius-xl` → `rounded-xl`, etc.
+ *
+ * Palette: admin-revspot — blue primary, paired bg/fg for status colors,
+ * five chart tokens. Light mode only for v1.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Surfaces */
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(224 14% 10%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(224 14% 10%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(224 14% 10%);
+
+  /* Brand */
+  --color-primary: hsl(220 72% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-soft: hsl(220 72% 50% / 0.1);
+  --color-primary-softer: hsl(220 72% 50% / 0.04);
+
+  /* Neutrals */
+  --color-secondary: hsl(220 14% 93%);
+  --color-secondary-foreground: hsl(220 9% 40%);
+  --color-muted: hsl(220 14% 96%);
+  --color-muted-foreground: hsl(220 9% 42%);
+
+  /* Borders */
+  --color-border: hsl(220 13% 86%);
+  --color-border-subtle: hsl(220 13% 92%);
+
+  /* Status — paired bg/fg */
+  --color-success: hsl(142 72% 29%);
+  --color-success-bg: hsl(142 76% 94%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-bg: hsl(0 93% 94%);
+  --color-warning: hsl(35 70% 32%);
+  --color-warning-bg: hsl(43 74% 92%);
+  --color-info: hsl(220 72% 35%);
+  --color-info-bg: hsl(220 72% 94%);
+
+  /* Charts */
+  --color-chart-1: hsl(12 76% 61%);
+  --color-chart-2: hsl(173 58% 39%);
+  --color-chart-3: hsl(197 37% 24%);
+  --color-chart-4: hsl(43 74% 66%);
+  --color-chart-5: hsl(27 87% 67%);
+
+  /* Border radius — admin-revspot uses 0.625rem as base */
+  --radius-sm: 0.375rem;   /* 6px */
+  --radius-md: 0.5rem;     /* 8px */
+  --radius-lg: 0.625rem;   /* 10px */
+  --radius-xl: 0.875rem;   /* 14px */
+  --radius-2xl: 1rem;      /* 16px */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Base layer reset + Inter rendering tweaks */
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    /* Tighter than browser default — admin density */
+    font-size: 15px;
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  /* Native scrollbar tweaks to match the admin chrome */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
 }
