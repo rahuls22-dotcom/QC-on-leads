@@ -944,21 +944,11 @@ export const useSpotStore = create<PanelState>((set) => ({
             return { thread: finalThread, workflow };
           });
 
-          // launch-building auto-advances to launch-review after the
-          // tool-call resolves. The user doesn't need to click anything —
-          // Spot finished building, surfaces the review notification.
-          if (upcoming === "launch-building") {
-            // Small additional beat so the "Got it · working on X" intro
-            // message lands and the user sees it briefly before the
-            // "ready to review" intro takes over.
-            setTimeout(() => {
-              // Call the advance function from the live store reference.
-              const store = useSpotStore.getState();
-              if (store.workflow && store.workflow.step === "launch-building") {
-                store.advanceWorkflow();
-              }
-            }, 600);
-          }
+          // launch-building no longer auto-advances. The dark Spot
+          // loader on the canvas swaps in a "Review Assets & Launch"
+          // CTA once all 5 tasks are done, and the user clicks it to
+          // move into launch-review — keeps the user in control of the
+          // moment campaigns actually go live.
         }, tc.delayMs);
         return {
           workflow: nextWorkflow,

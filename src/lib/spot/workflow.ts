@@ -85,9 +85,12 @@ export const STEP_ORDER: WorkflowStep[] = [
   "kickoff",
   "launch-plan",
   "launch-building",
-  // launch-review and launch-deploy are kept in the union for back-compat
-  // but no longer in the flow — building runs all 5 tasks (including
-  // launching campaigns) and advances straight to `done`.
+  // Building drafts everything (creatives, forms, landing pages, plan,
+  // CRM wiring, Pre-Sales Agent) but waits for the user to review
+  // before publishing. launch-review surfaces the full asset pack and
+  // launch-deploy runs the publish-to-Meta+Google animation.
+  "launch-review",
+  "launch-deploy",
   "done",
 ];
 
@@ -132,6 +135,7 @@ export const VISIBLE_STEPS: WorkflowStep[] = [
   "kickoff",
   "launch-plan",
   "launch-building",
+  "launch-review",
 ];
 
 /** Per-kind step order. nextStep() reads this off the workflow kind. */
