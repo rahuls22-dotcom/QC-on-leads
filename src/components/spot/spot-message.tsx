@@ -181,23 +181,37 @@ function HandoffPart({ kind, label, reason }: { kind: GuidedKind; label: string;
 function StepCtaPart({ label, helper, refineHint }: { label: string; helper?: string; refineHint?: string }) {
   const advanceWorkflow = useSpotStore((s) => s.advanceWorkflow);
   const appendMessage = useSpotStore((s) => s.appendMessage);
-  // Compact inline CTA — no boxy card. Button + tiny helper underneath,
-  // sized like a chat reply rather than a banner. Clicking echoes the
-  // label as a user message so the chat reads as a real decision the
-  // user made, not a silent auto-advance.
+  const clicked = useSpotStore((s) => s.clickedCtas.has(label));
+  const markClicked = useSpotStore((s) => s.markCtaClicked);
+
+  // After the user clicks a CTA, hide the button entirely · their echo
+  // message + the next Spot reply already captured the decision, so
+  // showing the same dark button alongside their own dark bubble reads
+  // redundant.
+  if (clicked) return null;
+
   const handleClick = () => {
     appendMessage({ role: "user", text: label });
+    markClicked(label);
     advanceWorkflow();
   };
+
   return (
     <div className="mb-2">
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11.5px] font-semibold transition-colors"
+        style={{
+          background:
+            "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)",
+          color: "#0A0A09",
+          boxShadow:
+            "0 1px 0 rgba(255,255,255,0.15) inset, 0 1px 2px rgba(0,0,0,0.08)",
+        }}
       >
         {label}
-        <ArrowRight size={10} strokeWidth={2} />
+        <ArrowRight size={10} strokeWidth={2.4} />
       </button>
       {(helper || refineHint) && (
         <div className="text-[10.5px] text-text-tertiary mt-1 leading-snug">

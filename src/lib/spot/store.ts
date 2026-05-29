@@ -129,6 +129,11 @@ type PanelState = {
   showHomeView: () => void;
   /** Resume the active workflow (homepage banner / past-chats click). */
   resumeWorkflow: () => void;
+  /** Set of step-CTA labels the user has already clicked in the
+   *  current workflow. We hide the button after click so the chat
+   *  doesn't render the same dark CTA next to the user's echo. */
+  clickedCtas: Set<string>;
+  markCtaClicked: (label: string) => void;
   /** Workspace-level WhatsApp Business connection state (for media-plan). */
   whatsAppConnected: boolean;
   connectWhatsApp: () => void;
@@ -175,6 +180,7 @@ function startDiagnostic(
     maximized: false,
     canvasOpen: true,
     viewHomeOverride: false,
+    clickedCtas: new Set<string>(),
     scope: { kind: "project", label: product.name, target: product.id },
     pendingQuery: null,
     workflow: {
@@ -242,6 +248,7 @@ export const useSpotStore = create<PanelState>((set) => ({
   canvasOpen: true,
   canvasFiles: ["memory"],
   viewHomeOverride: false,
+  clickedCtas: new Set<string>(),
   whatsAppConnected: false,
 
   askSpot: (query, scope) =>
@@ -267,6 +274,7 @@ export const useSpotStore = create<PanelState>((set) => ({
       maximized: false,
       canvasOpen: true,
       viewHomeOverride: false,
+      clickedCtas: new Set<string>(),
       scope: { kind: "project", label: project.name, target: project.id },
       pendingQuery: null,
       workflow: {
@@ -354,6 +362,7 @@ export const useSpotStore = create<PanelState>((set) => ({
       canvasOpen: true,
       canvasFiles: ["memory"],
       viewHomeOverride: false,
+      clickedCtas: new Set<string>(),
       scope: { kind: "workspace", label: "New product" },
       pendingQuery: null,
       workflow: {
@@ -1037,7 +1046,21 @@ export const useSpotStore = create<PanelState>((set) => ({
         : {},
     ),
 
-  exitWorkflow: () => set({ workflow: null, canvasOpen: true, viewHomeOverride: false }),
+  exitWorkflow: () =>
+    set({
+      workflow: null,
+      canvasOpen: true,
+      viewHomeOverride: false,
+      clickedCtas: new Set<string>(),
+    }),
+
+  markCtaClicked: (label) =>
+    set((s) => {
+      if (s.clickedCtas.has(label)) return {};
+      const next = new Set(s.clickedCtas);
+      next.add(label);
+      return { clickedCtas: next };
+    }),
 
   setCanvasOpen: (open) => set({ canvasOpen: open }),
   toggleCanvas: () => set((s) => ({ canvasOpen: !s.canvasOpen })),

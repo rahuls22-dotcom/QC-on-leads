@@ -32,6 +32,7 @@ import {
   type CampaignBucket,
 } from "@/lib/spot/workflow";
 import {
+  AnalyzeStep,
   DiagnosticStep,
 } from "@/components/spot/workflow/diagnostic-steps";
 import {
@@ -112,9 +113,22 @@ export const FILE_TABS: {
 }[] = [
   { key: "memory", label: "Memory", file: "memory.md", icon: FileText },
   { key: "plan", label: "Plan", file: "plan.md", icon: TrendingUp },
+  { key: "analysis", label: "Analysis", file: "analysis.md", icon: Search },
   { key: "dashboard", label: "Dashboard", file: "dashboard.html", icon: ChartPie },
   { key: "assets", label: "Assets", file: "assets/", icon: ImageIcon },
 ];
+
+/** Filter file tabs for a given workflow · the Analysis tab only
+ *  exists for diagnostic workflows (scale / optimize / test-angles)
+ *  where Spot's findings are persisted as part of product memory. */
+export function fileTabsForWorkflow(workflow: SpotWorkflow | null) {
+  if (!workflow) return FILE_TABS.filter((t) => t.key !== "analysis");
+  const isDiagnostic =
+    workflow.kind === "scale" ||
+    workflow.kind === "optimize" ||
+    workflow.kind === "test-angles";
+  return FILE_TABS.filter((t) => t.key !== "analysis" || isDiagnostic);
+}
 
 /** Default file to focus when a workflow step changes. The chat
  *  header's picker auto-opens this file when the user advances.
@@ -140,22 +154,17 @@ export function defaultFileForStep(step: WorkflowStep): CanvasFile {
     return "assets";
 
   // ── Scale + Optimize ─────────────────────────────────
-  // Spot analyzes existing performance and updates the plan. The
-  // user wants to see exactly what was updated, so every phase
-  // (analyze → clarify → plan → live) focuses the Plan tab.
+  // Analyze phase lands on the Analysis tab (Spot's findings live
+  // there as part of memory). Clarify / plan / live shift to the
+  // Plan tab so the user sees what's being updated.
+  if (step === "scale-analyze" || step === "opt-analyze") return "analysis";
   if (step.startsWith("scale-") || step.startsWith("opt-")) return "plan";
 
   // ── Test Angles ──────────────────────────────────────
-  // Sequence is: prepare a plan first, then work on the assets
-  // page making new creatives. Analyze/clarify/plan land on Plan;
-  // the live phase (post-approval, creatives being generated)
-  // lands on Assets.
-  if (
-    step === "ang-analyze" ||
-    step === "ang-clarify" ||
-    step === "ang-plan"
-  )
-    return "plan";
+  // Analyze lands on Analysis (the audit of current angles); plan
+  // lands on Plan; live focuses Assets where new creatives appear.
+  if (step === "ang-analyze") return "analysis";
+  if (step === "ang-clarify" || step === "ang-plan") return "plan";
   if (step === "ang-live") return "assets";
 
   // ── Campaign dive ────────────────────────────────────
@@ -390,10 +399,12 @@ export function WorkflowPane() {
 export function ChatHeaderFilePicker({ compact = false }: { compact?: boolean }) {
   const canvasFiles = useSpotStore((s) => s.canvasFiles);
   const canvasOpen = useSpotStore((s) => s.canvasOpen);
+  const workflow = useSpotStore((s) => s.workflow);
   const openCanvasFile = useSpotStore((s) => s.openCanvasFile);
   const setCanvasOpen = useSpotStore((s) => s.setCanvasOpen);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const availableTabs = fileTabsForWorkflow(workflow);
 
   useEffect(() => {
     if (!open) return;
@@ -442,7 +453,7 @@ export function ChatHeaderFilePicker({ compact = false }: { compact?: boolean })
           <div className="px-3 pt-1 pb-1.5 text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
             Canvas files · up to 2 side-by-side
           </div>
-          {FILE_TABS.map((t) => {
+          {availableTabs.map((t) => {
             const Icon = t.icon;
             const isOpen = canvasFiles.includes(t.key) && canvasOpen;
             return (
@@ -585,6 +596,21 @@ function FileBody({
           workflow={workflow}
           buildingOverlay={false}
         />
+      );
+    }
+    // Analysis tab · ALWAYS shows the analysis findings (Spot's audit
+    // of what's currently happening) even after the workflow has
+    // moved on to clarify/plan/live. Synthesise a "ready" view of
+    // the analyze step regardless of the current step.
+    if (tab === "analysis") {
+      const analyzeView = {
+        ...(workflow as DiagnosticWorkflow),
+        ready: true,
+      } as DiagnosticWorkflow;
+      return (
+        <div className="px-6 py-5 diagnostic-dark">
+          <AnalyzeStep workflow={analyzeView} />
+        </div>
       );
     }
     return (

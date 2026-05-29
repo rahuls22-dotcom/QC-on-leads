@@ -69,8 +69,15 @@ export type WorkflowKind =
 /** Files the right canvas can show — Claude-Code-style file browser
  *  of the product workspace. The chat header owns the picker (so the
  *  toggle stays on the input side, like Claude), and the canvas
- *  renders up to two of them side-by-side. */
-export type CanvasFile = "memory" | "plan" | "dashboard" | "assets";
+ *  renders up to two of them side-by-side. `analysis` is only shown
+ *  for diagnostic workflows (scale / optimize / test-angles) where
+ *  Spot's findings are persisted as part of memory. */
+export type CanvasFile =
+  | "memory"
+  | "plan"
+  | "dashboard"
+  | "assets"
+  | "analysis";
 
 export const STEP_ORDER: WorkflowStep[] = [
   "deep-research",

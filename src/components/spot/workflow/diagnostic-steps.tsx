@@ -22,6 +22,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
+  Check,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -37,7 +38,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { SpotLoader, SpotFullscreen } from "@/components/spot/spot-loader";
@@ -156,7 +157,7 @@ const SIGNAL_TONE: Record<
   neutral: { pill: "pill", label: "Underspent", ring: "bg-surface-secondary", icon: Activity },
 };
 
-function AnalyzeStep({ workflow }: { workflow: DiagnosticWorkflow }) {
+export function AnalyzeStep({ workflow }: { workflow: DiagnosticWorkflow }) {
   // Wait for the agentic step to finish before revealing the analysis.
   if (!workflow.ready) {
     return <AnalyzeLoader />;
@@ -1065,8 +1066,16 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
 export function RecommendationCard({ rec }: { rec: PendingRecommendation }) {
   const urgencyTone =
     rec.urgency === "high" ? "pill-err" : rec.urgency === "medium" ? "pill-warn" : "pill-info";
+  // Local state · "open" → buttons visible, "approved" / "dismissed"
+  // → swap the footer for an outcome chip so the user sees the action
+  // landed. Demo-local · in real life this would persist server-side.
+  const [state, setState] = useState<"open" | "approved" | "dismissed">("open");
+
   return (
-    <div className="bg-white border border-border rounded-card p-3.5">
+    <div
+      className="bg-white border border-border rounded-card p-3.5 transition-opacity"
+      style={state === "dismissed" ? { opacity: 0.55 } : undefined}
+    >
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -1093,21 +1102,56 @@ export function RecommendationCard({ rec }: { rec: PendingRecommendation }) {
         <div className="text-[11.5px] text-text-secondary">
           <span className="text-text-tertiary">If approved:</span> {rec.projectedImpact}
         </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11.5px] text-text-tertiary hover:text-text-primary hover:bg-surface-secondary"
+        {state === "open" && (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setState("dismissed")}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11.5px] text-text-tertiary hover:text-text-primary hover:bg-surface-secondary"
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              onClick={() => setState("approved")}
+              className="inline-flex items-center gap-1 h-7 px-3 rounded-button text-[11.5px] font-semibold transition-colors"
+              style={{
+                background:
+                  "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)",
+                color: "#0A0A09",
+                boxShadow: "0 1px 0 rgba(0,0,0,0.05) inset",
+              }}
+            >
+              <SpotMark size={10} />
+              Approve · ship
+            </button>
+          </div>
+        )}
+        {state === "approved" && (
+          <span
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[10.5px] uppercase tracking-wider font-semibold"
+            style={{
+              background: "#0E2A1A",
+              color: "#34D399",
+              border: "1px solid #1A4D2A",
+            }}
           >
-            Dismiss
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[11.5px] font-medium"
+            <Check size={11} strokeWidth={2.4} />
+            Shipped · live
+          </span>
+        )}
+        {state === "dismissed" && (
+          <span
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[10.5px] uppercase tracking-wider font-semibold"
+            style={{
+              background: "#1F1F1D",
+              color: "#8A8980",
+              border: "1px solid #2E2E2A",
+            }}
           >
-            <SpotMark size={10} />
-            Approve · ship
-          </button>
-        </div>
+            Dismissed
+          </span>
+        )}
       </div>
     </div>
   );
