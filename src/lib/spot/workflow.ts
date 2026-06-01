@@ -100,13 +100,13 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
   "deep-research": "Deep research",
   "product-setup": "Product memory",
   kickoff: "Memory",
-  "launch-plan": "Plan",
+  "launch-plan": "Execution plan",
   "launch-building": "Spot working",
   "launch-review": "Review & deploy",
   "launch-deploy": "Deploying",
   // legacy step labels — kept for type-completeness only
   personas: "Personas",
-  "media-plan": "Plan",
+  "media-plan": "Execution plan",
   angles: "Creatives",
   "resize-qa": "Resize & QA",
   forms: "Forms & pages",
@@ -1082,13 +1082,13 @@ export function stepIntroMessage(
           {
             type: "text",
             text:
-              "Here's the plan — personas, media, creatives, landing pages, lead forms, campaign tree, and outreach. Five concrete tasks ready to run end-to-end: build creatives + forms + landing pages, lock the campaign plan, verify CRM integrations, spin up the Pre-Sales Agent, and launch campaigns. Approve once and I'll handle the rest.",
+              "Here's the execution plan — personas, media, creatives, landing pages, lead forms, campaign tree, and outreach. Five concrete tasks ready to run end-to-end: build creatives + forms + landing pages, lock the campaign structure, verify CRM integrations, spin up the Pre-Sales Agent, and launch campaigns. Deploy me once and I'll handle the rest.",
           },
           {
             type: "step-cta",
-            label: "Put Spot to work",
+            label: "Deploy agent · run this execution plan",
             helper:
-              "5 tasks · ~25 seconds end-to-end · I'll surface a summary once everything's live.",
+              "5 tasks · ~20 seconds end-to-end · once this plan is executed it's done — talk to me again for a fresh one.",
             refineHint: "or tell me what to change before I start",
           },
         ],
@@ -1105,7 +1105,7 @@ export function stepIntroMessage(
           {
             type: "text",
             text:
-              "Building creatives + forms + landing pages → locking the campaign plan → verifying CRM integrations → spinning up the Pre-Sales Agent (Voice + WhatsApp) → launching campaigns. You can watch on the right or step away — I'll ping you when everything is live.",
+              "Executing the plan — building creatives + forms + landing pages → locking the campaign structure → verifying CRM integrations → spinning up the Pre-Sales Agent (Voice + WhatsApp) → launching campaigns. You can watch on the right or step away — I'll ping you when everything is live.",
           },
         ],
       };
@@ -1153,7 +1153,7 @@ export function stepIntroMessage(
           {
             type: "step-cta",
             label: "Approve & continue",
-            helper: "I'll save the new persona to your library and start the media plan.",
+            helper: "I'll save the new persona to your library and start the execution plan.",
             refineHint: "or describe a different cohort",
           },
         ],
@@ -1164,11 +1164,11 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Plan's on the right — three-bucket Meta model (experiment / scaling / cost-cap), Google Search + Discover split, and an Outreach lane for Voice + WhatsApp. Reasoning mirrors what we did with personas — experiment on the new ones, scale the winners, cost-cap the mature spend.",
+            text: "Execution plan's on the right — three-bucket Meta model (experiment / scaling / cost-cap), Google Search + Discover split, and an Outreach lane for Voice + WhatsApp. Reasoning mirrors what we did with personas — experiment on the new ones, scale the winners, cost-cap the mature spend.",
           },
           {
             type: "step-cta",
-            label: "Approve plan, start creatives",
+            label: "Deploy agent · start creatives",
             helper: "Creative Agent briefs itself once you approve.",
             refineHint: "or type a weekly budget · e.g. \"₹4L/week\"",
           },

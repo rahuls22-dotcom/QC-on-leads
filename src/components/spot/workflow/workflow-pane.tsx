@@ -112,7 +112,7 @@ export const FILE_TABS: {
   icon: typeof FileText;
 }[] = [
   { key: "memory", label: "Memory", file: "memory.md", icon: FileText },
-  { key: "plan", label: "Plan", file: "plan.md", icon: TrendingUp },
+  { key: "plan", label: "Execution plan", file: "execution-plan.md", icon: TrendingUp },
   { key: "analysis", label: "Analysis", file: "analysis.md", icon: Search },
   { key: "dashboard", label: "Dashboard", file: "dashboard.html", icon: ChartPie },
   { key: "assets", label: "Assets", file: "assets/", icon: ImageIcon },
@@ -1504,7 +1504,7 @@ const DIAGNOSTIC_THOUGHTS = {
       "Picking the right questions to ask you.",
     ],
     plan: [
-      "Folding your picks into the plan…",
+      "Folding your picks into the execution plan…",
       "Mapping winners to scale-ready audiences.",
       "Drafting budget shifts · winners up, decay down.",
       "Adding lookalike + interest expansions per winner.",
@@ -1534,7 +1534,7 @@ const DIAGNOSTIC_THOUGHTS = {
       "Picking the right questions to ask you.",
     ],
     plan: [
-      "Folding your picks into the plan…",
+      "Folding your picks into the execution plan…",
       "Drafting pause list · clearly broken units.",
       "Drafting creative refreshes per fatigued unit.",
       "Adding audience swaps where saturation is high.",
@@ -2341,14 +2341,14 @@ function PlanBuildingLoader({ productName }: { productName: string }) {
         <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#22C55E]">
           <span className="absolute inset-0 rounded-full bg-[#22C55E] opacity-50 animate-ping" />
         </span>
-        Launch Plan Agent · live
+        Execution Plan Agent · live
       </div>
 
       <h1
         className="text-[24px] font-semibold tracking-tight leading-tight max-w-[520px]"
         style={{ color: "#F5F4EF" }}
       >
-        Building a plan for{" "}
+        Drafting an execution plan for{" "}
         <span
           style={{
             background:
@@ -2398,9 +2398,9 @@ function PlanBuildingLoader({ productName }: { productName: string }) {
  *  Guyju's Spoken English — applies cleanly to any new product the
  *  user spins up in this demo. */
 function buildNewProductPlanMd(productName: string): string {
-  return `# ${productName} · Launch plan
+  return `# ${productName} · Execution plan
 
-_Drafted just now · 14-day rollout · Conservative experiment_
+_Drafted just now · single-use execution plan · 14-day rollout · Conservative experiment_
 
 A small-budget, persona-led launch to learn what wins before we scale. Personas come first — once we know who we're targeting, media mix and creative briefs follow. One campaign per persona, three creative angles each, tight feedback loop on CPL and qualification.
 
@@ -2479,7 +2479,7 @@ The Qualifier Agent picks up every inbound lead the moment it lands and routes i
 
 ---
 
-_Plan generated · Awaiting your approval · Edit any block in chat_
+_Execution plan generated · Awaiting your approval to deploy · Edit any block in chat_
 `;
 }
 
@@ -2528,7 +2528,7 @@ function PlanFileView({
         <div className="px-6 py-5 max-w-[760px]">
           <Markdown source={md} theme="dark" />
         </div>
-        {buildingOverlay && <BuildingOverlay label="Spot is drafting the plan…" />}
+        {buildingOverlay && <BuildingOverlay label="Spot is drafting the execution plan…" />}
       </div>
     );
   }
@@ -2543,7 +2543,7 @@ function PlanFileView({
           title="No plan yet"
           body="Once the memory is approved, Spot will draft a day-by-day launch plan here — personas, media mix, creative briefs — for you to approve in chat."
         />
-        {buildingOverlay && <BuildingOverlay label="Spot is drafting the plan…" />}
+        {buildingOverlay && <BuildingOverlay label="Spot is drafting the execution plan…" />}
       </div>
     );
   }
@@ -2568,7 +2568,7 @@ function DashboardFileView({ workflow }: { workflow: SpotWorkflow }) {
       <EmptyCanvas
         icon={ChartPie}
         title="No dashboard yet"
-        body="Campaigns haven't started. Once Spot ships the plan and ads go live, real-time performance — spend, leads, CPL, channel mix — will fill in here."
+        body="Campaigns haven't started. Once an execution plan is deployed and ads go live, real-time performance — spend, leads, CPL, channel mix — will fill in here."
       />
     );
   }
@@ -4765,7 +4765,7 @@ function MediaPlanStep() {
   return (
     <div className="px-5 py-5">
       <StepHeader
-        title="Plan"
+        title="Execution plan"
         blurb="3-bucket Meta model · Google Search and Discover lanes · Outreach for Voice + WhatsApp. Each campaign carries the reason it exists."
       />
 

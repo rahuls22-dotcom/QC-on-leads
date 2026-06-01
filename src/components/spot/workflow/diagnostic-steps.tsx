@@ -890,14 +890,14 @@ const PLAN_LOADER_MESSAGES = [
   "Auditing recent creatives…",
   "Pulling competitor positioning…",
   "Sequencing phases · setting guardrails…",
-  "Composing the plan…",
+  "Composing the execution plan…",
 ];
 
 function PlanLoader() {
   return (
     <div className="h-full flex items-center justify-center px-5 py-8">
       <SpotFullscreen
-        title="Building the plan"
+        title="Building the execution plan"
         messages={PLAN_LOADER_MESSAGES}
         size={64}
         className="!min-h-[360px]"
@@ -948,7 +948,7 @@ const PLAN_DELTA: Record<
   },
   "test-angles": {
     summary:
-      "I've added a 6-angle Persona × Angle test matrix to the plan. Each angle gets equal budget for the learn window; early-stop guardrail will cut losers.",
+      "I've added a 6-angle Persona × Angle test matrix to the execution plan. Each angle gets equal budget for the learn window; early-stop guardrail will cut losers.",
     changes: [
       { kind: "new", text: "Add 6 new angles · 3 personas × 2 hooks each" },
       { kind: "new", text: "Set 50/50 traffic split across angles within each ad set" },
@@ -1010,15 +1010,15 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
             <span className="absolute inset-0 rounded-full bg-[#22C55E] opacity-50 animate-ping" />
           </span>
           <span className="text-[11.5px] uppercase tracking-wider text-[#15803D] font-semibold">
-            {allDone ? "Plan live · monitoring" : "Plan updated · Spot is working on it"}
+            {allDone ? "Execution plan live · monitoring" : "New execution plan · Spot is working on it"}
           </span>
         </div>
         <h2 className="text-section-header text-text-primary">
           {workflow.kind === "scale"
-            ? "Scale plan updated"
+            ? "Scale execution plan"
             : workflow.kind === "optimize"
-              ? "Optimization plan updated"
-              : "Angle-test plan updated"}{" "}
+              ? "Optimization execution plan"
+              : "Angle-test execution plan"}{" "}
           · {workflow.productName}
         </h2>
         <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
@@ -1026,7 +1026,7 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
         </p>
       </motion.div>
 
-      {/* ── What changed · concrete delta vs the previous plan ── */}
+      {/* ── What changed · concrete delta vs the previous execution plan ── */}
       <motion.div
         variants={canvasReveal}
         className="bg-white border border-border rounded-card p-4 mb-3"
@@ -1037,7 +1037,7 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
           </span>
           <div className="label-section">What changed</div>
           <span className="text-[10.5px] text-text-tertiary ml-auto">
-            {delta.changes.length} updates · merged into plan.md
+            {delta.changes.length} updates · in this execution plan
           </span>
         </div>
         <ul className="space-y-1.5">

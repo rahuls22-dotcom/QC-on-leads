@@ -1129,7 +1129,7 @@ export function extendedIntroMessage(
           {
             type: "step-cta",
             label: "Got it — let's set the goal",
-            helper: "I'll fold your goal + constraints into the plan next.",
+            helper: "I'll fold your goal + constraints into the execution plan next.",
           },
         ],
       };
@@ -1141,7 +1141,7 @@ export function extendedIntroMessage(
     case "ang-clarify": {
       const text =
         kind === "scale"
-          ? `Three questions on the right — I've picked defaults based on what I found in the analysis. Confirm or change, then I'll fold them into the plan.`
+          ? `Three questions on the right — I've picked defaults based on what I found in the analysis. Confirm or change, then I'll fold them into the execution plan.`
           : kind === "optimize"
             ? `Three questions on the right — I've biased the defaults toward what I think the priority should be based on the analysis. Confirm or change.`
             : `Three questions on the right — these constrain what I generate. Defaults are picked from the audit.`;
@@ -1151,8 +1151,8 @@ export function extendedIntroMessage(
           { type: "text", text },
           {
             type: "step-cta",
-            label: "Confirm · build the plan",
-            helper: "I'll fold these into a time-phased plan to approve.",
+            label: "Confirm · build the execution plan",
+            helper: "I'll fold these into a time-phased execution plan to approve.",
             refineHint: "or change the picks on the right",
           },
         ],
@@ -1165,19 +1165,19 @@ export function extendedIntroMessage(
     case "ang-plan": {
       const intro =
         kind === "scale"
-          ? "Plan's ready · 3 phases over 3 weeks. The actions for Week 1 are concrete; the later phases adapt based on what I observe. Guardrails are listed at the bottom — I enforce them without asking."
+          ? "Execution plan's ready · 3 phases over 3 weeks. The actions for Week 1 are concrete; the later phases adapt based on what I observe. Guardrails are listed at the bottom — I enforce them without asking."
           : kind === "optimize"
-            ? "Plan's ready · 3 phases over 3 weeks. Week 1 ships the small reversible fixes. Week 2 is the bigger swings. Week 3 is watch-mode + writing learnings to memory."
-            : "Plan's ready · 3 phases over ~17 days. Week 1 launches the 6-angle test. Week 2 prunes and doubles down. Week 3 promotes winners + writes the pattern to memory.";
+            ? "Execution plan's ready · 3 phases over 3 weeks. Week 1 ships the small reversible fixes. Week 2 is the bigger swings. Week 3 is watch-mode + writing learnings to memory."
+            : "Execution plan's ready · 3 phases over ~17 days. Week 1 launches the 6-angle test. Week 2 prunes and doubles down. Week 3 promotes winners + writes the pattern to memory.";
       return {
         role: "spot",
         parts: [
           { type: "text", text: intro },
           {
             type: "step-cta",
-            label: "Approve plan · kick off Week 1",
+            label: "Deploy agent · kick off Week 1",
             helper:
-              "Once approved, I'll execute Week 1 today and ping your dashboard at every decision point.",
+              "Once deployed, I'll execute Week 1 today and ping your dashboard at every decision point.",
             refineHint: "or tell me what to change before I start",
           },
         ],
@@ -1250,15 +1250,15 @@ export const ANGLES_STEPS = [
 export const EXTENDED_STEP_LABELS: Record<string, string> = {
   "scale-analyze": "Analysis",
   "scale-clarify": "Goals",
-  "scale-plan": "Plan",
+  "scale-plan": "Execution plan",
   "scale-live": "Running",
   "opt-analyze": "Analysis",
   "opt-clarify": "Goals",
-  "opt-plan": "Plan",
+  "opt-plan": "Execution plan",
   "opt-live": "Running",
   "ang-analyze": "Analysis",
   "ang-clarify": "Goals",
-  "ang-plan": "Plan",
+  "ang-plan": "Execution plan",
   "ang-live": "Running",
 };
 
@@ -1313,7 +1313,7 @@ export const EXTENDED_TOOL_CALLS: Record<
   "scale-plan": {
     agent: "spot.plan",
     detail:
-      "folding your picks into the plan · sequencing phases · setting guardrails…",
+      "folding your picks into the execution plan · sequencing phases · setting guardrails…",
     delayMs: 3600,
   },
   "opt-plan": {

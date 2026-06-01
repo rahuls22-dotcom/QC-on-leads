@@ -223,17 +223,18 @@ export function LaunchPlanStep({ workflow }: { workflow: LaunchWorkflow }) {
       <motion.div variants={canvasReveal} className="mb-5">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
-            Plan · {workflow.productName}
+            Execution plan · {workflow.productName}
           </span>
           <span className="text-[10.5px] text-text-tertiary">·</span>
-          <span className="text-[10.5px] text-text-tertiary">14 days · approve once</span>
+          <span className="text-[10.5px] text-text-tertiary">14 days · single-use · deploy once</span>
         </div>
         <h2 className="text-[22px] font-semibold text-text-primary leading-tight">
           Here's what I'd do for the next two weeks.
         </h2>
         <p className="text-[13px] text-text-secondary mt-1.5 leading-relaxed">
-          A written, day-by-day plan. I'll execute it autonomously and report
-          decisions on your dashboard. Approve to start Day 1 today.
+          A written, day-by-day execution plan. Deploy me and I'll execute it
+          autonomously, reporting decisions on your dashboard. Once this plan is
+          done it's retired — a new conversation drafts a new one.
         </p>
       </motion.div>
 
@@ -585,7 +586,7 @@ export function LaunchBuildingStep({ workflow }: { workflow: LaunchWorkflow }) {
   return (
     <div className="h-full flex items-center justify-center px-5 py-8">
       <SpotFullscreen
-        title={`Working on the plan · ${workflow.productName}`}
+        title={`Drafting the execution plan · ${workflow.productName}`}
         messages={PLAN_PROGRESS_MESSAGES}
         size={72}
       />
@@ -1081,7 +1082,7 @@ export function LaunchReviewStep({ workflow }: { workflow: LaunchWorkflow }) {
           <ul className="space-y-1 text-[12px] text-text-primary leading-relaxed">
             <li className="flex gap-1.5">
               <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D] flex-shrink-0 mt-0.5" />
-              <span>Push 3 campaigns live on Meta + Google · Day-1 budget per the plan</span>
+              <span>Push 3 campaigns live on Meta + Google · Day-1 budget per the execution plan</span>
             </li>
             <li className="flex gap-1.5">
               <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D] flex-shrink-0 mt-0.5" />

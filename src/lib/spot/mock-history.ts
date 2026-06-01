@@ -114,12 +114,12 @@ export const SPOT_SESSIONS: SpotSession[] = [
   {
     id: "s3",
     status: "needs-approval",
-    title: "Scale plan ready · JEE Crack",
+    title: "Scale execution plan ready · JEE Crack",
     scope: "Guyju's JEE Crack",
     kind: "scale",
     detail:
-      "3-week scaling plan · Stage 1 lift on Engineer Parent + Self-Studier winners. Approve to deploy.",
-    approvalAsk: "Approve plan",
+      "3-week scaling execution plan · Stage 1 lift on Engineer Parent + Self-Studier winners. Deploy agent to run it.",
+    approvalAsk: "Deploy agent",
     when: "4 min ago",
   },
   {
@@ -129,7 +129,7 @@ export const SPOT_SESSIONS: SpotSession[] = [
     scope: "Guyju's JEE Crack",
     kind: "test-angles",
     detail:
-      "Audit + insight synthesis done. 6 angles drafted, A/B plan ready. Approve to launch.",
+      "Audit + insight synthesis done. 6 angles drafted, A/B execution plan ready. Approve to launch.",
     approvalAsk: "Review angles",
     when: "1h ago",
   },

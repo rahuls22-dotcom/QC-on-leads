@@ -192,11 +192,11 @@ _Memory last updated · ${p.updatedAt} · Readiness ${Math.round(p.readiness * 1
 
 function buildPlanMd(p: ProductSummary, plan: ProductPlan | undefined): string {
   if (!plan) {
-    return `# Plan · ${p.name}
+    return `# Execution plan · ${p.name}
 
-_No active plan yet._
+_No active execution plan yet._
 
-The next time you run **Scale**, **Optimize**, or **Test new angles** on this product, the plan will land here. Plans are long-lived — Spot keeps working on them, and recommendations flow into your dashboard as they're surfaced.
+Every time you talk to Spot, the agent drafts a fresh execution plan for that conversation. Deploy the agent to run it; once those tasks are done, the plan is finished and a new conversation will produce a new one.
 `;
   }
   const phaseBlocks = plan.phases
@@ -226,7 +226,7 @@ ${ph.decisionAt ? `\n**Decision at** · ${ph.decisionAt}` : ""}${decision}
     .map((h) => `- **${h.at}** · _${h.who}_ — ${h.entry}`)
     .join("\n");
 
-  return `# Plan · ${p.name}
+  return `# Execution plan · ${p.name}
 
 _${plan.status.toUpperCase()} · ${plan.dayLabel}_
 
@@ -250,7 +250,7 @@ ${history}
 
 ---
 
-_Plan last updated · ${plan.updatedAt}_
+_Execution plan last updated · ${plan.updatedAt}_
 _Next decision · ${plan.nextDecision}_
 `;
 }
@@ -496,7 +496,7 @@ function buildChangeHistoryMd(p: ProductSummary): string {
       rows.push({
         at: h.at,
         who: h.who,
-        kind: "Plan",
+        kind: "Execution plan",
         entry: h.entry,
       });
     }

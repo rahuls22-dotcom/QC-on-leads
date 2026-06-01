@@ -758,7 +758,7 @@ function ActivePlansCard() {
     <div className="bg-white border border-border rounded-card overflow-hidden">
       <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-1.5">
         <SpotMark size={12} />
-        <span className="label-section">Active plans</span>
+        <span className="label-section">Active execution plans</span>
         <span className="flex-1" />
         <Link
           href="/memory"

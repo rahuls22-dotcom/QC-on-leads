@@ -337,7 +337,7 @@ export const useSpotStore = create<PanelState>((set) => ({
             },
             {
               type: "step-cta",
-              label: "Looks right — show me the plan",
+              label: "Looks right — draft the execution plan",
               helper: "I'll fold personas, media, creatives, landing pages, and campaigns into one plan to approve.",
               refineHint: "or tell me what's missing",
             },
@@ -769,7 +769,7 @@ export const useSpotStore = create<PanelState>((set) => ({
             },
             {
               type: "step-cta",
-              label: "Looks right — show me the plan",
+              label: "Looks right — draft the execution plan",
               helper: "I'll fold personas, media, creatives, landing pages, and campaigns into one plan to approve.",
               refineHint: "or tell me what's missing",
             },

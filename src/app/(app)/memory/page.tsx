@@ -47,7 +47,7 @@ type TabKey = "brief" | "plan" | "performance" | "assets" | "history";
 
 const TABS: { key: TabKey; label: string; icon: typeof FileText; file: string }[] = [
   { key: "brief", label: "Product brief", icon: FileText, file: "product-info.md" },
-  { key: "plan", label: "Plan", icon: Target, file: "plan.md" },
+  { key: "plan", label: "Execution plan", icon: Target, file: "execution-plan.md" },
   { key: "performance", label: "Performance", icon: TrendingUp, file: "performance.html" },
   { key: "assets", label: "Assets", icon: Boxes, file: "assets/" },
   { key: "history", label: "Change history", icon: History, file: "change-history.md" },
@@ -168,7 +168,7 @@ function ProductsList({
                 </div>
                 {plan && (
                   <span className={`pill ${PLAN_STATUS_TONE[plan.status]}`} style={{ fontSize: 9.5 }}>
-                    {PLAN_STATUS_LABEL[plan.status]} · plan
+                    {PLAN_STATUS_LABEL[plan.status]} · execution plan
                   </span>
                 )}
               </button>
@@ -344,7 +344,7 @@ function BriefTab({ files }: { files: ProductMemoryFiles }) {
 
 function PlanTab({ files }: { files: ProductMemoryFiles }) {
   return (
-    <MdFileBody source={files.planMd} productId={files.productId} file="plan.md" />
+    <MdFileBody source={files.planMd} productId={files.productId} file="execution-plan.md" />
   );
 }
 
