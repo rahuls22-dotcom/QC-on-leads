@@ -14427,3 +14427,16 @@ STATUS column. `enrichment-crm/history-table.tsx`: changed the bulk `gridClass`
 Type column to `minmax(200px,1.3fr)` (and rebalanced Run to `minmax(220px,1.8fr)`,
 Enriched to `minmax(140px,1fr)`). Header + Row share the one `gridClass` string, so
 both fixed together. Verified on local: chips clear of Status.
+
+### Single lookup: 3 outcomes (Enriched / Not enriched / Failed)
+Single history previously filtered to `status === "done"` and hid the Status
+column, so only enriched single lookups showed. Now single shows all 3 outcomes.
+`enrichment-crm/history-table.tsx`: dropped the single done-only filter; Status
+column now renders for single too (added to grid as a real column). `StatusCell`
+takes a `single` flag — for single it shows "Enriched" (leadsSuccess>0) vs
+"Not enriched" (leadsSuccess===0, grey) instead of a percentage; "Failed" stays
+red. `enrichment-crm-data.ts`: added two single seed runs — run-6 (not enriched,
+Zero Enrichment profile, input identity only, 0 charged / +1 refunded) and run-7
+(failed, no profile, 0 charged / +1 refunded). The Enrichment records table
+already derived these via `deriveLeadStatus`, so the new seeds surface there too
+(verified Source=Single: Enriched, Not enriched, Failed all render).

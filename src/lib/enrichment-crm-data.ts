@@ -634,6 +634,49 @@ const mockRuns: RunRecord[] = [
     finishedAt: "2026-05-20T14:23:04Z",
     profile: { ...sampleProfile, financial: undefined },
   },
+  {
+    // Single · not enriched — lookup ran but the provider returned nothing.
+    // Only the input identity survives; no credits charged.
+    id: "run-6",
+    source: "single",
+    inputValue: "rohan.kapoor@gmail.com",
+    types: ["professional"],
+    status: "done",
+    leadsTotal: 1,
+    leadsSuccess: 0,
+    leadsFailed: 0,
+    leadsSkipped: 0,
+    creditsBlocked: 1,
+    creditsCharged: 0,
+    creditsRefunded: 1,
+    startedAt: "2026-05-19T10:11:00Z",
+    finishedAt: "2026-05-19T10:11:05Z",
+    profile: {
+      enrichment_status: "Zero Enrichment",
+      finance_data: "Not Available",
+      valid_indian_name: true,
+      contact: { name: "Rohan Kapoor", email: "rohan.kapoor@gmail.com" },
+    },
+  },
+  {
+    // Single · failed — the enrichment provider errored. No data, no charge.
+    id: "run-7",
+    source: "single",
+    inputValue: "+91 9988776655",
+    types: ["financial"],
+    status: "failed",
+    leadsTotal: 1,
+    leadsSuccess: 0,
+    leadsFailed: 1,
+    leadsSkipped: 0,
+    creditsBlocked: 1,
+    creditsCharged: 0,
+    creditsRefunded: 1,
+    startedAt: "2026-05-18T15:42:00Z",
+    finishedAt: "2026-05-18T15:42:03Z",
+    errorCode: "PROVIDER_TIMEOUT",
+    errorMessage: "Enrichment provider timed out. No credits were charged.",
+  },
 ];
 
 // ── Sample CSV files (download links) ────────────────────────────────────

@@ -40,11 +40,11 @@ export function HistoryTable({ onView, forceSource, title, summaryOnly = false, 
   const runs = useEnrichmentCrmStore((s) => s.runs);
   const router = useRouter();
 
-  // Single-lookup view only ever shows successful results, so Status and the
-  // "n of n" Enriched column are dropped — both are always trivially 100%.
+  // Single-lookup view keeps Status (Enriched / Not enriched / Failed) but drops
+  // the "n of n" Enriched count — a single lookup is always 1 lead.
   const single = forceSource === "single";
   const gridClass = single
-    ? "grid grid-cols-[minmax(220px,1.6fr)_minmax(200px,1fr)_minmax(110px,0.8fr)_minmax(110px,0.8fr)_48px] gap-4"
+    ? "grid grid-cols-[minmax(220px,1.5fr)_minmax(150px,1fr)_minmax(130px,0.9fr)_minmax(120px,0.8fr)_minmax(110px,0.8fr)_48px] gap-4"
     : "grid grid-cols-[minmax(220px,1.8fr)_minmax(200px,1.3fr)_minmax(150px,1.1fr)_minmax(140px,1fr)_minmax(170px,1.1fr)_110px_56px] gap-6";
 
   const [search, setSearch] = useState("");
@@ -59,9 +59,6 @@ export function HistoryTable({ onView, forceSource, title, summaryOnly = false, 
 
     // Hard lock when caller forces a source.
     if (forceSource) out = out.filter((r) => r.source === forceSource);
-
-    // Single-lookup table surfaces successful enrichments only.
-    if (single) out = out.filter((r) => r.status === "done");
 
     if (typeFilter !== "all") {
       out = out.filter((r) => {
@@ -169,7 +166,7 @@ export function HistoryTable({ onView, forceSource, title, summaryOnly = false, 
         <div className={`${gridClass} px-6 py-3.5 bg-surface-page border-b border-border text-[11px] uppercase tracking-[0.4px] text-text-tertiary font-medium`}>
           <div>Run</div>
           <div>Type</div>
-          {!single && <div>Status</div>}
+          <div>Status</div>
           {!single && <div>Enriched</div>}
           <div>Credits</div>
           <div>Started</div>
@@ -253,11 +250,9 @@ function Row({ run, onView, onBuildAudience, summaryOnly = false, expired = fals
       </div>
 
       {/* Status */}
-      {!single && (
-        <div>
-          <StatusCell run={run} />
-        </div>
-      )}
+      <div>
+        <StatusCell run={run} single={single} />
+      </div>
 
       {/* Enriched */}
       {!single && (
@@ -318,7 +313,7 @@ export function typeColor(t: EnrichmentType): string {
     : "bg-[#F5F3FF] text-[#6D28D9]";
 }
 
-function StatusCell({ run }: { run: RunRecord }) {
+function StatusCell({ run, single = false }: { run: RunRecord; single?: boolean }) {
   if (run.status === "in_progress") {
     return (
       <div className="flex items-center gap-2">
@@ -327,7 +322,7 @@ function StatusCell({ run }: { run: RunRecord }) {
           <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#1D4ED8]" />
         </span>
         <span className="text-[13px] text-[#1D4ED8] font-medium tabular-nums">
-          Running · {run.progressPct || 0}%
+          {single ? "Running" : `Running · ${run.progressPct || 0}%`}
         </span>
       </div>
     );
@@ -340,6 +335,24 @@ function StatusCell({ run }: { run: RunRecord }) {
       >
         <span className="h-1.5 w-1.5 rounded-full bg-[#DC2626]" />
         Failed
+      </span>
+    );
+  }
+  // Single lookup: 1 lead, no percentage. "done" splits into Enriched (data
+  // came back) vs Not enriched (API ran, nothing returned).
+  if (single) {
+    if (run.leadsSuccess > 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[13px] text-[#15803D] font-medium">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#15803D]" />
+          Enriched
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[13px] text-text-secondary font-medium">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#CBD5E1]" />
+        Not enriched
       </span>
     );
   }
