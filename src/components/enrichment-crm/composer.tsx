@@ -236,7 +236,7 @@ function FailedState() {
       </div>
       <div className="text-[13px] font-semibold text-text-primary">No match found</div>
       <div className="text-[12px] text-text-tertiary leading-[1.5] mt-1 max-w-[240px]">
-        We couldn&apos;t find this lead across our sources. Credits have been refunded.
+        We couldn&apos;t find this lead across our sources. You were not charged.
       </div>
     </div>
   );
