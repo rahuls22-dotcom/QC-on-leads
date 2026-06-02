@@ -14440,3 +14440,30 @@ Zero Enrichment profile, input identity only, 0 charged / +1 refunded) and run-7
 (failed, no profile, 0 charged / +1 refunded). The Enrichment records table
 already derived these via `deriveLeadStatus`, so the new seeds surface there too
 (verified Source=Single: Enriched, Not enriched, Failed all render).
+
+## Contact extraction: always-verify + "Not requested" cells (2026-06-02)
+
+Verification is now always on — the phone-verify toggle is gone. Three changes:
+
+1. **Toggle removed.** `contact-extraction/parts.tsx`: deleted the `VerifyToggle`
+   component. `composer.tsx`: dropped the `VerifyToggle` import, the `verifyPhone`
+   state, and the now-unused `wantsPhone`; the run is created with
+   `verifyPhone: true`. Data layer (`contact-extraction-data.ts`) was already
+   pinned to `phoneResult(rnd, true)` and `verifyPhone: true`.
+
+2. **Auto-verify note.** A static line sits below the contact-type strip in the
+   composer: "Every contact is verified automatically. A ✓ marks each result we
+   could confirm." States the default-on behaviour and what the green tick means.
+   We never render an invalid/risky badge — a contact we couldn't confirm still
+   shows the value, just without the tick.
+
+3. **"Not requested" cells.** `ContactFieldCell` (shared by the All-contacts
+   database and lookup-history tables) now renders "Not requested" for an
+   undefined field (a type the run didn't ask for) instead of "—". The single
+   result panel (`SingleResultPanel`) walks `ALL_TYPES` rather than only the
+   requested set, so a non-requested type still gets a box labelled "Not
+   requested". "Not found" (requested but nothing came back) is unchanged.
+
+Verified on local: single lookup requesting only Phone shows Phone (value +
+green tick), Personal/Work email as "Not requested" in both the result panel and
+the history table; toggle absent; auto-verify note present.

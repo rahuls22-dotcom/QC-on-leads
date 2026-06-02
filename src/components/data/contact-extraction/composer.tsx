@@ -9,7 +9,7 @@
 // app.revspot flow into launchpad with a cleaner UX.
 
 import { useRef, useState } from "react";
-import { Coins, Download, FileText, Loader2, UploadCloud, X } from "lucide-react";
+import { BadgeCheck, Coins, Download, FileText, Loader2, UploadCloud, X } from "lucide-react";
 
 import {
   CE_TYPE_LABEL,
@@ -21,11 +21,16 @@ import {
   type CERun,
 } from "@/lib/contact-extraction-data";
 
-import { CopyButton, LinkedInIcon, TypeCheckboxes, VerifiedTick, VerifyToggle } from "./parts";
+import { CopyButton, LinkedInIcon, TypeCheckboxes, VerifiedTick } from "./parts";
 
 // Pre-select everything — most lookups want the full contact set, and any field
 // we can't find is refunded anyway.
 const DEFAULT_TYPES: CEContactType[] = ["phone", "personal_email", "work_email"];
+
+// Every requested contact type, in display order. The single-lookup result panel
+// walks this (not just the requested set) so a type the user didn't ask for still
+// gets a row labelled "Not requested" instead of vanishing.
+const ALL_TYPES: CEContactType[] = ["phone", "personal_email", "work_email"];
 
 // Hard cap on a single bulk upload. Mirrors the app.revspot limit.
 const MAX_ROWS = 10000;
@@ -34,7 +39,6 @@ export function ContactExtractionComposer({ mode }: { mode: "bulk" | "single" })
   const addRun = useCEStore((s) => s.addRun);
 
   const [types, setTypes] = useState<CEContactType[]>(DEFAULT_TYPES);
-  const [verifyPhone, setVerifyPhone] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [resultRunId, setResultRunId] = useState<string | null>(null);
 
@@ -49,8 +53,6 @@ export function ContactExtractionComposer({ mode }: { mode: "bulk" | "single" })
 
   // single
   const [linkedin, setLinkedin] = useState("");
-
-  const wantsPhone = types.includes("phone");
 
   // Credits block at run start: 1 per contact type, per profile. Refunded for
   // any field we can't find.
@@ -102,7 +104,7 @@ export function ContactExtractionComposer({ mode }: { mode: "bulk" | "single" })
       label,
       total,
       requestedTypes: types,
-      verifyPhone: wantsPhone && verifyPhone,
+      verifyPhone: true, // verification is always on now
     });
 
     if (mode === "single") setResultRunId(id);
@@ -131,15 +133,24 @@ export function ContactExtractionComposer({ mode }: { mode: "bulk" | "single" })
   return (
     <div className="space-y-3">
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Top strip: contact types + verify on the left, credit info on the right */}
+      {/* Top strip: contact types on the left, credit info on the right */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 px-5 py-3.5 border-b border-border-subtle">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
           <span className="text-[12px] font-medium text-text-tertiary">Extract</span>
           <TypeCheckboxes selected={types} onToggle={toggleType} />
-          <span className="hidden sm:block w-px h-4 bg-border" aria-hidden />
-          <VerifyToggle enabled={verifyPhone} onChange={setVerifyPhone} disabled={!wantsPhone} />
         </div>
         <CreditInfo />
+      </div>
+
+      {/* Auto-verify note: verification is always on now, so we state it once
+          here and let the green tick mark each result we could confirm. */}
+      <div className="flex items-center gap-1.5 px-5 py-2 bg-surface-page/40 border-b border-border-subtle text-[11.5px] text-text-tertiary">
+        <BadgeCheck size={13} strokeWidth={2} className="text-[#059669] shrink-0" />
+        <span>
+          Every contact is verified automatically. A{" "}
+          <BadgeCheck size={12} strokeWidth={2} className="inline-block align-[-2px] text-[#059669]" />{" "}
+          marks each result we could confirm.
+        </span>
       </div>
 
       {/* Body */}
@@ -274,7 +285,10 @@ function SingleResultPanel({
   onDismiss: () => void;
 }) {
   const running = run.status !== "done";
-  const rows: CEContactType[] = run.requestedTypes;
+  // Walk every contact type, not just the requested set, so a type the user
+  // didn't ask for still renders a box labelled "Not requested".
+  const rows: CEContactType[] = ALL_TYPES;
+  const requested = new Set(run.requestedTypes);
 
   // Profile attributes pulled from the LinkedIn match — role, company, location.
   // Mirrors app.revspot, which always showed who the person is alongside their
@@ -341,6 +355,7 @@ function SingleResultPanel({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {rows.map((t) => {
+            const wasRequested = requested.has(t);
             const field =
               t === "phone" ? contact?.phone : t === "personal_email" ? contact?.personalEmail : contact?.workEmail;
             return (
@@ -351,7 +366,9 @@ function SingleResultPanel({
                 <div className="text-[10.5px] font-medium uppercase tracking-[0.4px] text-text-tertiary mb-2">
                   {CE_TYPE_LABEL[t]}
                 </div>
-                {running ? (
+                {!wasRequested ? (
+                  <span className="text-[12.5px] text-text-tertiary">Not requested</span>
+                ) : running ? (
                   <span className="inline-block h-2.5 w-28 bg-surface-secondary rounded animate-pulse" />
                 ) : field?.value ? (
                   <div className="flex items-start gap-1 min-w-0">

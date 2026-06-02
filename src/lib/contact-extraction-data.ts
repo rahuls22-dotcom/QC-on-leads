@@ -197,7 +197,10 @@ function generateRun(opts: GenRunOpts): { run: CERun; contacts: CEContact[] } {
       last = parts.slice(1).join(" ") || last;
     }
     const name = `${first} ${last}`;
-    const phone = wants("phone") ? phoneResult(rnd, opts.verifyPhone) : undefined;
+    // Verification is always on now — every requested contact is verified by
+    // default. A result that can't be confirmed still returns the value, just
+    // without the verified mark.
+    const phone = wants("phone") ? phoneResult(rnd, true) : undefined;
     const personalEmail = wants("personal_email") ? emailResult(rnd, "personal", first, last, company) : undefined;
     const workEmail = wants("work_email") ? emailResult(rnd, "work", first, last, company) : undefined;
 
@@ -229,7 +232,7 @@ function generateRun(opts: GenRunOpts): { run: CERun; contacts: CEContact[] } {
     progress: opts.progress ?? 1,
     total: opts.total,
     requestedTypes: opts.requestedTypes,
-    verifyPhone: opts.verifyPhone,
+    verifyPhone: true, // verification is always on
     counts,
     contactIds: contacts.map((c) => c.id),
   };

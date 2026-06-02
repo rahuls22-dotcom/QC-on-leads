@@ -1,8 +1,9 @@
 "use client";
 
-// Shared bits for the Contact-extraction UI: a status pill, contact-type
-// checkboxes, and the phone-verify toggle. Kept tiny and presentational so the
-// composer, history table, and database can all reuse them.
+// Shared bits for the Contact-extraction UI: the verified tick, copy button,
+// contact-field cell, and contact-type checkboxes. Kept tiny and presentational
+// so the composer, history table, and database can all reuse them. (Verification
+// is always on now — there's no longer a verify toggle.)
 
 import { useState } from "react";
 import { BadgeCheck, Check, Copy, ExternalLink } from "lucide-react";
@@ -96,12 +97,13 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
 // Table cell for an extracted contact field. We always surface the value when we
 // have one; the green tick is the only verification signal:
 //   verified            → value + green tick + copy
-//   found/risky/invalid → value + copy (no tick — unverified, but still the
-//                          extracted value the user can act on)
+//   found/risky/invalid → value + copy (no tick — couldn't be verified, but
+//                          still the extracted value the user can act on)
 //   not_found            → muted "Not found"
+//   not requested        → muted "Not requested" (this type wasn't asked for)
 // Shared by the Database table and the single-lookup history so the two match.
 export function ContactFieldCell({ field }: { field?: CEFieldResult }) {
-  if (!field) return <span className="text-text-tertiary">—</span>;
+  if (!field) return <span className="text-text-tertiary">Not requested</span>;
   if (!field.value) {
     return (
       <span className="text-text-tertiary">
@@ -269,44 +271,5 @@ export function Pagination({
         Next
       </button>
     </nav>
-  );
-}
-
-export function VerifyToggle({
-  enabled,
-  onChange,
-  disabled,
-}: {
-  enabled: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label
-      className={[
-        "inline-flex items-center gap-2 text-[12.5px] select-none",
-        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-      ].join(" ")}
-    >
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        disabled={disabled}
-        onClick={() => !disabled && onChange(!enabled)}
-        className={[
-          "relative inline-flex h-[18px] w-[32px] items-center rounded-full transition-colors",
-          enabled ? "bg-text-primary" : "bg-border",
-        ].join(" ")}
-      >
-        <span
-          className={[
-            "inline-block h-[14px] w-[14px] rounded-full bg-white transition-transform",
-            enabled ? "translate-x-[16px]" : "translate-x-[2px]",
-          ].join(" ")}
-        />
-      </button>
-      <span className="text-text-secondary">Verify phone numbers</span>
-    </label>
   );
 }
