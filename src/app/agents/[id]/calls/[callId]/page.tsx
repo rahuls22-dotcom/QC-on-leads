@@ -10,11 +10,7 @@ import {
   scoreTextClass,
   type CallTurn,
 } from "@/lib/agents-data";
-import {
-  Breadcrumbs,
-  ConfPill,
-  OutcomeBadge,
-} from "@/components/agents/bits";
+import { Breadcrumbs, ConfPill, OutcomeBadge } from "@/components/agents/bits";
 
 export default function CallDetailPage({
   params,
@@ -75,7 +71,7 @@ export default function CallDetailPage({
         <Meta label="Audio">
           <span className="text-muted-foreground inline-flex items-center gap-1.5">
             —
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-info-bg text-info">
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-secondary text-secondary-foreground">
               V1.1
             </span>
           </span>

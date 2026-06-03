@@ -6,11 +6,7 @@ import { notFound, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, X, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { findAgent, affectedCalls } from "@/lib/agents-data";
-import {
-  Breadcrumbs,
-  ConfPill,
-  OutcomeBadge,
-} from "@/components/agents/bits";
+import { Breadcrumbs, OutcomeBadge } from "@/components/agents/bits";
 
 export default function AffectedCallsPage({
   params,
@@ -23,7 +19,7 @@ export default function AffectedCallsPage({
 
   const router = useRouter();
   const search = useSearchParams();
-  const signal = search.get("signal") ?? "S1.2";
+  const focus = search.get("focus") ?? "Field accuracy";
 
   return (
     <div className="px-8 py-6 max-w-[1280px] mx-auto">
@@ -31,7 +27,7 @@ export default function AffectedCallsPage({
         items={[
           { label: "Agents", href: "/agents" },
           { label: agent.name, href: `/agents/${agent.id}` },
-          { label: `Affected calls (${signal})` },
+          { label: "Affected calls" },
         ]}
       />
 
@@ -42,7 +38,7 @@ export default function AffectedCallsPage({
             Affected calls
           </h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            {agent.name} · filtered by {signal}
+            {agent.name} · {focus}
           </p>
         </div>
         <button
@@ -58,10 +54,10 @@ export default function AffectedCallsPage({
       <div className="flex items-center gap-2.5 mb-4 flex-wrap">
         <span className="text-[12px] text-muted-foreground">Filters:</span>
         <span className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md border border-border bg-secondary text-[12px] text-foreground">
-          Signal: {signal}
+          {focus}
           <Link
             href={`/agents/${agent.id}`}
-            aria-label="Clear signal filter"
+            aria-label="Clear filter"
             className="w-4 h-4 rounded hover:bg-border flex items-center justify-center text-muted-foreground"
           >
             <X size={12} strokeWidth={2.5} />
@@ -86,7 +82,6 @@ export default function AffectedCallsPage({
               <Th>Duration</Th>
               <Th>Outcome</Th>
               <Th>Evidence snippet</Th>
-              <Th align="right">Confidence</Th>
               <th className="w-10" />
             </tr>
           </thead>
@@ -109,13 +104,10 @@ export default function AffectedCallsPage({
                 <td className="px-4 py-3">
                   <OutcomeBadge outcome={c.outcome} />
                 </td>
-                <td className="px-4 py-3 text-[12.5px] text-muted-foreground max-w-[360px]">
-                  <mark className="bg-warning-bg/70 text-foreground rounded px-1 py-0.5 box-decoration-clone">
+                <td className="px-4 py-3 text-[12.5px] text-muted-foreground max-w-[420px]">
+                  <mark className="bg-secondary text-foreground rounded px-1 py-0.5 box-decoration-clone">
                     {c.evidence}
                   </mark>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <ConfPill conf={c.confidence} showLabel={false} />
                 </td>
                 <td className="px-2 py-3 text-center text-muted-foreground">
                   <ChevronRight size={15} strokeWidth={2} className="inline" />

@@ -42,30 +42,6 @@ export function ScoreNumber({
   );
 }
 
-export function Sparkline({
-  data,
-  w = 240,
-  h = 56,
-}: {
-  data: number[];
-  w?: number;
-  h?: number;
-}) {
-  const { points, lastX, lastY, rising } = sparklinePoints(data, w, h);
-  const stroke = rising ? "var(--color-success)" : "var(--color-destructive)";
-  return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className="w-full"
-      style={{ height: h }}
-    >
-      <polyline points={points} fill="none" stroke={stroke} strokeWidth={1.5} />
-      <circle cx={lastX} cy={lastY} r={2.5} fill={stroke} />
-    </svg>
-  );
-}
-
 export type Crumb = { label: string; href?: string };
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
@@ -149,6 +125,35 @@ export function AgentStatusPill({
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: "currentColor" }} />
       {label}
+    </span>
+  );
+}
+
+/**
+ * Confidence pill — small tabular % chip next to a flagged signal.
+ *
+ * Accepts a value 0..1 (e.g. 0.92) and renders "92%" with a tonal tint
+ * that escalates as confidence drops: high (≥0.85) reads as a success
+ * tone, mid (0.7..0.85) as warning, low (<0.7) as muted. Display-only —
+ * no interaction.
+ */
+export function ConfPill({ conf }: { conf: number }) {
+  const pct = Math.round(conf * 100);
+  const tone =
+    conf >= 0.85
+      ? "bg-success-bg text-success"
+      : conf >= 0.7
+        ? "bg-warning-bg text-warning"
+        : "bg-secondary text-secondary-foreground";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded px-1.5 py-[1px] text-[10.5px] font-semibold tabular whitespace-nowrap",
+        tone,
+      )}
+      title={`Model confidence: ${pct}%`}
+    >
+      {pct}%
     </span>
   );
 }

@@ -10,24 +10,20 @@ import {
   Pencil,
   ChevronRight,
   AlertTriangle,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   findAgent,
   getAgentDetail,
-  scoreTextClass,
+  signalLabel,
   type Agent,
   type Signal,
 } from "@/lib/agents-data";
 import {
   AgentStatusPill,
   Breadcrumbs,
-  ConfPill,
   ScoreBar,
   ScoreNumber,
-  Sparkline,
 } from "@/components/agents/bits";
 import { useAgentsUI, useAgentStatus } from "@/components/agents/agents-ui";
 
@@ -43,12 +39,9 @@ export default function ScorecardPage({
   const detail = getAgentDetail(agent);
 
   return (
-    <div className="px-8 py-6 max-w-[1280px] mx-auto">
+    <div className="px-8 py-6 max-w-[1080px] mx-auto">
       <Breadcrumbs
-        items={[
-          { label: "Agents", href: "/agents" },
-          { label: agent.name },
-        ]}
+        items={[{ label: "Agents", href: "/agents" }, { label: agent.name }]}
       />
 
       <Header agent={agent} />
@@ -73,11 +66,11 @@ function Header({ agent }: { agent: Agent }) {
   const detail = getAgentDetail(agent);
 
   const subtitle = detail
-    ? `${agent.phone ?? agent.id} · owner @${detail.owner} · ${agent.callCount} calls in rolling window`
+    ? `${agent.phone ?? agent.id} · owner @${detail.owner}`
     : `${agent.phone ?? agent.id} · ${agent.callCount} calls scored`;
 
   return (
-    <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+    <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
       <div>
         <h1 className="text-[22px] font-bold text-foreground">{agent.name}</h1>
         <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>
@@ -118,40 +111,32 @@ function Header({ agent }: { agent: Agent }) {
   );
 }
 
-// ── Hero tiles ────────────────────────────────────────────────────────────
+// ── Slim summary strip (replaces the old hero tiles) ──────────────────────
 
-function Tile({
+function StatCell({
   label,
+  value,
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  value?: string;
+  children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-secondary bg-card p-4">
-      <div className="text-xs text-secondary-foreground">{label}</div>
-      <div className="mt-2">{children}</div>
+    <div className="bg-card px-4 py-2.5 flex-1 min-w-[130px]">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[14px] font-medium text-foreground tabular">
+        {children ?? value}
+      </div>
     </div>
   );
 }
 
-function CompositeTile({ agent }: { agent: Agent }) {
-  const trend = agent.trend ?? 0;
-  const down = trend < 0;
+function SummaryStrip({ cells }: { cells: React.ReactNode }) {
   return (
-    <Tile label="Composite score">
-      <ScoreNumber score={agent.composite!} className="text-[34px] leading-none" />
-      <ScoreBar score={agent.composite!} className="mt-3" />
-      <div
-        className={cn(
-          "mt-2 inline-flex items-center gap-1 text-[12px] font-medium",
-          down ? "text-destructive" : "text-success",
-        )}
-      >
-        {down ? <TrendingDown size={13} /> : <TrendingUp size={13} />}
-        {Math.abs(trend)} vs 7-day baseline
-      </div>
-    </Tile>
+    <div className="flex flex-wrap items-stretch gap-px rounded-xl border border-border-subtle bg-border-subtle overflow-hidden mb-6">
+      {cells}
+    </div>
   );
 }
 
@@ -164,7 +149,10 @@ function FullScorecard({
   agent: Agent;
   detail: NonNullable<ReturnType<typeof getAgentDetail>>;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["S1"]));
+  const lowest = detail.signals.find((s) => s.isLowest)?.id;
+  const [expanded, setExpanded] = useState<Set<string>>(
+    new Set(lowest ? [lowest] : []),
+  );
   const toggle = (sid: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -172,100 +160,98 @@ function FullScorecard({
       return next;
     });
 
-  const qrGood = detail.qr >= 15;
-
   return (
     <>
-      {/* Hero */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-        <CompositeTile agent={agent} />
-        <Tile label="Score trend (last 9 windows)">
-          <Sparkline data={detail.trendData} />
-          <div className="text-[11px] text-muted-foreground mt-1">
-            Rolling 20-call window · updated {detail.lastUpdated}
-          </div>
-        </Tile>
-        <Tile label="Qualification rate">
-          <span
-            className={cn(
-              "text-[34px] leading-none font-bold tabular",
-              qrGood ? "text-success" : "text-destructive",
-            )}
-          >
-            {detail.qr}%
-          </span>
-          <div className="text-[11px] text-muted-foreground mt-2">
-            {agent.callCount} calls · north star ≥ 15%
-          </div>
-        </Tile>
-      </div>
-
-      {/* Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-4">
-        {/* Signal breakdown */}
-        <div className="rounded-2xl border border-secondary bg-card p-5">
-          <h2 className="text-[15px] font-semibold text-foreground">
-            Signal breakdown
-          </h2>
-          <p className="text-[12px] text-muted-foreground mt-0.5 mb-4">
-            Click a signal to expand sub-signals · click &quot;X calls →&quot; to
-            see affected calls
-          </p>
-          <div className="space-y-2.5">
-            {detail.signals.map((sig) => (
-              <SignalBlock
-                key={sig.id}
-                agentId={agent.id}
-                signal={sig}
-                expanded={expanded.has(sig.id)}
-                onToggle={() => toggle(sig.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Possible reasons */}
-        <div className="rounded-2xl border border-secondary bg-card p-5">
-          <h2 className="text-[15px] font-semibold text-foreground">
-            Possible reasons
-          </h2>
-          <p className="text-[12px] text-muted-foreground mt-0.5 mb-4">
-            Top 3 contributors to composite drop
-          </p>
-          <div className="space-y-3">
-            {detail.reasons.map((r) => (
-              <div
-                key={r.signal}
-                className={cn(
-                  "rounded-lg border border-border-subtle bg-muted/40 p-3.5 border-l-[3px]",
-                  r.priority === 1
-                    ? "border-l-destructive"
-                    : r.priority === 2
-                      ? "border-l-warning"
-                      : "border-l-border",
-                )}
-              >
-                <div className="text-[11px] font-medium text-muted-foreground tabular">
-                  {r.signal} · {r.calls} calls
-                </div>
-                <div className="text-[13.5px] font-medium text-foreground mt-1">
-                  {r.title}
-                </div>
-                <div className="text-[12px] text-muted-foreground mt-1 leading-relaxed">
-                  {r.body}
-                </div>
-                <Link
-                  href={`/agents/${agent.id}/calls?signal=${encodeURIComponent(r.signal)}`}
-                  className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary hover:underline mt-2"
-                >
-                  View affected calls
-                  <ChevronRight size={13} strokeWidth={2.5} />
-                </Link>
+      <SummaryStrip
+        cells={
+          <>
+            <StatCell label="Composite score">
+              <div className="flex items-center gap-2.5">
+                <ScoreNumber
+                  score={agent.composite!}
+                  className="text-[20px] leading-none"
+                />
+                <ScoreBar score={agent.composite!} className="w-16" />
               </div>
-            ))}
-          </div>
+            </StatCell>
+            <StatCell label="Qualification rate" value={`${detail.qr}%`} />
+            <StatCell
+              label="Calls in window"
+              value={`${agent.callCount}`}
+            />
+            <StatCell label="Updated" value={detail.lastUpdated} />
+          </>
+        }
+      />
+
+      {/* Possible reasons — now the lead section, full width */}
+      <section className="mb-7">
+        <h2 className="text-[15px] font-semibold text-foreground">
+          Top reasons the score dropped
+        </h2>
+        <p className="text-[12px] text-muted-foreground mt-0.5 mb-3">
+          The biggest contributors to the composite, most impactful first.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {detail.reasons.map((r, i) => (
+            <div
+              key={r.metric}
+              className="rounded-xl border border-border-subtle bg-card p-4 flex flex-col"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "w-5 h-5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center shrink-0",
+                    i === 0
+                      ? "bg-destructive-bg text-destructive"
+                      : "bg-secondary text-secondary-foreground",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <span className="text-[12px] text-muted-foreground truncate">
+                  {r.metric} · {r.calls} calls
+                </span>
+              </div>
+              <div className="text-[13.5px] font-medium text-foreground mt-2.5">
+                {r.title}
+              </div>
+              <div className="text-[12px] text-muted-foreground mt-1 leading-relaxed flex-1">
+                {r.body}
+              </div>
+              <Link
+                href={`/agents/${agent.id}/calls?focus=${encodeURIComponent(r.metric)}`}
+                className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary hover:underline mt-3"
+              >
+                View affected calls
+                <ChevronRight size={13} strokeWidth={2.5} />
+              </Link>
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
+
+      {/* Signal breakdown */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-foreground">
+          Signal breakdown
+        </h2>
+        <p className="text-[12px] text-muted-foreground mt-0.5 mb-3">
+          Four quality signals make up the composite. Expand a signal to see the
+          checks behind it.
+        </p>
+        <div className="space-y-2.5">
+          {detail.signals.map((sig) => (
+            <SignalBlock
+              key={sig.id}
+              agentId={agent.id}
+              signal={sig}
+              expanded={expanded.has(sig.id)}
+              onToggle={() => toggle(sig.id)}
+            />
+          ))}
+        </div>
+      </section>
     </>
   );
 }
@@ -285,31 +271,40 @@ function SignalBlock({
     <div
       className={cn(
         "rounded-xl border bg-card overflow-hidden",
-        signal.isLowest ? "border-destructive/40" : "border-border-subtle",
+        signal.isLowest
+          ? "border-border-subtle border-l-2 border-l-destructive/50"
+          : "border-border-subtle",
       )}
     >
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-3.5 py-3 hover:bg-secondary/40 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/40 transition-colors text-left"
       >
-        <span className="text-[12px] font-semibold text-muted-foreground tabular w-7 shrink-0">
-          {signal.id}
-        </span>
-        <span className="flex-1 min-w-0 text-[13.5px] font-medium text-foreground flex items-center gap-2">
-          <span className="truncate">{signal.name}</span>
-          {signal.isLowest && (
-            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-destructive-bg text-destructive shrink-0">
-              Lowest
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[13.5px] font-medium text-foreground truncate">
+              {signal.name}
             </span>
-          )}
-        </span>
-        <span className="text-[12px] text-muted-foreground tabular shrink-0">
-          {signal.weight}%
+            {signal.isLowest && (
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-secondary text-secondary-foreground shrink-0">
+                Lowest
+              </span>
+            )}
+          </div>
+          <div className="text-[12px] text-muted-foreground mt-0.5 truncate">
+            {signal.description}
+          </div>
+        </div>
+        <span className="text-[11.5px] text-muted-foreground shrink-0 whitespace-nowrap">
+          {signal.weight}% weight
         </span>
         <span className="w-24 shrink-0">
           <ScoreBar score={signal.score} />
         </span>
-        <ScoreNumber score={signal.score} className="text-[14px] w-7 text-right shrink-0" />
+        <ScoreNumber
+          score={signal.score}
+          className="text-[14px] w-7 text-right shrink-0"
+        />
         <ChevronRight
           size={15}
           strokeWidth={2}
@@ -323,16 +318,15 @@ function SignalBlock({
       {expanded && (
         <div className="border-t border-border-subtle divide-y divide-border-subtle">
           {signal.subsignals.map((sub) => (
-            <div
-              key={sub.id}
-              className="flex items-center gap-3 px-3.5 py-2.5 pl-10"
-            >
-              <span className="text-[11.5px] text-muted-foreground tabular w-8 shrink-0">
-                {sub.id}
-              </span>
-              <span className="flex-1 min-w-0 text-[12.5px] text-foreground truncate">
-                {sub.name}
-              </span>
+            <div key={sub.id} className="flex items-center gap-3 px-4 py-2.5">
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] text-foreground truncate">
+                  {sub.name}
+                </div>
+                <div className="text-[11.5px] text-muted-foreground truncate">
+                  {sub.description}
+                </div>
+              </div>
               <ScoreNumber
                 score={sub.score}
                 className="text-[12.5px] w-7 text-right shrink-0"
@@ -340,9 +334,8 @@ function SignalBlock({
               <span className="w-20 shrink-0">
                 <ScoreBar score={sub.score} />
               </span>
-              <ConfPill conf={sub.conf} className="shrink-0" />
               <Link
-                href={`/agents/${agentId}/calls?signal=${encodeURIComponent(`${signal.id}.${sub.id.split(".")[1]}`)}`}
+                href={`/agents/${agentId}/calls?focus=${encodeURIComponent(sub.name)}`}
                 className="text-[12px] font-medium text-primary hover:underline whitespace-nowrap shrink-0"
               >
                 {sub.calls} calls →
@@ -361,29 +354,27 @@ function MinimalScorecard({ agent }: { agent: Agent }) {
   const router = useRouter();
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-        <CompositeTile agent={agent} />
-        <Tile label="Calls in window">
-          <span className="text-[34px] leading-none font-bold text-foreground tabular">
-            {agent.callCount}
-          </span>
-          <div className="text-[11px] text-muted-foreground mt-2">
-            Rolling 20-call window
-          </div>
-        </Tile>
-        <Tile label="Top offender">
-          <span className="text-[26px] leading-none font-bold text-foreground tabular">
-            {agent.lowestSignal ?? "—"}
-          </span>
-          <div className="text-[11px] text-muted-foreground mt-2">
-            Lowest-scoring signal
-          </div>
-        </Tile>
-      </div>
+      <SummaryStrip
+        cells={
+          <>
+            <StatCell label="Composite score">
+              <ScoreNumber
+                score={agent.composite!}
+                className="text-[20px] leading-none"
+              />
+            </StatCell>
+            <StatCell label="Calls in window" value={`${agent.callCount}`} />
+            <StatCell
+              label="Lowest signal"
+              value={signalLabel(agent.lowestSignal)}
+            />
+          </>
+        }
+      />
 
-      <div className="rounded-2xl border border-secondary bg-card p-10 text-center">
+      <div className="rounded-xl border border-border-subtle bg-card p-10 text-center">
         <p className="text-[13.5px] text-muted-foreground">
-          Full sub-signal drill-down is wired for the demo agent only.
+          Full check-by-check drill-down is wired for the demo agent only.
         </p>
         <button
           onClick={() => router.push("/agents/a3")}
@@ -400,7 +391,7 @@ function MinimalScorecard({ agent }: { agent: Agent }) {
 
 function InsufficientState({ agent }: { agent: Agent }) {
   return (
-    <div className="rounded-2xl border border-warning/40 bg-warning-bg/40 p-6 flex items-start gap-4">
+    <div className="rounded-xl border border-warning/40 bg-warning-bg/40 p-6 flex items-start gap-4">
       <div className="w-10 h-10 rounded-full bg-warning-bg text-warning flex items-center justify-center shrink-0">
         <AlertTriangle size={18} strokeWidth={2} />
       </div>
