@@ -10,28 +10,21 @@ import {
   Check,
   Inbox,
   Webhook,
-  BookOpen,
   ExternalLink,
+  FlaskConical,
+  Pencil,
 } from "lucide-react";
 import { adAccounts } from "@/lib/integrations-data";
 import type { AdAccount } from "@/lib/integrations-data";
 import {
-  inbound,
-  signingSecret,
-  outbound,
-  recentDeliveries,
-  PRODUCT_EVENTS,
-  PRODUCT_EVENT_DOCS,
+  API_BASE,
+  apiToken,
+  PRODUCT_API,
   DOCS_BASE,
-  DOCS_LINKS,
 } from "@/lib/integration-data";
-import {
-  CopyField,
-  WebhookStatusBadge,
-  EventChips,
-  CodeBlock,
-} from "@/components/integrations/api-bits";
+import { CopyField, CodeBlock } from "@/components/integrations/api-bits";
 import { ALL_PRODUCTS, useProducts } from "@/lib/products";
+import type { ProductKey } from "@/lib/products";
 import WhatsAppConnectPage from "@/app/(app)/channels/whatsapp/page";
 import { useWA } from "@/lib/whatsapp-context";
 
@@ -146,206 +139,257 @@ function AdAccountCard({ account }: { account: AdAccount }) {
 }
 
 // ── API & Webhooks Tab ──────────────────────────────────────
-// Revspot is CRM-agnostic. We host ONE inbound API (client pushes leads in) and
-// POST results to ONE webhook URL the CLIENT hosts. Every call carries
-// `event` + `product` so the client routes server-side. No CRM handshake.
+// One sub-tab per product the workspace owns. A static bearer token (shared,
+// shown once at the top) authenticates every call. Each product configures its
+// own callback URL so a client running two CRMs can route products separately.
+//   - inbound products (enrichment, ai_calling): client calls our API, we POST
+//     the result back to their callback URL.
+//   - callback-only (campaigns): WE create new leads and deliver each to their
+//     callback URL — no inbound call.
+// Sub-tab order — Campaigns first (most clients start outbound), then the
+// inbound products. Independent of ALL_PRODUCTS (which drives sidebar chips).
+const TAB_ORDER: ProductKey[] = ["campaigns", "enrichment", "ai_calling"];
+
+type TestState = { key: ProductKey; status: "sending" | "ok" } | null;
+
 function ApiWebhooksTab() {
   const { has } = useProducts();
-  const ownedProducts = ALL_PRODUCTS.filter((p) => has(p.key));
-  const [webhookUrl, setWebhookUrl] = useState(outbound.url);
-  const [saved, setSaved] = useState(false);
+  const ownedProducts = TAB_ORDER.filter((k) => has(k)).map(
+    (k) => ALL_PRODUCTS.find((p) => p.key === k)!,
+  );
+  const [active, setActive] = useState<ProductKey>(
+    ownedProducts[0]?.key ?? "campaigns",
+  );
+  // Webhook URLs start empty — the client pastes their own endpoint.
+  // `draft` = what's in the input. `committed` = the last saved value. A URL is
+  // editable when it's never been saved, or the user clicked Edit on it.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [committed, setCommitted] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<ProductKey | null>(null);
+  const [flash, setFlash] = useState<ProductKey | null>(null);
+  const [test, setTest] = useState<TestState>(null);
 
-  const configured = webhookUrl.trim().length > 0;
-  const status = configured ? outbound.status : "not_configured";
+  // Active product may have been toggled off in the sidebar — fall back.
+  const activeKey = ownedProducts.some((p) => p.key === active)
+    ? active
+    : ownedProducts[0]?.key;
+  if (!activeKey) return null;
 
-  const save = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+  const cfg = PRODUCT_API[activeKey];
+  const label = ALL_PRODUCTS.find((p) => p.key === activeKey)?.label ?? "";
+  const inbound = cfg.direction === "inbound";
+
+  const draftUrl = draft[activeKey] ?? "";
+  const savedUrl = committed[activeKey];
+  const isCommitted = savedUrl != null;
+  const isEditing = !isCommitted || editing === activeKey;
+  // The URL we'd actually test/deliver to right now.
+  const effectiveUrl = isEditing ? draftUrl : savedUrl ?? "";
+
+  const selectTab = (k: ProductKey) => {
+    setActive(k);
+    setTest(null);
   };
+  const setUrl = (k: string, v: string) =>
+    setDraft((prev) => ({ ...prev, [k]: v }));
+  const save = () => {
+    setCommitted((prev) => ({ ...prev, [activeKey]: draftUrl }));
+    setEditing(null);
+    setFlash(activeKey);
+    setTimeout(() => setFlash((f) => (f === activeKey ? null : f)), 1800);
+  };
+  const startEdit = () => {
+    setDraft((prev) => ({ ...prev, [activeKey]: savedUrl ?? "" }));
+    setEditing(activeKey);
+  };
+  const cancelEdit = () => {
+    setDraft((prev) => ({ ...prev, [activeKey]: savedUrl ?? "" }));
+    setEditing(null);
+  };
+  const runTest = () => {
+    setTest({ key: activeKey, status: "sending" });
+    setTimeout(() => setTest({ key: activeKey, status: "ok" }), 1300);
+  };
+  const activeTest = test && test.key === activeKey ? test : null;
 
   return (
-    <div className="space-y-4 max-w-[860px]">
-      {/* (A) Inbound API */}
-      <div className="bg-white border border-border rounded-card p-5">
+    <div className="max-w-[760px]">
+      {/* Shared credentials */}
+      <div className="bg-white border border-border rounded-card p-5 mb-4">
         <div className="flex items-center gap-2 mb-1">
           <Inbox size={15} strokeWidth={1.75} className="text-text-secondary" />
-          <h3 className="text-card-title text-text-primary">Inbound API</h3>
+          <h3 className="text-card-title text-text-primary">API credentials</h3>
         </div>
         <p className="text-[12.5px] text-text-secondary mb-4 leading-relaxed">
-          Push leads to Revspot from your CRM or backend. Send a{" "}
-          <code className="font-mono text-text-primary">{inbound.method}</code> with your
-          API key in the <code className="font-mono text-text-primary">Authorization</code> header.
+          One token authenticates every product. Send it in the{" "}
+          <code className="font-mono text-text-primary">Authorization: Bearer</code> header.
         </p>
         <div className="space-y-3">
-          <CopyField label="Endpoint" value={`${inbound.method} ${inbound.endpoint}`} />
-          <CopyField label="API key" value={inbound.apiKey} masked />
+          <CopyField label="Base URL" value={API_BASE} />
+          <CopyField label="API token" value={apiToken} masked />
         </div>
-        <a
-          href={DOCS_LINKS.push}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:text-accent-hover transition-colors duration-150 mt-3.5"
-        >
-          How to push leads
-          <ExternalLink size={12} strokeWidth={1.5} />
-        </a>
       </div>
 
-      {/* (B) Outbound webhook — ONE URL for the whole workspace */}
-      <div className="bg-white border border-border rounded-card p-5">
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <div className="flex items-center gap-2">
-            <Webhook size={15} strokeWidth={1.75} className="text-text-secondary" />
-            <h3 className="text-card-title text-text-primary">Outbound webhook</h3>
-          </div>
-          <WebhookStatusBadge status={status} />
-        </div>
-        <p className="text-[12.5px] text-text-secondary mb-4 leading-relaxed">
-          We POST every result to one webhook URL <span className="text-text-primary font-medium">your team hosts</span>.
-          Each call carries an <code className="font-mono text-text-primary">event</code> and{" "}
-          <code className="font-mono text-text-primary">product</code> field so you route it server-side, and is
-          signed with the secret below so you can verify it came from Revspot.
-        </p>
+      {/* Per-module sub-tabs — segmented control (owned products only) */}
+      <div className="inline-flex items-center gap-1 p-1 bg-[#E9ECF1] rounded-button mb-4">
+        {ownedProducts.map((p) => {
+          const on = p.key === activeKey;
+          return (
+            <button
+              key={p.key}
+              onClick={() => selectTab(p.key)}
+              className={`px-3.5 h-8 rounded-[6px] text-[12.5px] font-medium transition-all duration-150 outline-none focus:outline-none focus-visible:outline-none ${
+                on
+                  ? "bg-white text-text-primary shadow-sm"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Webhook URL input + save */}
-        <div className="mb-4">
+      {/* Active module panel */}
+      <div className="bg-white border border-border rounded-card p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Webhook size={15} strokeWidth={1.75} className="text-text-secondary" />
+          <h3 className="text-card-title text-text-primary">{label}</h3>
+        </div>
+        <p className="text-[12.5px] text-text-secondary mb-4 leading-relaxed">{cfg.blurb}</p>
+
+        {/* Step 1 — Call the API (inbound products only) */}
+        {inbound && cfg.endpoints.length > 0 && (
+          <div className="mt-5 pt-5 border-t border-border-subtle">
+            <h4 className="text-[12.5px] font-semibold text-text-primary mb-0.5">
+              1 · Call the API
+            </h4>
+            <p className="text-[12px] text-text-secondary mb-2.5">
+              Send a request with your API token to start the job.
+            </p>
+            <div className="rounded-card border border-border-subtle divide-y divide-border-subtle">
+              {cfg.endpoints.map((e) => (
+                <div key={e.path} className="flex items-center gap-3 px-3.5 py-2.5">
+                  <span className="text-[10.5px] font-mono font-semibold text-text-tertiary w-[40px] shrink-0">
+                    {e.method}
+                  </span>
+                  <code className="text-[12px] font-mono text-text-primary shrink-0">{e.path}</code>
+                  <span className="text-[12px] text-text-secondary ml-auto truncate">{e.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Receive results on your webhook */}
+        <div className="mt-5 pt-5 border-t border-border-subtle">
+          <h4 className="text-[12.5px] font-semibold text-text-primary mb-0.5">
+            {inbound ? "2 · Receive the result" : "Receive your leads"}
+          </h4>
+          <p className="text-[12px] text-text-secondary mb-3">
+            {inbound
+              ? "When the job finishes, we POST the result to your webhook URL."
+              : "As each lead comes in, we POST it to your webhook URL."}
+          </p>
+
           <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-1.5">
             Webhook URL
           </label>
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://hooks.yourcompany.com/revspot"
-              className="flex-1 min-w-0 h-9 px-3 text-[12.5px] font-mono border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary placeholder:font-sans"
+              value={isEditing ? draftUrl : savedUrl ?? ""}
+              onChange={(e) => setUrl(activeKey, e.target.value)}
+              disabled={!isEditing}
+              placeholder="https://your-app.com/webhooks/revspot"
+              className="flex-1 min-w-0 h-9 px-3 text-[12.5px] font-mono border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary placeholder:font-sans disabled:bg-surface-secondary disabled:text-text-secondary disabled:cursor-default"
             />
+            {isEditing ? (
+              <>
+                <button
+                  onClick={save}
+                  disabled={!draftUrl}
+                  className="h-9 px-4 inline-flex items-center gap-1.5 bg-accent text-white text-[12px] font-medium rounded-button hover:bg-accent-hover transition-colors duration-150 shrink-0 disabled:opacity-40 disabled:hover:bg-accent"
+                >
+                  Save
+                </button>
+                {isCommitted && (
+                  <button
+                    onClick={cancelEdit}
+                    className="h-9 px-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-text-secondary border border-border rounded-button hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150 shrink-0"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={startEdit}
+                className="h-9 px-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-text-primary border border-border rounded-button hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150 shrink-0"
+              >
+                <Pencil size={13} strokeWidth={1.75} />
+                Edit
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <p className="text-[11.5px] text-text-tertiary leading-relaxed">
+              Delivered as JSON via HTTP POST.
+            </p>
+            {flash === activeKey && (
+              <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#15803D] shrink-0">
+                <Check size={12} strokeWidth={2.5} />
+                Saved
+              </span>
+            )}
+          </div>
+
+          {/* Test webhook — fires a sample payload at the URL above. */}
+          <div className="flex items-center gap-2.5 mt-3">
             <button
-              onClick={save}
-              className="h-9 px-4 inline-flex items-center gap-1.5 bg-accent text-white text-[12px] font-medium rounded-button hover:bg-accent-hover transition-colors duration-150 shrink-0"
+              onClick={runTest}
+              disabled={!effectiveUrl || activeTest?.status === "sending"}
+              className="h-8 px-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-text-primary border border-border rounded-button hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150 disabled:opacity-40 disabled:hover:bg-white"
             >
-              {saved ? (
+              {activeTest?.status === "sending" ? (
                 <>
-                  <Check size={14} strokeWidth={2} />
-                  Saved
+                  <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+                  Sending…
                 </>
               ) : (
-                "Save"
+                <>
+                  <FlaskConical size={13} strokeWidth={1.75} />
+                  Send test event
+                </>
               )}
             </button>
+            {activeTest?.status === "ok" && (
+              <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[#15803D]">
+                <CheckCircle2 size={13} strokeWidth={2} />
+                200 OK — sample payload delivered
+              </span>
+            )}
           </div>
-        </div>
 
-        <div className="mb-5">
-          <CopyField label="Signing secret" value={signingSecret} masked />
-        </div>
-
-        {/* Per-product event reference (read-only) */}
-        <div className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-2">
-          Events you'll receive
-        </div>
-        <div className="space-y-2.5 mb-5">
-          {ownedProducts.map((p) => (
-            <div key={p.key} className="rounded-card border border-border px-3.5 py-3">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <span className="text-[13px] font-semibold text-text-primary">{p.label}</span>
-                <a
-                  href={PRODUCT_EVENT_DOCS[p.key]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11.5px] text-text-tertiary hover:text-text-secondary transition-colors duration-150 shrink-0"
-                >
-                  Payload docs
-                  <ExternalLink size={12} strokeWidth={1.5} />
-                </a>
-              </div>
-              <EventChips events={PRODUCT_EVENTS[p.key]} />
+          {/* What lands at the webhook — nested under this section since it's
+              the shape we POST to the URL above. */}
+          <div className="mt-4">
+            <div className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-2">
+              What we&apos;ll send
             </div>
-          ))}
-        </div>
-
-        {/* Recent deliveries */}
-        <div className="mt-5">
-          <div className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-2">
-            Recent deliveries
-          </div>
-          <div className="rounded-card border border-border-subtle divide-y divide-border-subtle">
-            {recentDeliveries.map((d) => (
-              <div key={d.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    d.status === "delivered" ? "bg-[#15803D]" : "bg-[#DC2626]"
-                  }`}
-                />
-                <span className="text-[11.5px] font-mono text-text-primary shrink-0 w-[120px] truncate">
-                  {d.event}
-                </span>
-                <span className="text-[12px] text-text-secondary flex-1 min-w-0 truncate">
-                  {d.detail}
-                </span>
-                <span className="text-[11px] font-mono text-text-tertiary shrink-0">
-                  {d.responseCode}
-                </span>
-                <span className="text-[11px] text-text-tertiary shrink-0 w-[64px] text-right">
-                  {d.time}
-                </span>
-              </div>
-            ))}
+            <CodeBlock>{cfg.sampleCallback}</CodeBlock>
           </div>
         </div>
-      </div>
 
-      {/* (C) Developer docs */}
-      <div className="bg-white border border-border rounded-card p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <BookOpen size={15} strokeWidth={1.75} className="text-text-secondary" />
-          <h3 className="text-card-title text-text-primary">Developer docs</h3>
-        </div>
-        <p className="text-[12.5px] text-text-secondary mb-4 leading-relaxed">
-          Hand these to your tech team. Everything needed to push leads and receive results.
-        </p>
-        <div className="grid grid-cols-2 gap-2.5 mb-4">
-          {[
-            { label: "Push leads", href: DOCS_LINKS.push, desc: "Send leads to the inbound API" },
-            { label: "Webhooks overview", href: DOCS_LINKS.webhooks, desc: "Receive results on your URL" },
-            { label: "Verify signatures", href: DOCS_LINKS.signatures, desc: "Confirm calls came from us" },
-            { label: "Full reference", href: DOCS_BASE, desc: "API + event catalog" },
-          ].map((d) => (
-            <a
-              key={d.label}
-              href={d.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-start justify-between gap-2 rounded-card border border-border px-3.5 py-3 hover:border-border-strong transition-colors duration-150"
-            >
-              <div className="min-w-0">
-                <div className="text-[12.5px] font-semibold text-text-primary">{d.label}</div>
-                <div className="text-[11.5px] text-text-tertiary truncate">{d.desc}</div>
-              </div>
-              <ExternalLink
-                size={13}
-                strokeWidth={1.5}
-                className="text-text-tertiary group-hover:text-text-secondary transition-colors duration-150 shrink-0 mt-0.5"
-              />
-            </a>
-          ))}
-        </div>
-
-        {/* Sample webhook payload */}
-        <div className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-2">
-          Sample webhook payload
-        </div>
-        <CodeBlock>{`POST {your_webhook_url}
-X-Revspot-Signature: t=1717..,v1=5d4f...
-
-{
-  "event": "lead.enriched",
-  "id": "evt_8f3c2a9b",
-  "data": {
-    "lead_id": "rl_4521",
-    "enrichment": { "company": "Infosys", "job_title": "Eng Manager" }
-  }
-}`}</CodeBlock>
+        <a
+          href={DOCS_BASE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:text-accent-hover transition-colors duration-150 mt-4"
+        >
+          API reference
+          <ExternalLink size={12} strokeWidth={1.5} />
+        </a>
       </div>
     </div>
   );
@@ -385,11 +429,10 @@ export default function IntegrationsPage() {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
       {/* Header */}
-      <motion.div variants={fadeUp} className="mb-6">
-        <div className="text-meta text-text-secondary mb-1">Tools</div>
-        <h1 className="text-page-title text-text-primary">Integrations</h1>
-        <p className="text-meta text-text-secondary mt-1">
-          Connect your ad platforms, CRM, and notification channels.
+      <motion.div variants={fadeUp} className="mb-5">
+        <h2 className="text-[16px] font-semibold text-text-primary">Integrations</h2>
+        <p className="text-[12.5px] text-text-secondary mt-0.5">
+          Connect your ad platforms, lead delivery, and notification channels.
         </p>
       </motion.div>
 

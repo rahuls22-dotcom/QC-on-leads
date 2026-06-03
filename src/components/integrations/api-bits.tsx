@@ -1,12 +1,10 @@
 "use client";
 
-// Shared display primitives for the API & Webhooks surfaces — copy-to-clipboard
-// field, webhook status badge, event chips, code/payload block. Reused by the
-// Integrations "API & Webhooks" tab and the per-product webhook config card.
+// Shared display primitives for the API & Webhooks tab — copy-to-clipboard
+// field and a light code/payload block.
 
 import { useState } from "react";
-import { Copy, Check, CheckCircle2, AlertTriangle, MinusCircle } from "lucide-react";
-import type { WebhookStatus } from "@/lib/integration-data";
+import { Copy, Check } from "lucide-react";
 
 export function CopyField({
   value,
@@ -76,49 +74,9 @@ export function CopyField({
   );
 }
 
-export function WebhookStatusBadge({ status }: { status: WebhookStatus }) {
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-badge bg-[#F0FDF4] text-[#15803D]">
-        <CheckCircle2 size={11} strokeWidth={2} />
-        Active
-      </span>
-    );
-  }
-  if (status === "failing") {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-badge bg-[#FEF2F2] text-[#B91C1C]">
-        <AlertTriangle size={11} strokeWidth={2} />
-        Failing
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-badge bg-surface-secondary text-text-tertiary">
-      <MinusCircle size={11} strokeWidth={2} />
-      Not configured
-    </span>
-  );
-}
-
-export function EventChips({ events }: { events: string[] }) {
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {events.map((e) => (
-        <span
-          key={e}
-          className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-badge border border-[#C7D2FE] bg-[#EEF2FF] text-[#3730A3]"
-        >
-          {e}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-card border border-border-subtle bg-[#0F172A] text-[#E2E8F0] text-[11.5px] leading-relaxed font-mono p-3.5">
+    <pre className="overflow-x-auto rounded-card border border-border bg-surface-page text-text-primary text-[11.5px] leading-relaxed font-mono p-3.5">
       <code>{children}</code>
     </pre>
   );

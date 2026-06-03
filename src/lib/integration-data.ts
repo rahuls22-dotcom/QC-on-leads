@@ -1,119 +1,84 @@
-// Integration mock data + types. Prototype only — no backend.
+// Integration mock data. Prototype only — mirrors the real Revspot API at
+// docs.revspot.ai.
 //
-// New model (post-pivot): Revspot is CRM-agnostic. We expose ONE inbound API
-// (client pushes leads to us) and accept per-product OUTBOUND webhook URLs that
-// the CLIENT hosts (their CRM or backend) — we POST results there, signed with
-// our secret. We don't connect into any CRM. The client's tech team wires it up
-// from external docs.
+// Model: a static bearer token identifies the client on every call. Each product
+// is configured on its own tab. Two directions:
+//  - inbound + callback (enrichment, ai_calling): client calls our API, we run
+//    the job async and POST the result back to the client's callback URL.
+//  - callback only (campaigns): WE create new leads and deliver each one to the
+//    client's callback URL. Nothing to call inbound — they just give us a URL.
 
 import type { ProductKey } from "@/lib/products";
 
-// External developer docs (placeholder host for the prototype).
 export const DOCS_BASE = "https://docs.revspot.ai";
-export const DOCS_LINKS = {
-  push: `${DOCS_BASE}/push-leads`,
-  webhooks: `${DOCS_BASE}/webhooks`,
-  signatures: `${DOCS_BASE}/webhooks/signature-verification`,
-  enrichment: `${DOCS_BASE}/webhooks/enrichment`,
-  ai_calling: `${DOCS_BASE}/webhooks/calls`,
-  campaigns: `${DOCS_BASE}/webhooks/campaigns`,
-} as const;
 
-export type WebhookStatus = "active" | "not_configured" | "failing";
+// ── Shared credentials (client → Revspot) ───────────────────
+export const API_BASE = "https://api.revspot.ai";
+// Static, long-lived. Identifies the client on every call. Does not rotate.
+export const apiToken = "rvk_8f3c2a9b7d1e4056a2c91f7e";
 
-export interface WebhookDelivery {
-  id: string;
-  time: string;
-  event: string;
-  status: "delivered" | "failed";
-  responseCode: number;
-  detail: string;
+// ── Per-product config (drives each module tab) ─────────────
+export interface ProductApi {
+  // Whether the client calls us (inbound) or we only deliver to them (callback).
+  direction: "inbound" | "callback";
+  blurb: string;
+  // Inbound endpoints the client calls. Empty for callback-only products.
+  endpoints: { method: string; path: string; desc: string }[];
+  // What we POST to the client's callback URL.
+  sampleCallback: string;
 }
 
-// Events emitted per product — referenced in the outbound config + docs.
-export const PRODUCT_EVENTS: Record<ProductKey, string[]> = {
-  enrichment: ["lead.enriched"],
-  ai_calling: ["call.completed", "lead.qualified"],
-  campaigns: ["lead.created", "lead.qualified"],
-};
-
-// ── Inbound (client → Revspot) ──────────────────────────────
-export const inbound = {
-  endpoint: "https://api.revspot.ai/v1/leads",
-  method: "POST",
-  apiKey: "rvk_live_8f3c2a9b7d1e4056a2c9",
-  // Header the client sets on each push request.
-  authHeader: "Authorization: Bearer <API_KEY>",
-};
-
-// ── Outbound (Revspot → client webhook) ─────────────────────
-// ONE webhook URL for the whole workspace (Stripe/GitHub model). Every call
-// carries `event` + `product` so the client routes server-side. The client
-// hosts this URL (their CRM or backend). Each call is signed with the secret
-// below so the client can verify it came from Revspot.
-export const signingSecret = "whsec_4d7a1f9c3b6e2058";
-
-export const outbound = {
-  url: "https://hooks.godrejproperties.com/revspot",
-  status: "active" as WebhookStatus,
-  lastDelivery: "2 minutes ago",
-};
-
-// Per-product event reference — what events the single webhook receives for
-// each product the workspace owns. Shown read-only so the tech team knows the
-// payload shapes to branch on.
-export const PRODUCT_EVENT_DOCS: Record<ProductKey, string> = {
-  enrichment: DOCS_LINKS.enrichment,
-  ai_calling: DOCS_LINKS.ai_calling,
-  campaigns: DOCS_LINKS.campaigns,
-};
-
-// Recent outbound deliveries (shown in the webhook log).
-export const recentDeliveries: WebhookDelivery[] = [
-  { id: "d1", time: "2 min ago", event: "lead.enriched", status: "delivered", responseCode: 200, detail: "Contact #4521 enriched" },
-  { id: "d2", time: "8 min ago", event: "call.completed", status: "delivered", responseCode: 200, detail: "Call outcome posted" },
-  { id: "d3", time: "15 min ago", event: "lead.enriched", status: "failed", responseCode: 503, detail: "Endpoint timed out — retrying" },
-  { id: "d4", time: "42 min ago", event: "lead.qualified", status: "delivered", responseCode: 202, detail: "Lead #4490 queued" },
-  { id: "d5", time: "1 hr ago", event: "lead.enriched", status: "delivered", responseCode: 200, detail: "Contact #4480 enriched" },
-];
-
-// Sample payload shown inline so the client's tech team sees the shape.
-export const SAMPLE_PAYLOADS: Record<string, string> = {
-  "lead.enriched": `{
-  "event": "lead.enriched",
-  "id": "evt_8f3c2a9b",
-  "data": {
-    "lead_id": "rl_4521",
-    "full_name": "V***** R*****",
-    "phone": "+91 98XXXXXX21",
-    "email": "v****@example.com",
-    "enrichment": {
-      "company": "Infosys",
-      "job_title": "Engineering Manager",
-      "income_band": "30-50L",
-      "property_interest": "3BHK · Whitefield"
-    }
-  }
+export const PRODUCT_API: Record<ProductKey, ProductApi> = {
+  enrichment: {
+    direction: "inbound",
+    blurb:
+      "Send leads to our API. We enrich them and POST the result to your webhook URL.",
+    endpoints: [
+      { method: "POST", path: "/lead/enrich/", desc: "Enrich a single lead" },
+      { method: "POST", path: "/lead/bulk/enrich", desc: "Enrich a batch of leads" },
+      { method: "POST", path: "/lead/file/upload", desc: "Upload a file to enrich" },
+    ],
+    sampleCallback: `{
+  "lead_id": "xyz123",
+  "enriched": true,
+  "name": "Test Lead",
+  "job_title": "Engineering Manager",
+  "company_name": "Infosys",
+  "company_industry": "IT Services",
+  "professional_level": "Senior",
+  "location": "Bengaluru",
+  "linkedin_url": "https://linkedin.com/in/...",
+  "education_field": "Computer Science"
 }`,
-  "call.completed": `{
-  "event": "call.completed",
-  "id": "evt_2b6e1f0a",
-  "data": {
-    "lead_id": "rl_4490",
-    "outcome": "connected",
-    "qualified": true,
-    "recording_url": "https://cdn.revspot.ai/rec/4490.mp3",
-    "summary": "Interested, site visit booked for Sat."
-  }
+  },
+  ai_calling: {
+    direction: "inbound",
+    blurb:
+      "Trigger a call via our API. When it ends we POST the recording, transcript, and summary to your webhook URL.",
+    endpoints: [
+      { method: "POST", path: "/lead/ai_call", desc: "Trigger an outbound AI call" },
+    ],
+    sampleCallback: `{
+  "lead_id": "xyz123",
+  "call_id": "call_8f3c2a9b",
+  "call_recording": "https://cdn.revspot.ai/rec/8f3c.mp3",
+  "call_transcript": "Agent: Hi Jane ... Lead: Yes, Saturday works.",
+  "summary": "Interested. Site visit booked for Saturday 11am.",
+  "site_visit_booked": true
 }`,
-  "lead.created": `{
-  "event": "lead.created",
-  "id": "evt_5a4d3c2b",
-  "data": {
-    "lead_id": "rl_4601",
-    "full_name": "A***** K*****",
-    "phone": "+91 99XXXXXX44",
-    "source_campaign": "Whitefield-Meta-Jun"
-  }
+  },
+  campaigns: {
+    direction: "callback",
+    blurb:
+      "We generate leads from your campaigns and POST each one to your webhook URL as it comes in.",
+    endpoints: [],
+    sampleCallback: `{
+  "lead_id": "rl_4601",
+  "name": "Aman Kapoor",
+  "phone": "+91 99XXXXXX44",
+  "email": "aman@example.com",
+  "source_campaign": "Whitefield-Meta-Jun",
+  "created_at": "2024-06-03T10:22:00Z"
 }`,
+  },
 };

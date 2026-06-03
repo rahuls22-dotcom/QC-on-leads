@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Sparkles, Wallet, CreditCard } from "lucide-react";
+import { Building2, Sparkles, Wallet, CreditCard, Plug } from "lucide-react";
 
 const ACCOUNT_NAV = [
   { name: "Agency", href: "/settings/agency", icon: Building2 },
   { name: "Workspace", href: "/settings/workspace", icon: Sparkles },
   { name: "Wallet", href: "/settings/wallet", icon: Wallet },
   { name: "Billing", href: "/settings/billing", icon: CreditCard },
+];
+
+const CONNECTIONS_NAV = [
+  { name: "Integrations", href: "/settings/integrations", icon: Plug },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -38,7 +42,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       <div className="mb-6">
         <h1 className="text-[20px] font-semibold text-text-primary">Settings</h1>
         <p className="text-[12.5px] text-text-secondary mt-0.5">
-          Manage your account. Lead delivery lives in Integrations → API &amp; Webhooks.
+          Manage your account, integrations, and lead delivery.
         </p>
       </div>
       <div className="flex gap-8">
@@ -49,6 +53,12 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 Account
               </div>
               {ACCOUNT_NAV.map(renderLink)}
+            </div>
+            <div className="space-y-0.5">
+              <div className="px-2 mb-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+                Connections
+              </div>
+              {CONNECTIONS_NAV.map(renderLink)}
             </div>
           </nav>
         </aside>

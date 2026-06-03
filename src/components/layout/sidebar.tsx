@@ -30,7 +30,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useDemoMode } from "@/lib/demo-mode";
-import { useProducts, ALL_PRODUCTS } from "@/lib/products";
+import { useProducts } from "@/lib/products";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { WorkspaceSwitcher, UserRolePill } from "@/components/layout/workspace-switcher";
@@ -101,12 +101,6 @@ function WalletWidget() {
 // All other sections (Lead Generation, CRM, Workspace) are hidden entirely.
 const ENRICHMENT_ONLY_HREFS = new Set(["/enrichment", "/contact-extraction", "/agents-mvp"]);
 
-// Extra section appended in enrichment-only mode. Routes exist but content is
-// stub'd (someone else is building these out).
-const ENRICHMENT_ONLY_EXTRAS = [
-  { name: "Settings",     href: "/settings",     icon: Settings },
-  { name: "Integrations", href: "/integrations", icon: Plug },
-];
 
 const navSections = [
   {
@@ -148,7 +142,6 @@ const navSections = [
       { name: "Creatives", href: "/creatives", icon: ImageIcon },
       { name: "AI calling agents", href: "/agents-mvp", icon: PhoneCall },
       { name: "Audiences", href: "/audiences", icon: Globe, comingSoon: true },
-      { name: "Integrations", href: "/integrations", icon: Plug },
     ],
   },
   {
@@ -162,7 +155,7 @@ const navSections = [
 export function Sidebar() {
   const pathname = usePathname() || "";
   const { isEmpty, toggle, enrichmentVariant, setEnrichmentVariant } = useDemoMode();
-  const { products, toggleProduct, enrichmentOnly } = useProducts();
+  const { setProducts, enrichmentOnly } = useProducts();
   const askSpot = useSpotStore((s) => s.askSpot);
   const spotOpen = useSpotStore((s) => s.open);
   const user = useCurrentUser();
@@ -386,40 +379,6 @@ export function Sidebar() {
           );
         })}
 
-        {/* Enrichment-only extras, Settings + Integrations sit below the Tools
-            section. Both routes currently render an "in development" stub. */}
-        {enrichmentOnly && (
-          <div className="mb-3">
-            <div className="label-section px-2 mb-1">Workspace</div>
-            <div className="space-y-0.5">
-              {ENRICHMENT_ONLY_EXTRAS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={navLinkClass(isUnder(item.href))}
-                    style={{ fontSize: "13.5px" }}
-                  >
-                    <Icon size={16} strokeWidth={1.5} />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Settings — bottom of nav (hidden in enrichment-only, which lists it
-            in the extras block above). */}
-        {!enrichmentOnly && (
-          <div className="mt-3 pt-3 border-t border-border-subtle">
-            <Link href="/settings" className={navLinkClass(isUnder("/settings"))} style={{ fontSize: "13.5px" }}>
-              <Settings size={16} strokeWidth={1.5} />
-              <span>Settings</span>
-            </Link>
-          </div>
-        )}
       </nav>
 
       {/* Wallet — always visible above the demo controls. */}
@@ -438,34 +397,25 @@ export function Sidebar() {
           {isEmpty ? <EyeOff size={12} strokeWidth={2} /> : <Eye size={12} strokeWidth={2} />}
           {isEmpty ? "Empty State Mode ON" : "Preview Empty States"}
         </button>
-        {/* Products owned (entitlement). Drives which Settings product tabs +
-            sidebar nav show. enrichmentOnly = only Enrichment selected, which
-            triggers the locked/upsell flows. */}
-        <div className="pt-1">
-          <div className="px-1 pb-1 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
-            <Lock size={10} strokeWidth={2} />
-            Products owned
-          </div>
-          <div className="grid grid-cols-3 gap-1">
-            {ALL_PRODUCTS.map((p) => {
-              const active = products.includes(p.key);
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => toggleProduct(p.key)}
-                  className={`px-1.5 py-1.5 rounded-[6px] text-[10px] font-medium transition-all duration-150 ${
-                    active
-                      ? "bg-[#EEF2FF] text-[#3730A3] border border-[#C7D2FE]"
-                      : "bg-surface-secondary text-text-tertiary hover:text-text-secondary"
-                  }`}
-                  title={active ? `${p.label} — owned` : `${p.label} — not on plan`}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Enrichment-only plan toggle. ON = workspace owns only Enrichment,
+            which triggers the locked/upsell flows. OFF = full product suite. */}
+        <button
+          onClick={() =>
+            setProducts(
+              enrichmentOnly
+                ? ["enrichment", "ai_calling", "campaigns"]
+                : ["enrichment"],
+            )
+          }
+          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[6px] text-[11px] font-medium transition-all duration-150 ${
+            enrichmentOnly
+              ? "bg-[#EEF2FF] text-[#3730A3] border border-[#C7D2FE]"
+              : "bg-surface-secondary text-text-tertiary hover:text-text-secondary"
+          }`}
+        >
+          <Lock size={12} strokeWidth={2} />
+          {enrichmentOnly ? "Enrichment-Only Plan ON" : "Preview Enrichment-Only"}
+        </button>
 
         {/* Enrichment demo view (4 independent radio chips). Drives every
             /enrichment tab from one place so the user can A/B states without
@@ -515,9 +465,17 @@ export function Sidebar() {
             </div>
             <div className="text-[10px] text-text-tertiary truncate">{user.email}</div>
           </div>
-          <button className="p-1 text-text-tertiary hover:text-text-secondary transition-colors">
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className={`p-1 transition-colors ${
+              isUnder("/settings")
+                ? "text-text-primary"
+                : "text-text-tertiary hover:text-text-secondary"
+            }`}
+          >
             <Settings size={14} strokeWidth={1.5} />
-          </button>
+          </Link>
         </div>
       </div>
     </aside>
