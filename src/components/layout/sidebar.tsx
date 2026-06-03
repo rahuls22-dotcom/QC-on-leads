@@ -69,9 +69,11 @@ export function Sidebar() {
 
   // Both Projects and Sequences route to "/" right now (Sequences hosts the
   // QC leads view). Active state goes to Sequences since that's what the
-  // current screen represents.
+  // current screen represents. /clients owns the Clients item.
   const isActiveItem = (label: string) => {
-    if (pathname === "/") return label === "Sequences";
+    if (pathname.startsWith("/agents")) return label === "Agents";
+    if (pathname === "/" || pathname.startsWith("/leads")) return label === "Sequences";
+    if (pathname.startsWith("/clients")) return label === "Clients";
     return false;
   };
 
