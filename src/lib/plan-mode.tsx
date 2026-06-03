@@ -1,31 +1,21 @@
 "use client";
 
-// Demo-only plan gating. Mirrors demo-mode.tsx: a simple context with a toggle.
-// When `enrichmentOnly` is true, Contact extraction and AI calling agents render
-// as locked rows in the sidebar and route to upsell pages under /locked/*.
+// Compatibility shim. Plan gating moved to lib/products.tsx (entitlement layer).
+// Kept so any lingering import of usePlanMode/PlanModeProvider keeps working.
+// New code should use lib/products.tsx directly.
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { ProductsProvider, useProducts } from "@/lib/products";
 
-interface PlanModeContextValue {
-  enrichmentOnly: boolean;
-  toggle: () => void;
-}
-
-const PlanModeContext = createContext<PlanModeContextValue>({
-  enrichmentOnly: false,
-  toggle: () => {},
-});
-
-export function PlanModeProvider({ children }: { children: ReactNode }) {
-  const [enrichmentOnly, setEnrichmentOnly] = useState(false);
-  const toggle = useCallback(() => setEnrichmentOnly((v) => !v), []);
-  return (
-    <PlanModeContext.Provider value={{ enrichmentOnly, toggle }}>
-      {children}
-    </PlanModeContext.Provider>
-  );
-}
+export const PlanModeProvider = ProductsProvider;
 
 export function usePlanMode() {
-  return useContext(PlanModeContext);
+  const { enrichmentOnly, toggleProduct } = useProducts();
+  // Old API exposed { enrichmentOnly, toggle }. Map toggle → flip the two
+  // non-enrichment products so the workspace swings between full plan and
+  // enrichment-only.
+  const toggle = () => {
+    toggleProduct("ai_calling");
+    toggleProduct("campaigns");
+  };
+  return { enrichmentOnly, toggle };
 }

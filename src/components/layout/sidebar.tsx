@@ -30,7 +30,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useDemoMode } from "@/lib/demo-mode";
-import { usePlanMode } from "@/lib/plan-mode";
+import { useProducts, ALL_PRODUCTS } from "@/lib/products";
 import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { WorkspaceSwitcher, UserRolePill } from "@/components/layout/workspace-switcher";
@@ -133,7 +133,7 @@ const navSections = [
         children: [
           { name: "Dashboard",          href: "/enrichment",            icon: LayoutGrid },
           { name: "Enrich",             href: "/enrichment/operations", icon: Activity },
-          { name: "Enrichment records", href: "/enrichment/database",   icon: Database },
+          { name: "History", href: "/enrichment/database",   icon: Database },
         ],
       },
       {
@@ -162,7 +162,7 @@ const navSections = [
 export function Sidebar() {
   const pathname = usePathname() || "";
   const { isEmpty, toggle, enrichmentVariant, setEnrichmentVariant } = useDemoMode();
-  const { enrichmentOnly, toggle: togglePlan } = usePlanMode();
+  const { products, toggleProduct, enrichmentOnly } = useProducts();
   const askSpot = useSpotStore((s) => s.askSpot);
   const spotOpen = useSpotStore((s) => s.open);
   const user = useCurrentUser();
@@ -342,7 +342,7 @@ export function Sidebar() {
                         {children!
                           .filter((child) => {
                             // No-storage clients have no persistent records DB,
-                            // so the "Enrichment records" sub-tab is hidden.
+                            // so the "History" sub-tab is hidden.
                             // The route still exists as a fallback for direct
                             // links and renders an explainer empty state.
                             if (
@@ -438,17 +438,34 @@ export function Sidebar() {
           {isEmpty ? <EyeOff size={12} strokeWidth={2} /> : <Eye size={12} strokeWidth={2} />}
           {isEmpty ? "Empty State Mode ON" : "Preview Empty States"}
         </button>
-        <button
-          onClick={togglePlan}
-          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[6px] text-[11px] font-medium transition-all duration-150 ${
-            enrichmentOnly
-              ? "bg-[#EEF2FF] text-[#3730A3] border border-[#C7D2FE]"
-              : "bg-surface-secondary text-text-tertiary hover:text-text-secondary"
-          }`}
-        >
-          <Lock size={12} strokeWidth={2} />
-          {enrichmentOnly ? "Enrichment-only Plan ON" : "Preview Enrichment-only Plan"}
-        </button>
+        {/* Products owned (entitlement). Drives which Settings product tabs +
+            sidebar nav show. enrichmentOnly = only Enrichment selected, which
+            triggers the locked/upsell flows. */}
+        <div className="pt-1">
+          <div className="px-1 pb-1 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
+            <Lock size={10} strokeWidth={2} />
+            Products owned
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {ALL_PRODUCTS.map((p) => {
+              const active = products.includes(p.key);
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => toggleProduct(p.key)}
+                  className={`px-1.5 py-1.5 rounded-[6px] text-[10px] font-medium transition-all duration-150 ${
+                    active
+                      ? "bg-[#EEF2FF] text-[#3730A3] border border-[#C7D2FE]"
+                      : "bg-surface-secondary text-text-tertiary hover:text-text-secondary"
+                  }`}
+                  title={active ? `${p.label} — owned` : `${p.label} — not on plan`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Enrichment demo view (4 independent radio chips). Drives every
             /enrichment tab from one place so the user can A/B states without
