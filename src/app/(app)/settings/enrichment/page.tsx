@@ -8,6 +8,7 @@ import {
   ConfigChoice,
   SaveBar,
 } from "@/components/settings/product-config";
+import { ChannelConfigCard } from "@/components/settings/channel-config-card";
 
 export default function EnrichmentSettingsPage() {
   const [freshness, setFreshness] = useState<"stored" | "fresh">("stored");
@@ -23,6 +24,8 @@ export default function EnrichmentSettingsPage() {
           Control how leads are enriched and whether enriched data is retained.
         </p>
       </div>
+
+      <ChannelConfigCard product="enrichment" />
 
       {/* Data freshness */}
       <ConfigCard

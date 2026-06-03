@@ -8,6 +8,7 @@ import {
   ConfigChoice,
   SaveBar,
 } from "@/components/settings/product-config";
+import { ChannelConfigCard } from "@/components/settings/channel-config-card";
 
 const selectStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239B9B9B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
@@ -52,6 +53,8 @@ export default function AiCallingSettingsPage() {
           Control when the AI agent calls, how it retries, and what it writes back.
         </p>
       </div>
+
+      <ChannelConfigCard product="ai_calling" />
 
       {/* Call window */}
       <ConfigCard
