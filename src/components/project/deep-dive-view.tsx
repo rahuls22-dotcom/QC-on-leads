@@ -6,7 +6,7 @@ import { MediaPlanSection } from "./media-plan-section";
 
 /**
  * Summary tiles + a roomier campaigns table for the dedicated deep-dive
- * route. Today it composes `MediaPlanSection` in campaigns mode, over
+ * route. Today it composes `MediaPlanSection` in campaigns mode — over
  * time the deep dive can sprout its own controls (date range, channel
  * filters, charts) without disturbing the in-page tab.
  */
@@ -59,7 +59,7 @@ export function DeepDiveTable({ project }: { project: ProjectDetail }) {
 
   return (
     <div className="space-y-5">
-      {/* Filters (placeholder, wire up later) */}
+      {/* Filters (placeholder — wire up later) */}
       <div className="flex items-center gap-2 flex-wrap">
         <FilterPill label="Channel" />
         <FilterPill label="Status" />

@@ -28,7 +28,7 @@ function lakhsFromDisplay(label: string | number | undefined | null): number {
   return m ? parseFloat(m[1]) : 0;
 }
 
-/** ₹X formatter, auto-scales to K / L for readability. */
+/** ₹X formatter — auto-scales to K / L for readability. */
 function fmtRupees(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return "—";
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
@@ -36,7 +36,7 @@ function fmtRupees(n: number | null | undefined): string {
   return `₹${Math.round(n)}`;
 }
 
-/** Stacked metric cell, primary value above, small subtext below. */
+/** Stacked metric cell — primary value above, small subtext below. */
 function MetricStack({
   value,
   sub,
@@ -88,7 +88,7 @@ function GoalProgress({
   goal: ReturnType<typeof projectRollup> extends infer R ? R extends { goal: infer G } ? G : never : never;
 }) {
   if (!goal) return <span className="text-[11px] text-text-tertiary">no goal</span>;
-  // A target of 0 means the user hasn't set a goal, show a quiet placeholder
+  // A target of 0 means the user hasn't set a goal — show a quiet placeholder
   // instead of dividing by zero and rendering NaN%.
   if (!goal.target || goal.target <= 0) {
     return (
@@ -154,7 +154,7 @@ export default function ProjectsPage() {
   });
 
   const totalSpend = rows.reduce((s, r) => {
-    // values are like "₹14.6L", strip and sum in lakhs
+    // values are like "₹14.6L" — strip and sum in lakhs
     const v = String(r.rollup.spend).replace(/[₹,L\s]/g, "");
     return s + (parseFloat(v) || 0);
   }, 0);
@@ -178,7 +178,7 @@ export default function ProjectsPage() {
           <button
             type="button"
             onClick={() =>
-              askSpot("Audit every project, which is on pace and which needs attention?", {
+              askSpot("Audit every project — which is on pace and which needs attention?", {
                 kind: "workspace",
                 label: "Workspace",
               })
@@ -199,7 +199,7 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Portfolio table, each lead-tier cell shows count + ratio + cost
+      {/* Portfolio table — each lead-tier cell shows count + ratio + cost
           per unit so admins can spot funnel issues at a glance. */}
       {(() => {
         const COLS =
@@ -343,7 +343,7 @@ export default function ProjectsPage() {
         );
       })()}
 
-      {/* Spot ambient strip, copy + chips re-template by current scope.
+      {/* Spot ambient strip — copy + chips re-template by current scope.
           When there are no projects (members in an empty workspace, or
           aggregating with zero) we skip the strip entirely. */}
       {rows.length > 0 && (() => {
@@ -358,7 +358,7 @@ export default function ProjectsPage() {
           behind.length === 0
             ? `Everything's holding pace ${scopeQualifier}. I'll flag if anything starts slipping.`
             : behind.length === rows.length
-            ? `Every project ${scopeQualifier} is behind pace. The portfolio needs attention, start with the worst goal-gap.`
+            ? `Every project ${scopeQualifier} is behind pace. The portfolio needs attention — start with the worst goal-gap.`
             : `${behind.length} of ${rows.length} ${scopeQualifier} ${behind.length === 1 ? "is" : "are"} behind pace${ahead.length ? `, ${ahead.length} ahead` : ""}. ${onPace ? `The rest ${onPace === 1 ? "is" : "are"} on pace.` : ""}`;
         const worstName = behind[0]?.p.name.split(" · ")[0];
         const chips = [

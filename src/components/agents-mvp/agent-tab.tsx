@@ -159,7 +159,7 @@ export function AgentTab({ agent }: AgentTabProps) {
             </div>
           )}
 
-          {/* Prompt body, Tiptap editor */}
+          {/* Prompt body — Tiptap editor */}
           {expanded && (
             <div className="p-5">
               <div className="w-full min-h-[320px] max-h-[500px] overflow-y-auto p-4 bg-surface-page border border-border rounded-card">

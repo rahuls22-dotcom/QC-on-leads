@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, ArrowRight, X, FileText } from "lucide-react";
+import { Upload, ArrowRight, X, FileText, ChevronDown, Check } from "lucide-react";
 import { existingClients, cities, adAccounts, facebookPages } from "@/lib/wizard-data";
 
 interface Step1Props {
@@ -18,21 +18,70 @@ const selectStyle = {
 function SelectField({ label, options, placeholder, value, onChange, required }: {
   label: string; options: (string | { value: string; label: string })[]; placeholder: string; value: string; onChange: (v: string) => void; required?: boolean;
 }) {
+  // Custom popover dropdown — replaces the native <select> that rendered as the
+  // OS's dark-grey menu. Matches the AgentPicker / CountryCode dropdowns we
+  // already ship: button trigger with chevron, popover panel with hover state,
+  // dedicated visual for the "Create new" escape hatch (any option whose value
+  // starts with "__" is highlighted in accent purple).
+  const [open, setOpen] = useState(false);
+  const normalised = options.map((opt) =>
+    typeof opt === "string" ? { value: opt, label: opt } : opt
+  );
+  const selected = normalised.find((o) => o.value === value);
+
   return (
     <div>
       <label className="block text-[13px] font-medium text-text-primary mb-1.5">
         {label}{required && <span className="text-status-error ml-0.5">*</span>}
       </label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full h-10 px-3 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 appearance-none cursor-pointer"
-        style={selectStyle}>
-        <option value="">{placeholder}</option>
-        {options.map((opt) => {
-          const val = typeof opt === "string" ? opt : opt.value;
-          const lbl = typeof opt === "string" ? opt : opt.label;
-          return <option key={val} value={val}>{lbl}</option>;
-        })}
-      </select>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className={`w-full h-10 px-3 flex items-center justify-between text-left text-[13px] border border-border rounded-input bg-white transition-colors duration-150 focus:outline-none focus:border-accent ${
+            selected ? "text-text-primary" : "text-text-tertiary"
+          }`}
+        >
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
+          <ChevronDown
+            size={13}
+            strokeWidth={1.5}
+            className={`text-text-tertiary shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-border rounded-card shadow-lg z-40 max-h-[260px] overflow-y-auto py-1">
+              {normalised.map((opt) => {
+                const isActive = opt.value === value;
+                const isAction = opt.value.startsWith("__");
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { onChange(opt.value); setOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
+                      isAction
+                        ? "text-accent font-medium hover:bg-accent/5"
+                        : isActive
+                          ? "bg-accent/5 text-text-primary"
+                          : "text-text-primary hover:bg-surface-page"
+                    }`}
+                  >
+                    <span className="flex-1 truncate">{opt.label}</span>
+                    {isActive && !isAction && (
+                      <Check size={13} strokeWidth={2} className="text-accent shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -226,7 +275,7 @@ export function Step1CampaignInput({ onNext }: Step1Props) {
           <p className="text-[12px] text-text-secondary mt-0.5">Help the AI understand your product with offer, campaign brief, and brochures.</p>
         </div>
 
-        {/* Campaign Brief, required */}
+        {/* Campaign Brief — required */}
         <TextAreaField label="Campaign Brief" required
           placeholder="Describe the campaign: target audience, positioning, key messages, competitors to beat..."
           value={campaignBrief} onChange={setCampaignBrief} rows={4} />
@@ -259,7 +308,7 @@ export function Step1CampaignInput({ onNext }: Step1Props) {
           )}
         </div>
 
-        {/* 5. Project Website, required */}
+        {/* 5. Project Website — required */}
         <TextField label="Project Website" required
           placeholder="https://godrejproperties.com/godrej-air" value={websiteUrl} onChange={setWebsiteUrl}
           helper="Used as context for AI to understand the project better" />
@@ -268,7 +317,7 @@ export function Step1CampaignInput({ onNext }: Step1Props) {
         <TextField label="Offer" placeholder="e.g., Godrej Reflections Habitat, 3BHK Launch Offer"
           value={offer} onChange={setOffer} />
 
-        {/* 7. RERA Number, optional */}
+        {/* 7. RERA Number — optional */}
         <TextField label="RERA Number" placeholder="e.g., PRM/KA/RERA/1251/446/PR/170730/001234"
           value={reraNumber} onChange={setReraNumber}
           helper="Optional. Shown on ads where legally required." />

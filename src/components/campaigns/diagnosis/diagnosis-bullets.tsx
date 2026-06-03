@@ -10,7 +10,7 @@ interface DiagnosisBulletsProps {
   bullets: DiagnosisBullet[];
   /** Map from action_id → action headline, used to show what each bullet drives. */
   actionHeadlines?: Record<string, string>;
-  /** Map from action_id → renderable action, used to launch the action flow. */
+  /** Map from action_id → renderable action — used to launch the action flow. */
   actionsById?: Record<string, RenderableAction>;
   /** Highlight bullets whose drives_action_id matches. */
   highlightActionId?: string | null;

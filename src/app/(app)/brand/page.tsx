@@ -95,7 +95,7 @@ export default function BrandSettingsPage() {
           <div className="flex flex-col gap-2 flex-shrink-0">
             <button
               type="button"
-              onClick={() => askSpot("Audit the brand, anything drifting from these rules?", { kind: "workspace", label: "Brand" })}
+              onClick={() => askSpot("Audit the brand — anything drifting from these rules?", { kind: "workspace", label: "Brand" })}
               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button bg-accent text-white hover:bg-accent-hover text-[12.5px] font-medium"
             >
               <SpotMark size={13} /> Audit brand
@@ -116,7 +116,7 @@ export default function BrandSettingsPage() {
         <Card
           title="Voice"
           subtitle="How everything Godrej should sound."
-          onAsk={() => askSpot("Rewrite this brand voice, make it sharper.", { kind: "workspace", label: "Brand" })}
+          onAsk={() => askSpot("Rewrite this brand voice — make it sharper.", { kind: "workspace", label: "Brand" })}
         >
           <SectionLabel>We are</SectionLabel>
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -235,7 +235,7 @@ export default function BrandSettingsPage() {
         {/* Compliance */}
         <Card
           title="Compliance"
-          subtitle="RERA, photography, claims, non-negotiable."
+          subtitle="RERA, photography, claims — non-negotiable."
           icon={Shield}
         >
           <SectionLabel>RERA disclaimer · always show</SectionLabel>
@@ -303,7 +303,7 @@ export default function BrandSettingsPage() {
       {/* Reference ads */}
       <Card
         title="Reference ads"
-        subtitle="What good looks like, Spot uses these when drafting creatives."
+        subtitle="What good looks like — Spot uses these when drafting creatives."
         icon={ImageIcon}
         actions={
           <button
@@ -352,7 +352,7 @@ export default function BrandSettingsPage() {
         <div className="flex-1">
           <div className="uplabel mb-0.5">Inheritance</div>
           <div className="text-[13px] leading-[1.55]">
-            Every project inherits this brand. Any project can override a token, overrides
+            Every project inherits this brand. Any project can override a token — overrides
             are flagged in their sidebar. <strong>Compliance rules in red are non-negotiable</strong>
             and can&apos;t be overridden.
           </div>

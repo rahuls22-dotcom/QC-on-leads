@@ -49,7 +49,7 @@ function flowFor(verb: ActionVerb, budgetMode: BudgetMode): Flow {
     case "INTERVENE":
     case "URGENT":
     case "OPTIMIZE":
-      // Composite, under CBO this is just a PAUSE of the donor (resolved by resolveVerb above
+      // Composite — under CBO this is just a PAUSE of the donor (resolved by resolveVerb above
       // when verb itself is SHIFT_BUDGET; for INTERVENE we treat it as PAUSE-of-target).
       return "confirm";
     default:
@@ -60,10 +60,10 @@ function flowFor(verb: ActionVerb, budgetMode: BudgetMode): Flow {
 interface ActionFlowModalProps {
   action: RenderableAction | null;
   budgetMode: BudgetMode;
-  /** Current campaign daily budget, used as the base for SCALE under CBO. */
+  /** Current campaign daily budget — used as the base for SCALE under CBO. */
   campaignDailyBudget: number;
   onClose: () => void;
-  /** Apply handler, receives the action plus any user-entered params (delta, amount, etc.). */
+  /** Apply handler — receives the action plus any user-entered params (delta, amount, etc.). */
   onApply: (action: RenderableAction, params?: Record<string, unknown>) => void;
 }
 
@@ -107,7 +107,7 @@ export function ActionFlowModal({
             </button>
           </div>
 
-          {/* Body, flow-specific */}
+          {/* Body — flow-specific */}
           <div className="px-5 py-4">
             {flow === "confirm" && <ConfirmBody action={action} budgetMode={budgetMode} />}
             {flow === "scale" && (
@@ -126,7 +126,7 @@ export function ActionFlowModal({
             {flow === "deeplink" && <DeeplinkBody action={action} />}
           </div>
 
-          {/* Footer, confirm/deeplink share the same footer; scale renders its own */}
+          {/* Footer — confirm/deeplink share the same footer; scale renders its own */}
           {flow !== "scale" && (
             <div className="px-5 py-3 border-t border-border-subtle flex items-center justify-end gap-2 bg-surface-page/40">
               <button
@@ -188,7 +188,7 @@ function ConfirmBody({
         <div className="flex items-start gap-2 px-3 py-2 bg-[#EFF6FF] border border-[#BFDBFE] rounded-button text-[12px] text-[#1E40AF]">
           <ArrowLeftRight size={12} strokeWidth={1.75} className="mt-0.5 shrink-0" />
           <span>
-            Campaign uses <span className="font-semibold">CBO</span>, Meta will automatically
+            Campaign uses <span className="font-semibold">CBO</span> — Meta will automatically
             redistribute spend toward {action.redeploy_to}.
           </span>
         </div>

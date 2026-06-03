@@ -139,7 +139,7 @@ export function Step3Creatives({ onNext, onBack }: Step3Props) {
                   </div>
                 </div>
 
-                {/* Angle highlight, the direction the creative will take */}
+                {/* Angle highlight — the direction the creative will take */}
                 <div className="mb-3 rounded-[8px] bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200/70 px-3 py-2">
                   <div className="text-[9px] font-semibold uppercase tracking-[0.5px] bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent mb-0.5">
                     Angle

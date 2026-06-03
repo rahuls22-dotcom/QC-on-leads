@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Users, Settings, Radio, Layers, BarChart3 } from "lucide-react";
+import { ArrowLeft, Users, Settings, Radio, Layers, BarChart3, PhoneCall } from "lucide-react";
 import { getProject } from "@/lib/project-data";
 import { ProjectHero } from "@/components/project/project-hero";
 import { GoalPanel } from "@/components/project/goal-panel";
@@ -16,12 +16,13 @@ import {
 } from "@/components/project/library-section";
 import { SetupSection } from "@/components/project/setup-section";
 import { SetupChecklist } from "@/components/project/setup-checklist";
+import { ProjectOutreachSection } from "@/components/project/outreach-section";
 import { ProjectAskBar } from "@/components/project/project-ask-bar";
 import { useSpotStore } from "@/lib/spot/store";
 import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 import { hasAnyProjectActivity } from "@/lib/project-data";
 
-type Tab = "dashboard" | "personas" | "campaigns" | "library" | "settings";
+type Tab = "dashboard" | "personas" | "campaigns" | "outreach" | "library" | "settings";
 
 type TabDef = { key: Tab; label: string; icon: typeof Users; sub: string };
 
@@ -29,6 +30,7 @@ const ALL_TABS: TabDef[] = [
   { key: "dashboard", label: "Dashboard", icon: BarChart3, sub: "how we're doing" },
   { key: "personas", label: "Personas", icon: Users, sub: "angles · concepts · winners" },
   { key: "campaigns", label: "Campaigns", icon: Radio, sub: "draft · live · optimize" },
+  { key: "outreach", label: "Outreach", icon: PhoneCall, sub: "voice-agent dial batches" },
   { key: "library", label: "Library", icon: Layers, sub: "creatives · images · forms" },
   { key: "settings", label: "Settings", icon: Settings, sub: "context · goal · agents" },
 ];
@@ -49,7 +51,7 @@ export default function ProjectDetailPage() {
   const defaultTab: Tab = hasActivity ? "dashboard" : "personas";
   const [tab, setTab] = useState<Tab>(defaultTab);
 
-  // Library sub-tab, used by the Forms-readiness banner to deeplink
+  // Library sub-tab — used by the Forms-readiness banner to deeplink
   // straight into the Forms sub-section without forcing the user to
   // click through Creatives / Images first.
   const [librarySub, setLibrarySub] = useState<LibrarySubTab | undefined>(
@@ -71,6 +73,7 @@ export default function ProjectDetailPage() {
         "dashboard",
         "personas",
         "campaigns",
+        "outreach",
         "library",
         "settings",
       ];
@@ -85,7 +88,7 @@ export default function ProjectDetailPage() {
       if (detail.tab === "library" && detail.sub === "forms") {
         setLibrarySub("forms");
       }
-      // Block Dashboard switch when it's hidden, fall back to Personas.
+      // Block Dashboard switch when it's hidden — fall back to Personas.
       if (detail.tab === "dashboard" && !hasActivity) {
         setTab("personas");
         return;
@@ -216,6 +219,9 @@ export default function ProjectDetailPage() {
         )}
         {tab === "campaigns" && (
           <CampaignsTab project={project} onAsk={askProject} />
+        )}
+        {tab === "outreach" && (
+          <ProjectOutreachSection projectId={project.id} />
         )}
         {tab === "library" && (
           <LibrarySection

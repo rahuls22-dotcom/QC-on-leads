@@ -7,7 +7,7 @@ import type { ChatMessage } from "./types";
 
 interface CreativeChatPanelProps {
   messages: ChatMessage[];
-  /** Disabled while the AI is generating, composer should be locked. */
+  /** Disabled while the AI is generating — composer should be locked. */
   isGenerating: boolean;
   /** Called when user sends a refinement message. */
   onSend: (text: string) => void;

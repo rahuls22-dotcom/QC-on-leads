@@ -184,14 +184,14 @@ export default function DashboardPage() {
       {isAllWorkspaces ? (
         /* All-workspaces view: only the workspace performance rollup.
            Per spec, no other metric cards / insights / voice agent /
-           recently qualified, drill into a single workspace to see
+           recently qualified — drill into a single workspace to see
            those. */
         <motion.div variants={fadeUp}>
           <ProjectPerformanceTable />
         </motion.div>
       ) : isEmpty ? (
         <>
-          {/* Getting Started Checklist, only in empty state */}
+          {/* Getting Started Checklist — only in empty state */}
           <motion.div variants={fadeUp} className="mb-5">
             <GettingStartedChecklist />
           </motion.div>
@@ -252,7 +252,7 @@ export default function DashboardPage() {
         </>
       ) : (
       <>
-      {/* Metric cards, 4x2 grid */}
+      {/* Metric cards — 4x2 grid */}
       <motion.div variants={fadeUp} className="grid grid-cols-4 gap-3 mb-3" key={dateRange}>
         <MetricCard label="Active campaigns" value={m.activeCampaigns.value} previous={m.activeCampaigns.prev} previousLabel={pl}
           delta={m.activeCampaigns.delta} trend={m.activeCampaigns.pct ? { value: m.activeCampaigns.pct, direction: "up" } : undefined}

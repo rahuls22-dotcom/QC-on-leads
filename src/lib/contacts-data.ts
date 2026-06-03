@@ -1,4 +1,4 @@
-// Contacts data, deduplicated people across campaigns
+// Contacts data — deduplicated people across campaigns
 
 export type ContactSource = "form_submission" | "csv_import" | "crm_sync";
 
@@ -43,13 +43,13 @@ export const contacts: Contact[] = [
       { id: "eq-3", campaign: "Godrej Air Phase 3", date: "2025-12-20", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-1", type: "qualification", description: "AI qualified, Hot lead, budget ₹2Cr+", date: "2026-03-22T10:30:00" },
-      { id: "a-2", type: "call", description: "Voice agent call, 4.2 min, qualified", date: "2026-03-22T09:15:00" },
+      { id: "a-1", type: "qualification", description: "AI qualified — Hot lead, budget ₹2Cr+", date: "2026-03-22T10:30:00" },
+      { id: "a-2", type: "call", description: "Voice agent call — 4.2 min, qualified", date: "2026-03-22T09:15:00" },
       { id: "a-3", type: "form_submission", description: "Submitted form on Godrej Reflections campaign", date: "2026-03-22T08:45:00" },
       { id: "a-4", type: "crm_sync", description: "Synced to Salesforce by demo@godrejproperties.com", date: "2026-02-16T14:00:00" },
       { id: "a-5", type: "form_submission", description: "Submitted form on Godrej Nurture campaign", date: "2026-02-15T11:30:00" },
     ],
-    notes: "Serious buyer, has visited Godrej Reflections site twice. Interested in east-facing 3BHK on higher floor.",
+    notes: "Serious buyer — has visited Godrej Reflections site twice. Interested in east-facing 3BHK on higher floor.",
   },
   {
     id: "c-002", name: "Sneha Menon", phone: "90123 45678", email: "sneha.m@yahoo.com",
@@ -61,7 +61,7 @@ export const contacts: Contact[] = [
     ],
     activities: [
       { id: "a-6", type: "form_submission", description: "Submitted form on Godrej Eternity campaign", date: "2026-03-22T08:45:00" },
-      { id: "a-7", type: "qualification", description: "AI qualified, Warm lead, budget ₹1.5Cr", date: "2026-01-11T10:00:00" },
+      { id: "a-7", type: "qualification", description: "AI qualified — Warm lead, budget ₹1.5Cr", date: "2026-01-11T10:00:00" },
       { id: "a-8", type: "form_submission", description: "Submitted form on Godrej Air campaign", date: "2026-01-10T14:20:00" },
     ],
     notes: "",
@@ -75,7 +75,7 @@ export const contacts: Contact[] = [
       { id: "eq-7", campaign: "Godrej Reserve", date: "2026-02-01", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-9", type: "call", description: "Voice agent call, 5.1 min, qualified", date: "2026-03-21T16:00:00" },
+      { id: "a-9", type: "call", description: "Voice agent call — 5.1 min, qualified", date: "2026-03-21T16:00:00" },
       { id: "a-10", type: "form_submission", description: "Submitted form on Godrej Nurture campaign", date: "2026-03-21T14:30:00" },
     ],
     notes: "NRI based in Dubai. Looking for investment property.",
@@ -88,7 +88,7 @@ export const contacts: Contact[] = [
       { id: "eq-8", campaign: "Godrej Platinum", date: "2026-03-21", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-11", type: "qualification", description: "AI not qualified, Budget below threshold", date: "2026-03-21T19:30:00" },
+      { id: "a-11", type: "qualification", description: "AI not qualified — Budget below threshold", date: "2026-03-21T19:30:00" },
       { id: "a-12", type: "form_submission", description: "Submitted form on Godrej Platinum campaign", date: "2026-03-21T19:20:00" },
     ],
     notes: "",
@@ -102,7 +102,7 @@ export const contacts: Contact[] = [
       { id: "eq-10", campaign: "Godrej Reflections", date: "2026-01-15", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-13", type: "call", description: "Voice agent call, 3.8 min, qualified", date: "2026-03-21T15:00:00" },
+      { id: "a-13", type: "call", description: "Voice agent call — 3.8 min, qualified", date: "2026-03-21T15:00:00" },
       { id: "a-14", type: "crm_sync", description: "Imported via CSV on 15 Jan 2026", date: "2026-01-15T10:00:00" },
     ],
     notes: "Referred by existing customer. Very high intent.",
@@ -115,8 +115,8 @@ export const contacts: Contact[] = [
       { id: "eq-11", campaign: "Godrej Air Phase 3", date: "2026-03-18", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-15", type: "qualification", description: "AI not qualified, Timeline >12 months", date: "2026-03-19T10:15:00" },
-      { id: "a-16", type: "call", description: "Voice agent call, 2.4 min, not qualified", date: "2026-03-19T09:30:00" },
+      { id: "a-15", type: "qualification", description: "AI not qualified — Timeline >12 months", date: "2026-03-19T10:15:00" },
+      { id: "a-16", type: "call", description: "Voice agent call — 2.4 min, not qualified", date: "2026-03-19T09:30:00" },
     ],
     notes: "",
   },
@@ -130,8 +130,8 @@ export const contacts: Contact[] = [
       { id: "eq-14", campaign: "Godrej Reserve", date: "2025-11-05", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-17", type: "qualification", description: "AI qualified, Hot lead, budget ₹2Cr+, immediate timeline", date: "2026-03-18T16:00:00" },
-      { id: "a-18", type: "call", description: "Voice agent call, 6.3 min, qualified, site visit scheduled", date: "2026-03-18T15:00:00" },
+      { id: "a-17", type: "qualification", description: "AI qualified — Hot lead, budget ₹2Cr+, immediate timeline", date: "2026-03-18T16:00:00" },
+      { id: "a-18", type: "call", description: "Voice agent call — 6.3 min, qualified, site visit scheduled", date: "2026-03-18T15:00:00" },
     ],
     notes: "Repeat enquirer across 3 projects. Very serious buyer with ₹3Cr+ budget. Currently in Koramangala.",
   },
@@ -157,7 +157,7 @@ export const contacts: Contact[] = [
     ],
     activities: [
       { id: "a-20", type: "crm_sync", description: "Synced from Salesforce CRM", date: "2026-02-10T12:00:00" },
-      { id: "a-21", type: "call", description: "Voice agent call, 3.5 min, qualified", date: "2026-03-17T11:00:00" },
+      { id: "a-21", type: "call", description: "Voice agent call — 3.5 min, qualified", date: "2026-03-17T11:00:00" },
     ],
     notes: "",
   },
@@ -182,7 +182,7 @@ export const contacts: Contact[] = [
       { id: "eq-20", campaign: "Godrej Nurture", date: "2026-01-02", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-23", type: "call", description: "Voice agent call, 4.8 min, qualified, negotiation stage", date: "2026-03-17T16:00:00" },
+      { id: "a-23", type: "call", description: "Voice agent call — 4.8 min, qualified, negotiation stage", date: "2026-03-17T16:00:00" },
     ],
     notes: "",
   },
@@ -194,7 +194,7 @@ export const contacts: Contact[] = [
       { id: "eq-21", campaign: "Godrej Eternity", date: "2026-03-16", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-24", type: "qualification", description: "AI not qualified, Budget below ₹70L", date: "2026-03-17T09:15:00" },
+      { id: "a-24", type: "qualification", description: "AI not qualified — Budget below ₹70L", date: "2026-03-17T09:15:00" },
     ],
     notes: "",
   },
@@ -206,7 +206,7 @@ export const contacts: Contact[] = [
       { id: "eq-22", campaign: "Godrej Reserve", date: "2026-03-20", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-25", type: "call", description: "Voice agent call, 5.5 min, qualified", date: "2026-03-20T15:45:00" },
+      { id: "a-25", type: "call", description: "Voice agent call — 5.5 min, qualified", date: "2026-03-20T15:45:00" },
     ],
     notes: "",
   },
@@ -243,7 +243,7 @@ export const contacts: Contact[] = [
       { id: "eq-26", campaign: "Godrej Platinum", date: "2026-02-05", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-28", type: "call", description: "Voice agent call, 4.0 min, qualified, site visit done", date: "2026-03-19T20:30:00" },
+      { id: "a-28", type: "call", description: "Voice agent call — 4.0 min, qualified, site visit done", date: "2026-03-19T20:30:00" },
     ],
     notes: "",
   },
@@ -255,7 +255,7 @@ export const contacts: Contact[] = [
       { id: "eq-27", campaign: "Godrej Nurture", date: "2026-03-19", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-29", type: "qualification", description: "AI not qualified, Budget below threshold", date: "2026-03-19T17:15:00" },
+      { id: "a-29", type: "qualification", description: "AI not qualified — Budget below threshold", date: "2026-03-19T17:15:00" },
     ],
     notes: "",
   },
@@ -267,7 +267,7 @@ export const contacts: Contact[] = [
       { id: "eq-28", campaign: "Godrej Air Phase 3", date: "2026-03-19", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-30", type: "call", description: "Voice agent call, 3.2 min, qualified", date: "2026-03-20T11:00:00" },
+      { id: "a-30", type: "call", description: "Voice agent call — 3.2 min, qualified", date: "2026-03-20T11:00:00" },
     ],
     notes: "",
   },
@@ -279,7 +279,7 @@ export const contacts: Contact[] = [
       { id: "eq-29", campaign: "Godrej Eternity", date: "2026-03-19", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-31", type: "qualification", description: "AI not qualified, Timeline >12 months", date: "2026-03-19T15:30:00" },
+      { id: "a-31", type: "qualification", description: "AI not qualified — Timeline >12 months", date: "2026-03-19T15:30:00" },
     ],
     notes: "",
   },
@@ -304,7 +304,7 @@ export const contacts: Contact[] = [
       { id: "eq-32", campaign: "Godrej Summit", date: "2025-12-01", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-33", type: "call", description: "Voice agent call, 5.0 min, qualified, negotiation", date: "2026-03-18T21:10:00" },
+      { id: "a-33", type: "call", description: "Voice agent call — 5.0 min, qualified, negotiation", date: "2026-03-18T21:10:00" },
     ],
     notes: "Long-term interested buyer. Has been tracking prices since Dec 2025.",
   },
@@ -328,7 +328,7 @@ export const contacts: Contact[] = [
       { id: "eq-34", campaign: "Godrej Air Phase 3", date: "2026-03-18", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-35", type: "call", description: "Voice agent call, 4.1 min, qualified", date: "2026-03-19T09:30:00" },
+      { id: "a-35", type: "call", description: "Voice agent call — 4.1 min, qualified", date: "2026-03-19T09:30:00" },
     ],
     notes: "",
   },
@@ -340,7 +340,7 @@ export const contacts: Contact[] = [
       { id: "eq-35", campaign: "Godrej Summit", date: "2026-03-18", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-36", type: "qualification", description: "AI not qualified, Budget below threshold", date: "2026-03-18T14:00:00" },
+      { id: "a-36", type: "qualification", description: "AI not qualified — Budget below threshold", date: "2026-03-18T14:00:00" },
     ],
     notes: "",
   },
@@ -352,7 +352,7 @@ export const contacts: Contact[] = [
       { id: "eq-36", campaign: "Godrej Reflections", date: "2026-03-15", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-37", type: "call", description: "Voice agent call, 3.9 min, qualified", date: "2026-03-16T10:00:00" },
+      { id: "a-37", type: "call", description: "Voice agent call — 3.9 min, qualified", date: "2026-03-16T10:00:00" },
     ],
     notes: "",
   },
@@ -377,7 +377,7 @@ export const contacts: Contact[] = [
     ],
     activities: [
       { id: "a-39", type: "crm_sync", description: "Synced from Salesforce", date: "2026-03-12T09:00:00" },
-      { id: "a-40", type: "call", description: "Voice agent call, 6.0 min, qualified", date: "2026-03-13T14:00:00" },
+      { id: "a-40", type: "call", description: "Voice agent call — 6.0 min, qualified", date: "2026-03-13T14:00:00" },
     ],
     notes: "",
   },
@@ -389,7 +389,7 @@ export const contacts: Contact[] = [
       { id: "eq-39", campaign: "Godrej Platinum", date: "2026-03-10", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-41", type: "qualification", description: "AI not qualified, Not interested", date: "2026-03-11T10:00:00" },
+      { id: "a-41", type: "qualification", description: "AI not qualified — Not interested", date: "2026-03-11T10:00:00" },
     ],
     notes: "",
   },
@@ -402,7 +402,7 @@ export const contacts: Contact[] = [
       { id: "eq-41", campaign: "Godrej Reflections", date: "2025-11-20", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-42", type: "call", description: "Voice agent call, 4.5 min, qualified", date: "2026-03-08T16:30:00" },
+      { id: "a-42", type: "call", description: "Voice agent call — 4.5 min, qualified", date: "2026-03-08T16:30:00" },
     ],
     notes: "",
   },
@@ -426,7 +426,7 @@ export const contacts: Contact[] = [
       { id: "eq-43", campaign: "Godrej Air Phase 3", date: "2026-03-01", status: "qualified", verified: true },
     ],
     activities: [
-      { id: "a-44", type: "call", description: "Voice agent call, 3.6 min, qualified", date: "2026-03-02T11:00:00" },
+      { id: "a-44", type: "call", description: "Voice agent call — 3.6 min, qualified", date: "2026-03-02T11:00:00" },
     ],
     notes: "",
   },
@@ -438,7 +438,7 @@ export const contacts: Contact[] = [
       { id: "eq-44", campaign: "Godrej Eternity", date: "2026-02-25", status: "not_qualified", verified: false },
     ],
     activities: [
-      { id: "a-45", type: "qualification", description: "AI not qualified, Not decision maker", date: "2026-02-26T09:00:00" },
+      { id: "a-45", type: "qualification", description: "AI not qualified — Not decision maker", date: "2026-02-26T09:00:00" },
     ],
     notes: "",
   },

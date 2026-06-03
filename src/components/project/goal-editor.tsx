@@ -5,11 +5,11 @@ import { Check, X, Target } from "lucide-react";
 import { mutateRuntimeProject, type ProjectDetail } from "@/lib/project-data";
 
 /**
- * Inline goal editor, used in two places:
+ * Inline goal editor — used in two places:
  *  - `GoalPanel` (project hero), expanded from the gear button.
  *  - `SetupSection` (Settings tab), as the body of the Goal settings card.
  *
- * It commits via `mutateRuntimeProject`. Runtime projects only, seed
+ * It commits via `mutateRuntimeProject`. Runtime projects only — seed
  * projects mutate too, but the change isn't persisted across reload.
  */
 export function GoalEditor({

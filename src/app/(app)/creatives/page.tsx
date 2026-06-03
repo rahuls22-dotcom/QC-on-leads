@@ -87,7 +87,7 @@ export default function CreativesPage() {
   const [generatorCtx, setGeneratorCtx] = useState<LaunchContext | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Campaigns surfaced in the filter dropdown, derived from the current
+  // Campaigns surfaced in the filter dropdown — derived from the current
   // (possibly mutated) library so newly-generated entries show up as options.
   const campaigns = useMemo(
     () => Array.from(new Set(creatives.map((c) => c.campaign))),
@@ -118,10 +118,10 @@ export default function CreativesPage() {
     const ctx = generatorCtx;
     const tag = ctx.sourceCampaign ?? ctx.angleName ?? "Custom";
     const now = new Date().toISOString().slice(0, 10);
-    // One library row per generated size, keeps the existing per-asset shape.
+    // One library row per generated size — keeps the existing per-asset shape.
     const newRows: Creative[] = created.map((c, i) => ({
       id: `cr-${Date.now()}-${i}`,
-      name: `${ctx.angleName}, ${c.label}`,
+      name: `${ctx.angleName} — ${c.label}`,
       format: "image",
       dimensions: c.size,
       campaign: tag,

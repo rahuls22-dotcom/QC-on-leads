@@ -13,7 +13,7 @@ export interface RenderableAction {
   verb: ActionVerb;
   headline: string;
   reason: string;
-  /** Expected impact / outcome, copy varies by source action shape. */
+  /** Expected impact / outcome — copy varies by source action shape. */
   expected: string;
   cta_label: string;
   target_entity?: string | null;

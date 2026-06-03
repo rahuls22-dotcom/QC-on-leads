@@ -10,7 +10,7 @@ import { PersonaWorkspace } from "./persona-workspace";
 import { InlineSpotComposer, type StreamItem } from "./inline-spot-composer";
 
 /**
- * Personas tab, two-pane workspace.
+ * Personas tab — two-pane workspace.
  *
  * Left: compact persona list (always visible, click to switch).
  * Right: the selected persona's workspace (header, WPS, angles).
@@ -19,7 +19,7 @@ import { InlineSpotComposer, type StreamItem } from "./inline-spot-composer";
  * angles, concepts, and sizes into one long scroll. Now you scan personas
  * on the left and work on one at a time on the right.
  *
- * "+ New persona with Spot" lives at the top, drafts a persona inline,
+ * "+ New persona with Spot" lives at the top — drafts a persona inline,
  * streams the fields, then auto-selects the new persona so the user
  * lands in its workspace.
  */
@@ -30,7 +30,7 @@ export function PersonasSection({
   project: ProjectDetail;
   onAsk: (q: string) => void;
 }) {
-  // Selected persona, defaults to first; null when project has none.
+  // Selected persona — defaults to first; null when project has none.
   const [selectedId, setSelectedId] = useState<string | null>(
     project.personas[0]?.id ?? null,
   );
@@ -127,11 +127,11 @@ export function PersonasSection({
         title="Personas"
         subtitle={
           project.personas.length === 0
-            ? "No personas yet, draft one to start"
+            ? "No personas yet — draft one to start"
             : `${project.personas.length} persona${project.personas.length === 1 ? "" : "s"} · click a row to work on one`
         }
         onAsk={() =>
-          onAsk("Audit personas, who's converting, who isn't?")
+          onAsk("Audit personas — who's converting, who isn't?")
         }
         actions={
           <div className="flex items-center gap-2">
@@ -196,7 +196,7 @@ export function PersonasSection({
               className="card-base p-10 text-center text-[12.5px] text-text-tertiary"
               style={{ background: "var(--bg-page)" }}
             >
-              Pick a persona on the left to start working, or draft a new one
+              Pick a persona on the left to start working — or draft a new one
               above.
             </div>
           )}

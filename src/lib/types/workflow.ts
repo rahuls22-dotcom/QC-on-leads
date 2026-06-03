@@ -1,4 +1,4 @@
-// Sequence types, cadence engine connecting triggers → routing → agents → follow-up rules
+// Sequence types — cadence engine connecting triggers → routing → agents → follow-up rules
 
 // ─── Sequence Status ──────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ export interface WorkflowBranch {
   id: string;
   label: string;
   agent_id: string;
-  /** Per-branch cadence, each branch can have its own schedule & follow-up rules */
+  /** Per-branch cadence — each branch can have its own schedule & follow-up rules */
   schedule?: WorkflowSchedule;
 }
 
@@ -121,10 +121,10 @@ export interface Workflow {
 
   trigger: WorkflowTrigger;
 
-  /** Optional routing, if absent, use default_step */
+  /** Optional routing — if absent, use default_step */
   routing?: WorkflowRouting;
 
-  /** Single agent step (used when routing is absent), includes its own cadence */
+  /** Single agent step (used when routing is absent) — includes its own cadence */
   default_step?: WorkflowDefaultStep;
 
   /** Runtime stats */

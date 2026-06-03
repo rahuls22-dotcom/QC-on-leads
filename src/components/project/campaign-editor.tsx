@@ -28,15 +28,15 @@ import {
 } from "./campaign-staging";
 
 /**
- * Shared editor body, used by both campaign-editor shells (full-tab swap
+ * Shared editor body — used by both campaign-editor shells (full-tab swap
  * and split-view). The shell handles back-navigation and outer layout;
  * this component owns the form sections themselves.
  *
  * Sections, top to bottom:
- *  · Identity  , name · objective (read-only, set when launched) · budget · bid strategy
- *  · Ad sets   , expandable cards; each shows audience · locations · age · gender ·
+ *  · Identity   — name · objective (read-only, set when launched) · budget · bid strategy
+ *  · Ad sets    — expandable cards; each shows audience · locations · age · gender ·
  *                 placements · detailed targeting + an "Advanced config" expansion
- *  · Ads       , list of ad assets per ad set (read-only here; managed in Personas)
+ *  · Ads        — list of ad assets per ad set (read-only here; managed in Personas)
  */
 export function CampaignEditor({
   project,
@@ -47,7 +47,7 @@ export function CampaignEditor({
   project: ProjectDetail;
   campaignId: string;
   /**
-   * Back to the list. Wired only in the full-tab-swap shell, split view
+   * Back to the list. Wired only in the full-tab-swap shell — split view
    * doesn't show a back button since the list is always visible on the left.
    */
   onBack?: () => void;
@@ -93,7 +93,7 @@ function CampaignIdentitySection({
   campaign: MediaRow;
 }) {
   // We read effective values from staging so the editor reflects pending
-  // changes, including those staged in another editor session.
+  // changes — including those staged in another editor session.
   const project = readProjectSnapshot(projectId);
   const effectiveName = project
     ? effectiveCampaignValue(project.mediaPlan, campaign.id, "name")
@@ -567,7 +567,7 @@ function AdSetCard({
             </div>
           </Labeled>
 
-          {/* Advanced config, inline expansion */}
+          {/* Advanced config — inline expansion */}
           <button
             type="button"
             onClick={() => setShowAdvanced((v) => !v)}
@@ -710,8 +710,8 @@ function CampaignAdsSection({
 /**
  * Editable row for a single ad within the campaign editor. Two
  * settings can be edited inline and staged:
- *   · name, click to edit, blur to commit
- *   · status, Pause/Resume button toggles between live and draft
+ *   · name — click to edit, blur to commit
+ *   · status — Pause/Resume button toggles between live and draft
  *
  * Pending-dot indicators surface when either field has a staged edit;
  * the deploy bar at the top of the page is the one that actually pushes

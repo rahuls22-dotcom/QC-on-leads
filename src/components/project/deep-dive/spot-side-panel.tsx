@@ -114,7 +114,7 @@ export function SpotSidePanel({
                 border: "1px solid var(--spot-stroke)",
               }}
             >
-              Spot is preparing an answer, open the regular Spot panel to see
+              Spot is preparing an answer — open the regular Spot panel to see
               the full response. (Deep-dive chat is a thin entry point; the
               conversation continues in the main dock when you exit.)
             </div>

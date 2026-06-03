@@ -49,21 +49,21 @@ const personaConfig: GuidedConfig<PersonaDraft> = {
   kicker: "Spot · new persona",
   title: ({ projectName }) => `Add a new persona to ${projectName || "this project"}`,
   intro: () =>
-    "Let's add a new persona. I've already drafted them based on your brief, recent leads, and what's worked for similar projects. Walk through each field, accept what fits, edit inline, or ask me to redraft.",
+    "Let's add a new persona. I've already drafted them based on your brief, recent leads, and what's worked for similar projects. Walk through each field — accept what fits, edit inline, or ask me to redraft.",
   seed: ({ projectId }) => {
     const project = projectId ? getProject(projectId) : undefined;
     return {
       name: "The Returning Founder",
       age: "39",
       role: "Founder / CXO, sold a company",
-      want: "A primary residence that signals 'arrived', without going overboard.",
+      want: "A primary residence that signals 'arrived' — without going overboard.",
       painPoint:
         "Doesn't want SoBo prices. Wants the right Bengaluru address with brand assurance.",
       usp: "Branded interiors, 12-min metro access, low-density towers.",
       hhi: "₹3Cr+ post-exit",
       geo: project?.micromarket || "Bengaluru East",
       sourceEvidence:
-        "Drafted from your last 4 weeks of leads, 11 of 27 qualified buyers matched this profile and aren't represented in your existing personas.",
+        "Drafted from your last 4 weeks of leads — 11 of 27 qualified buyers matched this profile and aren't represented in your existing personas.",
     };
   },
   steps: [
@@ -71,7 +71,7 @@ const personaConfig: GuidedConfig<PersonaDraft> = {
       id: "identity",
       label: "Identity",
       prompt: () =>
-        "Who is this? Start with name, age, and a one-line role. Don't worry, you can refine after seeing the rest.",
+        "Who is this? Start with name, age, and a one-line role. Don't worry — you can refine after seeing the rest.",
       fields: [
         { key: "name", label: "Persona name" },
         { key: "age", label: "Typical age" },
@@ -83,7 +83,7 @@ const personaConfig: GuidedConfig<PersonaDraft> = {
     {
       id: "want",
       label: "Want",
-      prompt: () => "What do they actually want? Frame it as a job-to-be-done, not as a feature.",
+      prompt: () => "What do they actually want? Frame it as a job-to-be-done — not as a feature.",
       fields: [{ key: "want", label: "Job-to-be-done", long: true, rows: 3 }],
       summary: (d) => d.want,
     },
@@ -91,7 +91,7 @@ const personaConfig: GuidedConfig<PersonaDraft> = {
       id: "pain",
       label: "Pain & USP",
       prompt: () =>
-        "What's blocking them, and which of your USPs answers it directly? Pain + USP stay fixed across creative, only hook and CTA flex.",
+        "What's blocking them, and which of your USPs answers it directly? Pain + USP stay fixed across creative — only hook and CTA flex.",
       fields: [
         { key: "painPoint", label: "Pain point", long: true, rows: 2 },
         { key: "usp", label: "USP that resonates", long: true, rows: 2 },
@@ -121,7 +121,7 @@ const personaConfig: GuidedConfig<PersonaDraft> = {
       { label: "Reach", value: `${d.hhi} · ${d.geo}` },
     ],
   }),
-  onFinishToast: "Persona drafted, saved to project",
+  onFinishToast: "Persona drafted — saved to project",
 };
 
 // ─── new-angle ───────────────────────────────────────────────────────────
@@ -138,14 +138,14 @@ const angleConfig: GuidedConfig<AngleDraft> = {
   kicker: "Spot · new angle",
   title: ({ personaName }) => `New angle for ${personaName || "this persona"}`,
   intro: () =>
-    "An angle keeps the persona's pain + USP fixed and flexes the hook, CTA, and format. I've drafted one, accept, edit, or refine.",
+    "An angle keeps the persona's pain + USP fixed and flexes the hook, CTA, and format. I've drafted one — accept, edit, or refine.",
   seed: ({ personaId, projectId }) => {
     const persona = projectId
       ? getProject(projectId)?.personas.find((p) => p.id === personaId)
       : undefined;
     return {
       name: "Possession-Sprint",
-      hook: persona ? `Today's EMI. Tomorrow's address, ${persona.name.split(" ").pop()}.` : "Today's EMI. Tomorrow's address.",
+      hook: persona ? `Today's EMI. Tomorrow's address — ${persona.name.split(" ").pop()}.` : "Today's EMI. Tomorrow's address.",
       cta: "Check today's price",
       format: "1:1 Meta Feed + 9:16 Meta Reels",
       successMetric: "Hook rate ≥ 45% · CPVL < ₹5,800",
@@ -156,12 +156,12 @@ const angleConfig: GuidedConfig<AngleDraft> = {
       id: "name-hook",
       label: "Name + hook",
       prompt: () =>
-        "Name the angle (short, memorable) and write the hook. Keep it sharp, the hook is what decides if they stop scrolling.",
+        "Name the angle (short, memorable) and write the hook. Keep it sharp — the hook is what decides if they stop scrolling.",
       fields: [
         { key: "name", label: "Angle name" },
         { key: "hook", label: "Hook", long: true, rows: 2 },
       ],
-      summary: (d) => `"${d.name}", ${d.hook.slice(0, 60)}…`,
+      summary: (d) => `"${d.name}" — ${d.hook.slice(0, 60)}…`,
     },
     {
       id: "cta",
@@ -193,7 +193,7 @@ const angleConfig: GuidedConfig<AngleDraft> = {
       { label: "Win at", value: d.successMetric },
     ],
   }),
-  onFinishToast: "Angle drafted, opening creative generator",
+  onFinishToast: "Angle drafted — opening creative generator",
 };
 
 // ─── launch-creative ─────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ const launchConfig: GuidedConfig<LaunchDraft> = {
   kicker: "Spot · launch creative",
   title: ({ personaName }) => `Launch new creatives for ${personaName || "this persona"}`,
   intro: () =>
-    "Two quick steps, confirm the angle and formats, then drop a short brief. I'll hand you off to the creative generator.",
+    "Two quick steps — confirm the angle and formats, then drop a short brief. I'll hand you off to the creative generator.",
   seed: ({ projectId, personaId, angleId }) => {
     const project = projectId ? getProject(projectId) : undefined;
     const persona = project?.personas.find((p) => p.id === personaId);
@@ -218,7 +218,7 @@ const launchConfig: GuidedConfig<LaunchDraft> = {
       formats: "1:1 Meta Feed + 9:16 Meta Reels + 16:9 Google Display",
       brief:
         angle
-          ? `Lead with the hook "${angle.hook}". Pull from project images, exterior + interior. Keep the proof points: ${
+          ? `Lead with the hook "${angle.hook}". Pull from project images — exterior + interior. Keep the proof points: ${
               project?.strategy.proofPoints[0] || ""
             }.`
           : "Lead with the hook. Pull from project images.",
@@ -239,7 +239,7 @@ const launchConfig: GuidedConfig<LaunchDraft> = {
       id: "brief",
       label: "Brief",
       prompt: () =>
-        "What should the creative emphasize? Keep it 2–3 sentences, I'll expand into a full prompt.",
+        "What should the creative emphasize? Keep it 2–3 sentences — I'll expand into a full prompt.",
       fields: [{ key: "brief", label: "Creative brief", long: true, rows: 4, alwaysEdit: true }],
       summary: (d) => d.brief.slice(0, 80) + (d.brief.length > 80 ? "…" : ""),
     },
@@ -252,7 +252,7 @@ const launchConfig: GuidedConfig<LaunchDraft> = {
       { label: "Brief", value: d.brief },
     ],
   }),
-  onFinishToast: "Brief saved, opening creative generator",
+  onFinishToast: "Brief saved — opening creative generator",
 };
 
 // ─── new-campaign (stub: same skeleton, simpler steps) ───────────────────
@@ -268,7 +268,7 @@ const campaignConfig: GuidedConfig<CampaignDraft> = {
   kicker: "Spot · new campaign",
   title: ({ projectName }) => `New campaign for ${projectName || "this project"}`,
   intro: () =>
-    "I'll draft a starting campaign, type, name, objective, and a budget, based on your project stage and what's already running.",
+    "I'll draft a starting campaign — type, name, objective, and a budget — based on your project stage and what's already running.",
   seed: ({ projectId }) => {
     const project = projectId ? getProject(projectId) : undefined;
     return {
@@ -305,7 +305,7 @@ const campaignConfig: GuidedConfig<CampaignDraft> = {
       { label: "Daily budget", value: d.budgetDaily },
     ],
   }),
-  onFinishToast: "Campaign draft saved, open Campaigns to launch",
+  onFinishToast: "Campaign draft saved — open Campaigns to launch",
 };
 
 // ─── new-adset (stub) ────────────────────────────────────────────────────
@@ -367,7 +367,7 @@ const adsetConfig: GuidedConfig<AdsetDraft> = {
   onFinishToast: "Ad set draft saved",
 };
 
-// Cast through unknown, each per-kind draft is heterogeneous at the
+// Cast through unknown — each per-kind draft is heterogeneous at the
 // type level but always a string-record at runtime, which is all the
 // shared GuidedFlow shell consumes.
 export const GUIDED_CONFIGS: Record<GuidedKind, GuidedConfig<Record<string, string>>> = {

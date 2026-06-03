@@ -40,7 +40,7 @@ export function getActionLabel(
 
 /**
  * Whether a verb is valid under the current budget mode.
- * SHIFT_BUDGET is illegal under CBO, Meta redistributes automatically.
+ * SHIFT_BUDGET is illegal under CBO — Meta redistributes automatically.
  */
 export function isVerbValid(verb: ActionVerb, budgetMode: BudgetMode): boolean {
   if (budgetMode === "CBO" && verb === "SHIFT_BUDGET") return false;

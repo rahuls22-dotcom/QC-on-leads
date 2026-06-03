@@ -19,12 +19,12 @@ import { FormsSection } from "./forms-section";
 export type LibrarySubTab = "creatives" | "images" | "forms";
 
 /**
- * Library tab, single home for the project's reusable assets.
+ * Library tab — single home for the project's reusable assets.
  *  · Creatives: every drafted creative across personas/angles.
  *  · Images:    project's image memory (research + uploads).
  *  · Forms:     lead-capture forms (default + persona variants). These
  *               were a top-level tab in PR 27 but really belong here as
- *               the third reusable-asset class, campaigns reference
+ *               the third reusable-asset class — campaigns reference
  *               them, but they don't have their own runtime metrics.
  */
 export function LibrarySection({
@@ -64,7 +64,7 @@ export function LibrarySection({
 
   return (
     <div>
-      {/* Segmented control, Creatives | Images | Forms */}
+      {/* Segmented control — Creatives | Images | Forms */}
       <div className="flex items-center gap-1 mb-4 pt-6">
         <SubTabButton
           active={sub === "creatives"}

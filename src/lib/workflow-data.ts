@@ -1,4 +1,4 @@
-// Sequence mock data, cadence engine layer
+// Sequence mock data — cadence engine layer
 
 import type {
   Workflow,
@@ -37,10 +37,10 @@ export const actionOptions: FollowUpRule["action"][] = ["retry", "follow_up", "s
 export const workflowsList: WorkflowListItem[] = [
   {
     id: "wf-1",
-    name: "Godrej Reflections, Lead Qualification",
+    name: "Godrej Reflections — Lead Qualification",
     description: "Qualify inbound leads from Godrej Reflections campaign via voice calls",
     trigger_type: "csv_upload",
-    agent_names: ["Priya, Qualification Agent"],
+    agent_names: ["Priya — Qualification Agent"],
     status: "active",
     progress: 70.2,
     stats: {
@@ -51,10 +51,10 @@ export const workflowsList: WorkflowListItem[] = [
   },
   {
     id: "wf-2",
-    name: "Godrej Eternity, Re-engagement",
+    name: "Godrej Eternity — Re-engagement",
     description: "Re-engage cold leads from Godrej Eternity campaign",
     trigger_type: "csv_upload",
-    agent_names: ["Arjun, Follow-up Agent"],
+    agent_names: ["Arjun — Follow-up Agent"],
     status: "completed",
     progress: 100,
     stats: {
@@ -65,10 +65,10 @@ export const workflowsList: WorkflowListItem[] = [
   },
   {
     id: "wf-3",
-    name: "Godrej Air, Site Visit Follow-up",
+    name: "Godrej Air — Site Visit Follow-up",
     description: "Follow up with leads who showed interest in site visits",
     trigger_type: "csv_upload",
-    agent_names: ["Priya, Qualification Agent"],
+    agent_names: ["Priya — Qualification Agent"],
     status: "scheduled",
     progress: 0,
     stats: {
@@ -79,10 +79,10 @@ export const workflowsList: WorkflowListItem[] = [
   },
   {
     id: "wf-4",
-    name: "Scripbox, Quality-Based Routing",
+    name: "Scripbox — Quality-Based Routing",
     description: "Route high-quality leads to humans, others to AI agent for onboarding",
     trigger_type: "crm_webhook",
-    agent_names: ["Priya, Qualification Agent", "Arjun, Follow-up Agent"],
+    agent_names: ["Priya — Qualification Agent", "Arjun — Follow-up Agent"],
     status: "active",
     progress: 45.5,
     stats: {
@@ -97,7 +97,7 @@ export const workflowsList: WorkflowListItem[] = [
 
 export const workflowDetail: Workflow = {
   id: "wf-1",
-  name: "Godrej Reflections, Lead Qualification",
+  name: "Godrej Reflections — Lead Qualification",
   description: "Qualify inbound leads from Godrej Reflections campaign via voice calls",
   status: "active",
   trigger: {
@@ -126,7 +126,7 @@ export const workflowDetail: Workflow = {
 
 export const workflowWithRouting: Workflow = {
   id: "wf-4",
-  name: "Scripbox, Quality-Based Routing",
+  name: "Scripbox — Quality-Based Routing",
   description: "Route high-quality leads to humans, others to AI agent for onboarding",
   status: "active",
   trigger: {
@@ -281,7 +281,7 @@ export const sequenceLog: SequenceLogEntry[] = [
     id: "sl-3", contact_name: "Vikram S*****", timestamp: "2026-03-21T13:55:00",
     agent_outcome: "Not qualified",
     agent_suggested_next: "No follow-up needed",
-    agent_reasoning: "Budget ₹80L, significantly below ₹1Cr threshold. Looking for 1BHK, not in portfolio.",
+    agent_reasoning: "Budget ₹80L — significantly below ₹1Cr threshold. Looking for 1BHK, not in portfolio.",
     sequence_decision: "Stopped",
     sequence_reasoning: "Not interested → stop rule applied. Lead archived.",
   },

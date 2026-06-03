@@ -29,7 +29,7 @@ import { CreativeConceptEditor } from "./creative/creative-concept-editor";
 import { CreativeResizeEditor } from "./creative/creative-resize-editor";
 
 /* ------------------------------------------------------------------ */
-/*  Public types, preserved so consumers don't change                 */
+/*  Public types — preserved so consumers don't change                 */
 /* ------------------------------------------------------------------ */
 
 export type { GeneratedCreative };
@@ -122,7 +122,7 @@ export function CreativeGeneratorModal({
   );
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Reset state whenever the modal is opened, re-seed the strategy from props.
+  // Reset state whenever the modal is opened — re-seed the strategy from props.
   useEffect(() => {
     if (!open) return;
     setPhase("setup");
@@ -212,7 +212,7 @@ export function CreativeGeneratorModal({
           const aiReply: ChatMessage = {
             id: mkId("msg"),
             role: "ai",
-            text: "Here are 4 options, click one to refine it, or generate more.",
+            text: "Here are 4 options — click one to refine it, or generate more.",
             created_at: Date.now(),
           };
           setWorkspace((w) => {
@@ -232,7 +232,7 @@ export function CreativeGeneratorModal({
 
   /**
    * Pick a concept. When the user is in picker mode (no active version yet),
-   * we prune any unpicked root-level options, they were exploration candidates
+   * we prune any unpicked root-level options — they were exploration candidates
    * and the user has now committed to one. Root versions that already have
    * descendants (e.g., a prior chain after "Start fresh") are preserved.
    */
@@ -269,7 +269,7 @@ export function CreativeGeneratorModal({
           {
             id: mkId("msg"),
             role: "ai",
-            text: `Great choice, let's refine ${pickName} further. Tell me what to tweak, or use Edit on the preview.`,
+            text: `Great choice — let's refine ${pickName} further. Tell me what to tweak, or use Edit on the preview.`,
             created_at: Date.now(),
           },
         ];
@@ -284,7 +284,7 @@ export function CreativeGeneratorModal({
   };
 
   /**
-   * Start fresh, re-enter picker mode with 4 newly-generated concepts. The
+   * Start fresh — re-enter picker mode with 4 newly-generated concepts. The
    * user's prior chain stays in history (its root has descendants, so it
    * survives the next pick's pruning step).
    */
@@ -292,7 +292,7 @@ export function CreativeGeneratorModal({
     if (isGenerating) return;
     setIsGenerating(true);
 
-    // How many "starts" have happened, count root-level versions w/ descendants.
+    // How many "starts" have happened — count root-level versions w/ descendants.
     const previousChains = workspace.concept_versions.filter((v) => {
       if (v.parent_id !== null) return false;
       return workspace.concept_versions.some((c) => c.parent_id === v.id);
@@ -320,7 +320,7 @@ export function CreativeGeneratorModal({
           const aiReply: ChatMessage = {
             id: mkId("msg"),
             role: "ai",
-            text: "Fresh batch, pick one to refine.",
+            text: "Fresh batch — pick one to refine.",
             created_at: Date.now(),
           };
           setWorkspace((w) => ({
@@ -441,7 +441,7 @@ export function CreativeGeneratorModal({
         };
       }
 
-      // Adding a new size, seed it from the finalized concept.
+      // Adding a new size — seed it from the finalized concept.
       const activeId = w.active_concept_version_id;
       const activeVer = activeId ? w.concept_versions.find((v) => v.id === activeId) : undefined;
       const nextSizeVersions = { ...w.size_versions };
@@ -458,7 +458,7 @@ export function CreativeGeneratorModal({
 
   /**
    * Regenerate a single size, optionally with a refinement prompt. The current
-   * version is replaced (no per-size history kept, keeps the resize flow
+   * version is replaced (no per-size history kept — keeps the resize flow
    * intentionally lightweight).
    */
   const handleRegenerateSize = (sizeId: string, refinementText?: string) => {
@@ -625,7 +625,7 @@ export function CreativeGeneratorModal({
           onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-card border border-border shadow-2xl w-full max-w-[1120px] h-[88vh] max-h-[820px] overflow-hidden flex flex-col"
         >
-          {/* Header, subtle creative tint via a thin gradient backdrop */}
+          {/* Header — subtle creative tint via a thin gradient backdrop */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-gradient-to-r from-[#F5F3FF] via-white to-[#FAE8FF] relative">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-sm">
@@ -679,7 +679,7 @@ export function CreativeGeneratorModal({
             </button>
           </div>
 
-          {/* Body, switches between phases */}
+          {/* Body — switches between phases */}
           <div className="flex-1 min-h-0 overflow-hidden">
             {phase === "setup" && (
               <div className="h-full">
@@ -727,7 +727,7 @@ export function CreativeGeneratorModal({
             )}
           </div>
 
-          {/* Global modal footer, only rendered in Resize phase.
+          {/* Global modal footer — only rendered in Resize phase.
               Setup has its Go button inside the chatbox.
               Concept moves Finalize into the right-pane header. */}
           {phase === "resize" && (
@@ -744,7 +744,7 @@ export function CreativeGeneratorModal({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Modal footer, phase-specific primary CTA                          */
+/*  Modal footer — phase-specific primary CTA                          */
 /* ------------------------------------------------------------------ */
 
 interface ModalFooterProps {

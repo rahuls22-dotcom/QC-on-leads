@@ -106,7 +106,7 @@ export function CampaignCreationFlow({
 
   // Creatives come from the project's library. We mirror the auto-draft
   // shape here so AdSetsCard can render thumbnails per ad set without a
-  // separate data pipe, in a real backend this would read from
+  // separate data pipe — in a real backend this would read from
   // Persona.angles[].concept.creatives[].
   const [creatives] = useState<CreativesState>(() => autoDraftCreatives(personaInputs));
 
@@ -152,7 +152,7 @@ export function CampaignCreationFlow({
       ok: settings.objective !== "qualified",
       text:
         settings.objective === "qualified"
-          ? "Voice agent needed for qualified leads, not yet connected"
+          ? "Voice agent needed for qualified leads — not yet connected"
           : "Optimization objective ready",
     },
   ];
@@ -216,7 +216,7 @@ export function CampaignCreationFlow({
             {stage === "leadform" && (
               <>
                 <SpotBubble>
-                  Let&apos;s shape the lead form first, the questions you ask determine how Spot
+                  Let&apos;s shape the lead form first — the questions you ask determine how Spot
                   routes and qualifies these leads. Preview shows exactly how this looks on Meta.
                 </SpotBubble>
                 <DraftCard
@@ -246,11 +246,11 @@ export function CampaignCreationFlow({
                 <SpotBubble>
                   {project.goal.target > 0 ? (
                     <>
-                      Pulling your project goal:{" "}
+                      Pulling your project goal —{" "}
                       <strong>
                         {project.goal.target} {project.goal.kind} leads
                       </strong>{" "}
-                      in <strong>{project.goal.window}</strong>, into the media plan. Here&apos;s a
+                      in <strong>{project.goal.window}</strong> — into the media plan. Here&apos;s a
                       starter shape: 4 canonical campaigns (Experiment, Scaling, Cost/Bid Cap,
                       Advantage+) with your project creatives slotted into the right ad sets. Tap
                       any campaign to expand.
@@ -259,7 +259,7 @@ export function CampaignCreationFlow({
                     <>
                       Here&apos;s a starter media plan: 4 canonical campaigns (Experiment, Scaling,
                       Cost/Bid Cap, Advantage+) with your project creatives slotted into the right
-                      ad sets. No project goal set yet, you can add one from the project page to
+                      ad sets. No project goal set yet — you can add one from the project page to
                       tune the budget recommendation.
                     </>
                   )}
@@ -294,7 +294,7 @@ export function CampaignCreationFlow({
               <>
                 <SpotBubble>
                   <strong>Ready to go live.</strong> Quick review below. Optionally connect a voice
-                  or WhatsApp agent, it&apos;ll qualify or follow up with leads from this campaign
+                  or WhatsApp agent — it&apos;ll qualify or follow up with leads from this campaign
                   the moment they come in.
                 </SpotBubble>
                 <div
@@ -391,7 +391,7 @@ export function CampaignCreationFlow({
                   showToast(
                     agentName
                       ? `Campaign live · ${agentName} connected`
-                      : "Campaign live, Spot is now monitoring",
+                      : "Campaign live — Spot is now monitoring",
                   );
                   onLaunched(projectId);
                 }}

@@ -26,12 +26,12 @@ export function Step5Finalize() {
         </h3>
         <div className="space-y-3">
           {[
-            { label: "Campaign", value: "Godrej Air Phase 3, Lead Gen" },
+            { label: "Campaign", value: "Godrej Air Phase 3 — Lead Gen" },
             { label: "Ad Sets", value: "3 (Whitefield HNI, Sarjapur IT, Broad Bangalore)" },
             { label: "Ads", value: "9 (3 per ad set)" },
             { label: "Lead Forms", value: "2 (High Intent, Quick Inquiry)" },
             { label: "Daily Budget", value: "₹8,000" },
-            { label: "Status", value: "Paused, ready for review" },
+            { label: "Status", value: "Paused — ready for review" },
           ].map((item) => (
             <div key={item.label} className="flex items-start justify-between">
               <span className="text-[12px] text-text-secondary">{item.label}</span>

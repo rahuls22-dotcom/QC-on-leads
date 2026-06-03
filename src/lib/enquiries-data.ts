@@ -88,7 +88,7 @@ export const enquiryStats = {
   verified: 142,
 };
 
-// Base leads (missing new fields, enriched below)
+// Base leads (missing new fields — enriched below)
 const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" | "aiSummary" | "calls" | "profileIntelligence">)[] = [
   {
     id: "e-001", name: "V***** R*****", phone: "98XXX XX342", email: "v*****@gmail.com",
@@ -96,7 +96,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-22T09:10:00", updatedAt: "2026-03-22T10:30:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "hot",
     leadStatus: "site_visit", verified: true, sql: true, sentToCRM: "demo@godrejproperties.com",
-    adset: "Whitefield HNI, 30-45", adName: "Lakeside 3BHK Carousel",
+    adset: "Whitefield HNI — 30-45", adName: "Lakeside 3BHK Carousel",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr - ₹2.5Cr" },
       { question: "Configuration?", answer: "3 BHK Premium" },
@@ -158,7 +158,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-21T16:15:00", updatedAt: "2026-03-21T17:00:00",
     enrichmentStatus: "enriched", aiQualification: "not_qualified", temperature: "lukewarm",
     leadStatus: "contacted", verified: false, sql: false, sentToCRM: null,
-    adset: "Whitefield HNI, 30-45", adName: "Godrej Air Amenities Carousel",
+    adset: "Whitefield HNI — 30-45", adName: "Godrej Air Amenities Carousel",
     formResponses: [
       { question: "Budget range?", answer: "₹1Cr - ₹1.5Cr" },
       { question: "Timeline?", answer: ">12 months" },
@@ -170,7 +170,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-21T15:00:00", updatedAt: "2026-03-21T18:30:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "hot",
     leadStatus: "site_visit", verified: true, sql: true, sentToCRM: "demo@godrejproperties.com",
-    adset: "Whitefield HNI, 30-45", adName: "Godrej Air 3BHK Carousel v2",
+    adset: "Whitefield HNI — 30-45", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr+" },
       { question: "Configuration?", answer: "4 BHK" },
@@ -219,7 +219,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-20T18:20:00", updatedAt: "2026-03-21T10:00:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "hot",
     leadStatus: "negotiation", verified: true, sql: true, sentToCRM: "demo@godrejproperties.com",
-    adset: "Whitefield HNI, 30-45", adName: "Lakeside 3BHK Carousel",
+    adset: "Whitefield HNI — 30-45", adName: "Lakeside 3BHK Carousel",
     formResponses: [
       { question: "Budget range?", answer: "₹2.5Cr - ₹3Cr" },
       { question: "Configuration?", answer: "4 BHK" },
@@ -279,7 +279,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-19T20:30:00", updatedAt: "2026-03-20T09:15:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "hot",
     leadStatus: "site_visit", verified: true, sql: true, sentToCRM: "demo@godrejproperties.com",
-    adset: "Whitefield HNI, 30-45", adName: "Lakeside Virtual Tour",
+    adset: "Whitefield HNI — 30-45", adName: "Lakeside Virtual Tour",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr - ₹2.5Cr" },
       { question: "Configuration?", answer: "3 BHK" },
@@ -304,7 +304,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-19T14:40:00", updatedAt: "2026-03-20T11:00:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "warm",
     leadStatus: "interested", verified: true, sql: false, sentToCRM: null,
-    adset: "Whitefield HNI, 30-45", adName: "Godrej Air 3BHK Carousel v2",
+    adset: "Whitefield HNI — 30-45", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "₹1.8Cr - ₹2.2Cr" },
       { question: "Configuration?", answer: "3 BHK" },
@@ -341,7 +341,7 @@ const baseLeads: (Omit<EnquiryLead, "leadStage" | "nextAction" | "segmentTags" |
     createdAt: "2026-03-18T21:10:00", updatedAt: "2026-03-19T10:00:00",
     enrichmentStatus: "enriched", aiQualification: "qualified", temperature: "hot",
     leadStatus: "negotiation", verified: true, sql: true, sentToCRM: "demo@godrejproperties.com",
-    adset: "Whitefield HNI, 30-45", adName: "Lakeside 3BHK Carousel",
+    adset: "Whitefield HNI — 30-45", adName: "Lakeside 3BHK Carousel",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr - ₹3Cr" },
       { question: "Configuration?", answer: "3 BHK" },

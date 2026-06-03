@@ -28,7 +28,7 @@ export function SpotPanel() {
     if (!pendingQuery) return;
     const { q } = pendingQuery;
     if (!q.trim()) {
-      // Empty query, open a fresh chat, clear thread.
+      // Empty query — open a fresh chat, clear thread.
       setThread([]);
       return;
     }

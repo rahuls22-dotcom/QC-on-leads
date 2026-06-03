@@ -111,7 +111,7 @@ export function CreativesSection({
             className="text-[12.5px] text-text-secondary leading-[1.5] mx-auto mb-4"
             style={{ maxWidth: 440 }}
           >
-            Creative angles live with your project, Pain × USP × Hook × CTA combinations you can
+            Creative angles live with your project — Pain × USP × Hook × CTA combinations you can
             reuse across every campaign. I&apos;ll draft 2 per persona to get you started.
           </div>
           {onGoToPersonas && (
@@ -130,7 +130,7 @@ export function CreativesSection({
             </button>
           )}
           <div className="text-[10.5px] text-text-tertiary mt-3">
-            Creatives are drafted per angle on the Personas tab, open it and
+            Creatives are drafted per angle on the Personas tab — open it and
             click &quot;Draft concepts with Spot&quot; on any angle.
           </div>
         </div>

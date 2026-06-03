@@ -6,7 +6,7 @@ import type { ProjectDetail } from "@/lib/project-data";
 import { MediaPlanSection } from "../media-plan-section";
 
 /**
- * Campaigns deep-dive, roomier full-width view of every campaign × ad set
+ * Campaigns deep-dive — roomier full-width view of every campaign × ad set
  * × ad with the full TOFU column set + filters. Wraps the populated
  * MediaPlanSection campaigns table to inherit the existing rich column
  * picker and metric derivation; the deep-dive shell hosts the Spot side
@@ -41,7 +41,7 @@ export function CampaignsDeepDive({ project }: { project: ProjectDetail }) {
       <Summary project={project} />
 
       {/* The MediaPlanSection campaigns view already supports the column
-          picker + metric derivation, render it inline and let the user
+          picker + metric derivation — render it inline and let the user
           customize columns from there. */}
       <MediaPlanSection
         project={project}

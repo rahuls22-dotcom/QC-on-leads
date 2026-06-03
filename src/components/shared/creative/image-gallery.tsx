@@ -3,7 +3,7 @@
  *
  * The mock pills (Project Image / Reference Ad / Brand Logo) show a small
  * popover of these samples. Each sample is rendered as a styled CSS tile —
- * no real asset on disk, so the project stays self-contained.
+ * no real asset on disk — so the project stays self-contained.
  */
 
 export interface ImageSample {
@@ -13,7 +13,7 @@ export interface ImageSample {
   render: () => React.ReactNode;
 }
 
-/** Project (property) images, exterior, interior, aerial-style mocks. */
+/** Project (property) images — exterior, interior, aerial-style mocks. */
 export const PROJECT_IMAGES: ImageSample[] = [
   {
     id: "proj-exterior",
@@ -53,7 +53,7 @@ export const PROJECT_IMAGES: ImageSample[] = [
   },
 ];
 
-/** Reference ads, competitor / inspiration creatives. */
+/** Reference ads — competitor / inspiration creatives. */
 export const REFERENCE_ADS: ImageSample[] = [
   {
     id: "ref-bold",
@@ -124,7 +124,7 @@ export const BRAND_LOGOS: ImageSample[] = [
   },
 ];
 
-/** Brand guidelines, a small canonical spec used by the popover. */
+/** Brand guidelines — a small canonical spec used by the popover. */
 export const BRAND_GUIDELINES = {
   voice: ["Aspirational", "Warm", "Premium"],
   colors: [
@@ -142,7 +142,7 @@ export const BRAND_GUIDELINES = {
   rules: [
     "Always show ₹1.8Cr starting price alongside USPs, never alone.",
     "Mention Whitefield + Bangalore for geographic clarity.",
-    "Avoid pressure tactics, emphasise lifestyle benefits.",
+    "Avoid pressure tactics — emphasise lifestyle benefits.",
   ],
 };
 

@@ -33,13 +33,13 @@ import { SectionHeader } from "./shared/section-header";
 import { useSpotStore } from "@/lib/spot/store";
 
 /**
- * Forms tab, lead-capture forms for the project.
+ * Forms tab — lead-capture forms for the project.
  *
  * Model:
  *   · A project has 0..N forms.
  *   · Exactly one form is the **default** (personaId === null) and acts
  *     as the fallback for any persona that doesn't have its own form.
- *   · Additional forms are persona-specific (personaId !== null), useful
+ *   · Additional forms are persona-specific (personaId !== null) — useful
  *     when different personas warrant different qualification questions
  *     (an NRI investor's questions differ from a local family buyer's).
  *
@@ -150,8 +150,8 @@ function EmptyFormsState({
     onCreated(id);
     showToast(
       withSpot
-        ? "Default form drafted, review and publish to unblock campaigns"
-        : "Empty default form created, fill it in",
+        ? "Default form drafted — review and publish to unblock campaigns"
+        : "Empty default form created — fill it in",
     );
   };
 
@@ -184,7 +184,7 @@ function EmptyFormsState({
           <div className="text-[12px] text-text-secondary leading-[1.55] mb-3 max-w-[640px]">
             Meta won&apos;t let lead-gen campaigns run without a form
             attached. Build a <strong>default form</strong> for the project
-            here, Spot can draft one based on your brief and personas.
+            here — Spot can draft one based on your brief and personas.
           </div>
           <div
             className="rounded-[8px] p-2.5 mb-3 max-w-[640px] text-[11.5px] leading-[1.55] text-text-secondary"
@@ -194,7 +194,7 @@ function EmptyFormsState({
             }}
           >
             <strong className="text-text-primary">Recommendation:</strong>{" "}
-            start with a single default form for the whole project, that&apos;s
+            start with a single default form for the whole project — that&apos;s
             what works for most real-estate launches and keeps lead routing
             simple. Add <strong>persona-specific variants</strong> only when
             qualification questions genuinely diverge (e.g. an NRI investor
@@ -467,7 +467,7 @@ function FormEditor({
     apply((f) => {
       f.status = "published";
     });
-    showToast(`${form.name} is live, ready to attach to campaigns`);
+    showToast(`${form.name} is live — ready to attach to campaigns`);
   };
 
   const unpublish = () => {
@@ -592,7 +592,7 @@ function FormEditor({
       {/* Questions */}
       <FormBlock
         title={`Questions · ${form.questions.length}`}
-        sub="Keep it tight, Meta lead forms drop off fast past 5 questions."
+        sub="Keep it tight — Meta lead forms drop off fast past 5 questions."
         actions={
           <AddQuestionButton
             existingKinds={new Set(form.questions.map((q) => q.kind))}
@@ -678,7 +678,7 @@ function FormEditor({
                 f.completion.headline = e.target.value;
               })
             }
-            placeholder="Thanks, we'll be in touch shortly."
+            placeholder="Thanks — we'll be in touch shortly."
             className="w-full outline-none rounded-[6px] border border-border px-2.5 py-2 text-[13px]"
           />
         </Labeled>
@@ -1019,7 +1019,7 @@ function makeDefaultForm(
       questions: [makeQuestion("name"), makeQuestion("phone")],
       privacy: "",
       completion: {
-        headline: "Thanks, we'll be in touch.",
+        headline: "Thanks — we'll be in touch.",
         body: "",
         ctaLabel: "Visit website",
         ctaUrl: "",
@@ -1034,7 +1034,7 @@ function makeDefaultForm(
     status: "draft",
     intro: {
       headline: `Get pricing & site visit for ${projectShort}`,
-      body: `${project.typology || "Luxury homes"} in ${project.micromarket || "the project's micromarket"} · ${project.priceBand || "premium"} pricing. Share your details, our team gets back within 24 hours.`,
+      body: `${project.typology || "Luxury homes"} in ${project.micromarket || "the project's micromarket"} · ${project.priceBand || "premium"} pricing. Share your details — our team gets back within 24 hours.`,
     },
     questions: [
       makeQuestion("name"),
@@ -1045,7 +1045,7 @@ function makeDefaultForm(
     ],
     privacy: `By submitting, you agree to be contacted by ${project.builder || "Godrej Properties"} about ${projectShort}.`,
     completion: {
-      headline: "Thanks, our team will be in touch shortly.",
+      headline: "Thanks — our team will be in touch shortly.",
       body: "In the meantime, you can preview the project online.",
       ctaLabel: "Open project page",
       ctaUrl: "",
@@ -1078,7 +1078,7 @@ function makeFormFor(
       makeQuestion("name"),
       makeQuestion("phone"),
       makeQuestion("email"),
-      // Persona-flavored qualifiers, these differentiate persona forms
+      // Persona-flavored qualifiers — these differentiate persona forms
       // from the default. Users can tweak after.
       ...(personaName.toLowerCase().includes("nri")
         ? [makeQuestion("city"), makeQuestion("budget"), makeQuestion("timeline")]
@@ -1086,7 +1086,7 @@ function makeFormFor(
     ],
     privacy: `By submitting, you agree to be contacted by ${project.builder || "Godrej Properties"} about ${projectShort}.`,
     completion: {
-      headline: "Thanks, our team will be in touch.",
+      headline: "Thanks — our team will be in touch.",
       body: "",
       ctaLabel: "Visit website",
       ctaUrl: "",

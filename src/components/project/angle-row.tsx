@@ -35,7 +35,7 @@ import { LaunchCreativeFlow } from "./launch-creative-flow";
  * sizes). Sizes appear in a sub-drawer when the concept's "View sizes"
  * is clicked.
  *
- * Everything happens in-place, no modals, no navigation away.
+ * Everything happens in-place — no modals, no navigation away.
  */
 export function AngleRow({
   projectId,
@@ -69,7 +69,7 @@ export function AngleRow({
         transition: "border-color 160ms",
       }}
     >
-      {/* Row header, always visible */}
+      {/* Row header — always visible */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -149,7 +149,7 @@ export function AngleRow({
             </div>
           )}
 
-          {/* Launch flow, appears just below concept rows when triggered */}
+          {/* Launch flow — appears just below concept rows when triggered */}
           {launchingFor && (
             <LaunchCreativeFlow
               project={getPersistedProject(projectId)}
@@ -160,7 +160,7 @@ export function AngleRow({
             />
           )}
 
-          {/* Bottom action bar, add new concept(s) for this angle */}
+          {/* Bottom action bar — add new concept(s) for this angle */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
@@ -214,7 +214,7 @@ function UploadConceptButton({
         const baseId = `${angle.id}-up-${Date.now().toString(36)}-${i}`;
         // Build sized shells around this asset. The user uploaded one
         // file but we treat it as the canonical asset for *every* size
-        // of that kind, the prototype can extend with per-size uploads
+        // of that kind — the prototype can extend with per-size uploads
         // later (and the size drawer's inline Upload button already
         // supports replacing individual sizes).
         const sizes = isVideo
@@ -244,7 +244,7 @@ function UploadConceptButton({
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        title="Upload an image or video, required for video concepts since Spot only generates static"
+        title="Upload an image or video — required for video concepts since Spot only generates static"
         className="inline-flex items-center gap-1 h-7 px-2.5 rounded-button text-[11.5px] font-medium"
         style={{
           background: "linear-gradient(135deg, #7C3AED 0%, #C026D3 100%)",
@@ -258,7 +258,7 @@ function UploadConceptButton({
   );
 }
 
-// Seed helpers, variants of the workspace ones that pre-populate the
+// Seed helpers — variants of the workspace ones that pre-populate the
 // asset URL (uploaded path). Kept here so the upload flow is
 // self-contained in this file.
 function staticSeedWithAsset(baseId: string, assetUrl: string): Creative[] {
@@ -557,7 +557,7 @@ function ConceptRow({
             }}
             title={
               inAnyCampaign
-                ? `Already in ${attachments.count} campaign${attachments.count === 1 ? "" : "s"}, add to another?`
+                ? `Already in ${attachments.count} campaign${attachments.count === 1 ? "" : "s"} — add to another?`
                 : "Attach this concept to a campaign so it can run"
             }
           >
@@ -592,7 +592,7 @@ function AttachmentChip({
   const inAny = attachments.count > 0;
   const title = inAny
     ? `In: ${attachments.campaignNames.join(", ")}`
-    : "Not attached to any campaign yet, click Add to campaign to launch";
+    : "Not attached to any campaign yet — click Add to campaign to launch";
   return (
     <span
       title={title}
@@ -804,7 +804,7 @@ function SizeTile({
           </div>
         </div>
 
-        {/* Metrics, only when live; shell + ready get a state hint */}
+        {/* Metrics — only when live; shell + ready get a state hint */}
         {state === "live" ? (
           <div className="flex items-center gap-2 flex-wrap mt-1">
             {kind === "video" && (
@@ -1125,7 +1125,7 @@ function ConceptKindBadge({ kind }: { kind: "static" | "video" }) {
 import { getProject } from "@/lib/project-data";
 
 function getPersistedProject(projectId: string) {
-  // We read the latest project on demand, mutateRuntimeProject is
+  // We read the latest project on demand — mutateRuntimeProject is
   // synchronous so this gives the launch flow's selectors (campaign + ad
   // set lists) an up-to-date snapshot. Named with a `get*` prefix so the
   // React hook rules don't try to enforce hook-order on it.

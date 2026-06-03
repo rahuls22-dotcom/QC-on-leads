@@ -7,7 +7,7 @@ interface VersionTimelineProps {
   versions: ConceptVersion[];
   activeVersionId: string | null;
   onSelect: (versionId: string) => void;
-  /** Visual scale, "sm" for the sleek Phase B strip, "lg" kept for legacy callers. */
+  /** Visual scale — "sm" for the sleek Phase B strip, "lg" kept for legacy callers. */
   size?: "lg" | "sm";
 }
 
@@ -23,7 +23,7 @@ export function VersionTimeline({
 
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-      {/* Newest first, render in reverse so the most recent version is on the left. */}
+      {/* Newest first — render in reverse so the most recent version is on the left. */}
       {versions
         .map((v, chronoIdx) => ({ v, chronoIdx }))
         .reverse()

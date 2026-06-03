@@ -168,13 +168,13 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
         updated.role = "Real Estate Investor, High-Net-Worth Individual";
         updated.bullets = [
           "Actively looking to diversify portfolio with residential real estate in Bangalore.",
-          "Focused on rental yield and capital appreciation, budget ₹2–4Cr.",
+          "Focused on rental yield and capital appreciation — budget ₹2–4Cr.",
           "Prefers branded developers with strong track record and RERA compliance.",
         ];
       } else if (lower.includes("first-time") || lower.includes("first time") || lower.includes("newlywed") || lower.includes("married")) {
         updated.role = "First-Time Homebuyer, Recently Married";
         updated.bullets = [
-          "Just married and looking for their first own home, currently living with parents.",
+          "Just married and looking for their first own home — currently living with parents.",
           "Budget-conscious but wants a reputed builder for peace of mind.",
           "Prefers 2BHK close to metro and shopping, with option to upgrade later.",
         ];
@@ -186,7 +186,7 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
         updated.role = `NRI Investor, ${persona.role.split(",").slice(1).join(",").trim() || "Based Abroad"}`;
         updated.bullets = [
           "Based overseas and looking to invest in home city as a long-term asset.",
-          "Wants hassle-free ownership, prefers managed properties with rental potential.",
+          "Wants hassle-free ownership — prefers managed properties with rental potential.",
           "Trusts branded developers; RERA compliance and transparency are non-negotiable.",
         ];
       } else {
@@ -220,9 +220,9 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
           age: 29,
           role: "First-Time Homebuyer, Recently Married",
           bullets: [
-            "Just married and looking for their first own home, currently living with parents.",
+            "Just married and looking for their first own home — currently living with parents.",
             "Budget-conscious but wants a reputed builder for peace of mind.",
-            "Prefers 2BHK with option to upgrade later, close to metro and shopping.",
+            "Prefers 2BHK with option to upgrade later — close to metro and shopping.",
           ],
         };
         setPersonas((prev) => [...prev, newPersona]);
@@ -236,7 +236,7 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
           responseText = `I couldn't find that persona. Current personas: ${personas.map((p) => p.name).join(", ")}. Which one would you like to remove?`;
         }
       } else {
-        // Generic edit, simulate an update to the first matching persona
+        // Generic edit — simulate an update to the first matching persona
         const matchedPersona = personas.find((p) => lower.includes(p.name.toLowerCase()));
         if (matchedPersona) {
           const updated = { ...matchedPersona };
@@ -277,7 +277,7 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
         <div className="grid grid-cols-4 gap-4 mb-4">
           {[
             { label: "Project Name", value: extractedProfile.projectName },
-            { label: "Location", value: `${extractedProfile.city}, ${extractedProfile.geography}` },
+            { label: "Location", value: `${extractedProfile.city} — ${extractedProfile.geography}` },
             { label: "Price Range", value: extractedProfile.pricePositioning },
             { label: "Campaign Objective", value: "Lead Generation" },
           ].map((field) => (
@@ -674,7 +674,7 @@ export function Step2BusinessProfile({ onNext, onBack }: Step2Props) {
                   {personas.map((p) => (
                     <div key={p.id} className="text-[11px]">
                       <span className="font-medium text-text-primary">{p.name}, {p.age}</span>
-                      <span className="text-text-tertiary">, {p.role}</span>
+                      <span className="text-text-tertiary"> — {p.role}</span>
                     </div>
                   ))}
                 </div>

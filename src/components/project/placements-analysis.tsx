@@ -5,7 +5,7 @@ import { Facebook, Instagram, Sparkles, Star } from "lucide-react";
 import type { ProjectDetail } from "@/lib/project-data";
 
 /**
- * Meta Placements analysis, synthesizes per-placement performance from
+ * Meta Placements analysis — synthesizes per-placement performance from
  * the project's current spend / leads / verified totals using a fixed
  * Meta placement mix that mirrors what advertisers actually see in Ads
  * Manager's "By Placement" breakdown.
@@ -77,7 +77,7 @@ export function PlacementsAnalysis({ project }: { project: ProjectDetail }) {
           </span>
           <div className="text-[11.5px] leading-[1.55] text-text-secondary">
             <strong>{labelFor(winner)}</strong> has your best CPVL at ₹
-            {fmtMoney(winner.cpvl)}, <strong>{Math.round(((worst.cpvl - winner.cpvl) / worst.cpvl) * 100)}%</strong>{" "}
+            {fmtMoney(winner.cpvl)} — <strong>{Math.round(((worst.cpvl - winner.cpvl) / worst.cpvl) * 100)}%</strong>{" "}
             cheaper than <strong>{labelFor(worst)}</strong> (₹
             {fmtMoney(worst.cpvl)}). Consider shifting some budget from{" "}
             {worst.surface} into {winner.platform === "Facebook" ? "Facebook" : "Instagram"}{" "}
@@ -110,7 +110,7 @@ export function PlacementsAnalysis({ project }: { project: ProjectDetail }) {
         ))}
         {rows.length === 0 && (
           <div className="px-3.5 py-6 text-center text-[12px] text-text-tertiary">
-            Not enough data yet, launch a campaign to populate placement
+            Not enough data yet — launch a campaign to populate placement
             performance.
           </div>
         )}
@@ -251,11 +251,11 @@ type PlacementMetric = {
 /**
  * The canonical Meta placement mix. Share targets sum to 1.0 and roughly
  * mirror what Meta serves for lead-gen campaigns when Advantage+
- * Placements is on, Reels and Feed dominate, Stories take meaningful
+ * Placements is on — Reels and Feed dominate, Stories take meaningful
  * mid-share, Marketplace + Audience Network round out the tail.
  *
  * The performance offset per row is a fixed multiplier applied to the
- * project's overall CPL/CPVL, placements that historically convert
+ * project's overall CPL/CPVL — placements that historically convert
  * better (Reels, IG Feed) get a slight efficiency boost; tail placements
  * pay a penalty. Numbers stay credible without needing real attribution.
  */
@@ -345,7 +345,7 @@ function estimateTotalSpend(project: ProjectDetail): number {
   return daily * days;
 }
 
-// ─── Formatters (local, these stay terse for table density) ────────────
+// ─── Formatters (local — these stay terse for table density) ────────────
 
 function fmtMoney(v: number): string {
   if (v >= 100000) return `${(v / 100000).toFixed(1)}L`;

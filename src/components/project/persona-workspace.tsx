@@ -19,16 +19,16 @@ import { InlineSpotComposer, type StreamItem } from "./inline-spot-composer";
 import { CreativeGeneratorLauncher } from "./creative-generator-launcher";
 
 /**
- * The right pane of the Personas tab, a single persona's workspace.
+ * The right pane of the Personas tab — a single persona's workspace.
  *
  * Layout (top to bottom):
- *   1. Header, avatar + name + role + status + verified/CPVL stats
- *   2. Want / Pain / Solution, compact triple, inline-editable
- *   3. Angles, list of AngleRows; each expands inline; "+ Add angle"
+ *   1. Header — avatar + name + role + status + verified/CPVL stats
+ *   2. Want / Pain / Solution — compact triple, inline-editable
+ *   3. Angles — list of AngleRows; each expands inline; "+ Add angle"
  *      composer at the bottom; draft-concept composer slides in below
  *      the relevant angle when triggered.
  *
- * No more nested cards within cards, every layer of detail is one tap
+ * No more nested cards within cards — every layer of detail is one tap
  * into the existing surface.
  */
 export function PersonaWorkspace({
@@ -46,7 +46,7 @@ export function PersonaWorkspace({
   const [streamItems, setStreamItems] = useState<StreamItem[] | null>(null);
   const newAnglePersist = useRef<((i: number) => void) | null>(null);
 
-  // Generator-modal state, only one angle at a time owns the rich
+  // Generator-modal state — only one angle at a time owns the rich
   // CreativeGeneratorModal. `draftFor` is the angle id that triggered it.
   const [draftFor, setDraftFor] = useState<string | null>(null);
 
@@ -94,7 +94,7 @@ export function PersonaWorkspace({
       target.draft = false;
     });
     showToast(
-      `${persona.name} approved, Spot will start allocating budget to this persona on next deploy`,
+      `${persona.name} approved — Spot will start allocating budget to this persona on next deploy`,
     );
   };
 
@@ -333,7 +333,7 @@ export function PersonaWorkspace({
         </div>
       )}
 
-      {/* Approval state, draft surfaces a checklist + Approve CTA.
+      {/* Approval state — draft surfaces a checklist + Approve CTA.
           The approved state is conveyed by the chip next to the persona
           name in the header; no extra strip needed here. */}
       {persona.draft && (
@@ -375,7 +375,7 @@ export function PersonaWorkspace({
           <div className="mb-3">
             <InlineSpotComposer
               prompt={`Draft new angles for ${persona.name}`}
-              placeholder="Optional, describe the angle in a sentence…"
+              placeholder="Optional — describe the angle in a sentence…"
               primaryLabel="Draft from prompt"
               secondaryLabel="Just draft 2"
               onStart={startAngleDraft}
@@ -406,13 +406,13 @@ export function PersonaWorkspace({
                 background: "var(--bg-page)",
               }}
             >
-              No angles yet, let Spot draft 2 to get started.
+              No angles yet — let Spot draft 2 to get started.
             </div>
           )}
         </div>
       </div>
 
-      {/* Generator modal, single instance for the workspace, switches
+      {/* Generator modal — single instance for the workspace, switches
           context to whichever angle triggered it. */}
       {draftAngle && (
         <CreativeGeneratorLauncher
@@ -560,7 +560,7 @@ function ApprovalCard({
         </span>
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-semibold leading-tight mb-0.5">
-            Spot has drafted this persona, your approval needed
+            Spot has drafted this persona — your approval needed
           </div>
           <div className="text-[11.5px] text-text-secondary leading-[1.5]">
             Approval unlocks budget allocation. Until then, this persona
@@ -571,7 +571,7 @@ function ApprovalCard({
             <ApprovalCheckRow
               done={hasWps}
               label="Want / Pain / USP"
-              value={hasWps ? "Drafted" : "Missing, edit above to fill in"}
+              value={hasWps ? "Drafted" : "Missing — edit above to fill in"}
             />
             <ApprovalCheckRow
               done={angleCount > 0}
@@ -579,7 +579,7 @@ function ApprovalCard({
               value={
                 angleCount > 0
                   ? `${angleCount} angle${angleCount === 1 ? "" : "s"}`
-                  : "None yet, add an angle with Spot"
+                  : "None yet — add an angle with Spot"
               }
             />
             <ApprovalCheckRow
@@ -588,7 +588,7 @@ function ApprovalCard({
               value={
                 conceptCount > 0
                   ? `${conceptCount} concept${conceptCount === 1 ? "" : "s"} · ${sizeCount} sized creative${sizeCount === 1 ? "" : "s"}`
-                  : "None yet, drafts can be added after approval too"
+                  : "None yet — drafts can be added after approval too"
               }
               optional
             />
@@ -730,6 +730,6 @@ const SAMPLE_ANGLE_TEMPLATES = [
   },
 ];
 
-// Avoid unused warning for X, keep as utility export for callers wanting
+// Avoid unused warning for X — keep as utility export for callers wanting
 // to close the launch flow externally.
 export { X as _CloseIcon, Sparkles as _SparklesIcon };

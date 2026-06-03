@@ -62,7 +62,7 @@ export interface AdSetState {
 
 // Defaults
 export const defaultCampaignSettings: CampaignSettings = {
-  name: "Godrej Air Phase 3, Lead Gen",
+  name: "Godrej Air Phase 3 — Lead Gen",
   objective: "leads",
   specialAdCategories: ["none"],
   cboEnabled: true,
@@ -81,9 +81,9 @@ export const defaultPlacements: PlacementSelection = {
 
 // Mock forms
 export const mockInstantForms = [
-  { id: "form-1", name: "Godrej Air, High Intent" },
-  { id: "form-2", name: "Godrej Reflections, Quick" },
-  { id: "form-3", name: "Godrej Air, Brochure Download" },
+  { id: "form-1", name: "Godrej Air — High Intent" },
+  { id: "form-2", name: "Godrej Reflections — Quick" },
+  { id: "form-3", name: "Godrej Air — Brochure Download" },
 ];
 
 // Mock locations for search
@@ -138,7 +138,7 @@ export const placementGroups = [
 // Initial ad sets (from mock data)
 export const initialAdSets: AdSetState[] = [
   {
-    id: "as-1", name: "Whitefield HNI, 30-45", instantFormId: "form-1",
+    id: "as-1", name: "Whitefield HNI — 30-45", instantFormId: "form-1",
     budget: 3000, budgetType: "daily",
     locations: [{ id: "loc-13", name: "Whitefield, Bangalore", type: "city" }],
     ageMin: 30, ageMax: 45, gender: "all",
@@ -146,20 +146,20 @@ export const initialAdSets: AdSetState[] = [
     advantagePlusAudience: true, advantagePlusPlacements: true,
     manualPlacements: { ...defaultPlacements } as PlacementSelection,
     ads: [
-      { id: "ad-1a", name: "Lifestyle Upgrade, Carousel", creativeName: "Godrej Air 3BHK Carousel",
-        primaryText: "🏡 Stop paying someone else's EMI, own your dream home in Whitefield.\n\nPremium 3BHK apartments, just 2 mins from the IT corridor. Smart homes with world-class amenities.\n\n📍 Book your free site visit this weekend.",
-        headline: "Premium 3BHK in Whitefield, Starting ₹1.8Cr",
+      { id: "ad-1a", name: "Lifestyle Upgrade — Carousel", creativeName: "Godrej Air 3BHK Carousel",
+        primaryText: "🏡 Stop paying someone else's EMI — own your dream home in Whitefield.\n\nPremium 3BHK apartments, just 2 mins from the IT corridor. Smart homes with world-class amenities.\n\n📍 Book your free site visit this weekend.",
+        headline: "Premium 3BHK in Whitefield — Starting ₹1.8Cr",
         description: "RERA registered. Smart home ready. 3-acre zen gardens. Book a site visit today.",
         urlParams: "utm_source=meta&utm_medium=paid&utm_campaign=godrej_air_p3&utm_content=lifestyle_carousel&utm_term=whitefield_hni" },
-      { id: "ad-1b", name: "Lifestyle Upgrade, Video", creativeName: "Godrej Air Lifestyle Video",
-        primaryText: "Your office is 2 minutes away. Your garden is right outside. Your kids' school is around the corner.\n\nThis isn't a dream, it's Godrej Air, Whitefield.\n\n🎯 Starting ₹1.8Cr | Limited Phase 3 units",
-        headline: "2 Mins from IT Corridor, Godrej Air Whitefield",
+      { id: "ad-1b", name: "Lifestyle Upgrade — Video", creativeName: "Godrej Air Lifestyle Video",
+        primaryText: "Your office is 2 minutes away. Your garden is right outside. Your kids' school is around the corner.\n\nThis isn't a dream — it's Godrej Air, Whitefield.\n\n🎯 Starting ₹1.8Cr | Limited Phase 3 units",
+        headline: "2 Mins from IT Corridor — Godrej Air Whitefield",
         description: "Luxury 3BHK villas. Japanese-inspired architecture. Book a walkthrough.",
         urlParams: "utm_source=meta&utm_medium=paid&utm_campaign=godrej_air_p3&utm_content=lifestyle_video&utm_term=whitefield_hni" },
     ],
   },
   {
-    id: "as-2", name: "NRI, Global", instantFormId: "form-1",
+    id: "as-2", name: "NRI — Global", instantFormId: "form-1",
     budget: 3000, budgetType: "daily",
     locations: [{ id: "loc-15", name: "Dubai", type: "city" }, { id: "loc-16", name: "Singapore", type: "city" }, { id: "loc-17", name: "San Francisco", type: "city" }],
     ageMin: 35, ageMax: 55, gender: "all",
@@ -167,15 +167,15 @@ export const initialAdSets: AdSetState[] = [
     advantagePlusAudience: true, advantagePlusPlacements: true,
     manualPlacements: { ...defaultPlacements } as PlacementSelection,
     ads: [
-      { id: "ad-2a", name: "NRI Investment, Static", creativeName: "Godrej Air NRI Static",
-        primaryText: "Your Bangalore investment, managed end-to-end while you're abroad.\n\nGodrej Air, Whitefield, RERA registered, 8%+ rental yield, fully managed property.\n\n📄 Get the NRI investment brochure →",
-        headline: "Invest in Bangalore from Abroad, Godrej Air",
+      { id: "ad-2a", name: "NRI Investment — Static", creativeName: "Godrej Air NRI Static",
+        primaryText: "Your Bangalore investment, managed end-to-end while you're abroad.\n\nGodrej Air, Whitefield — RERA registered, 8%+ rental yield, fully managed property.\n\n📄 Get the NRI investment brochure →",
+        headline: "Invest in Bangalore from Abroad — Godrej Air",
         description: "8%+ rental yield. Fully managed. RERA registered. NRI-friendly process.",
         urlParams: "utm_source=meta&utm_medium=paid&utm_campaign=godrej_air_p3&utm_content=nri_static&utm_term=nri_global" },
     ],
   },
   {
-    id: "as-3", name: "Family Upgraders, Sarjapur", instantFormId: "form-2",
+    id: "as-3", name: "Family Upgraders — Sarjapur", instantFormId: "form-2",
     budget: 2000, budgetType: "daily",
     locations: [{ id: "loc-14", name: "Sarjapur Road, Bangalore", type: "city" }, { id: "loc-13", name: "Whitefield, Bangalore", type: "city" }],
     ageMin: 35, ageMax: 45, gender: "all",
@@ -183,9 +183,9 @@ export const initialAdSets: AdSetState[] = [
     advantagePlusAudience: true, advantagePlusPlacements: true,
     manualPlacements: { ...defaultPlacements } as PlacementSelection,
     ads: [
-      { id: "ad-3a", name: "Family Living, Carousel", creativeName: "Godrej Air Family Carousel",
-        primaryText: "Your kids deserve a garden, not a balcony.\n\nGodrej Air, spacious 3BHK with 3-acre zen gardens, swimming pool, and play area. Top schools within 5 km.\n\n🏡 See the 3BHK floor plans →",
-        headline: "Upgrade to 3BHK, Godrej Air, Whitefield",
+      { id: "ad-3a", name: "Family Living — Carousel", creativeName: "Godrej Air Family Carousel",
+        primaryText: "Your kids deserve a garden, not a balcony.\n\nGodrej Air — spacious 3BHK with 3-acre zen gardens, swimming pool, and play area. Top schools within 5 km.\n\n🏡 See the 3BHK floor plans →",
+        headline: "Upgrade to 3BHK — Godrej Air, Whitefield",
         description: "3-acre gardens. Swimming pool. Kids play area. Schools nearby. Starting ₹1.8Cr.",
         urlParams: "utm_source=meta&utm_medium=paid&utm_campaign=godrej_air_p3&utm_content=family_carousel&utm_term=sarjapur_families" },
     ],

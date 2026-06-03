@@ -123,7 +123,7 @@ export function Step5Structure({ onNext, onBack }: Step5Props) {
         </div>
       ) : (
         <>
-          {/* AI context banner, compact, two rows */}
+          {/* AI context banner — compact, two rows */}
           <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp}
             className="bg-[#EFF6FF] border border-[#3B82F6]/20 rounded-card overflow-hidden">
             {/* Row 1: AI generated */}

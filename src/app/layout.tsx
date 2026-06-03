@@ -8,7 +8,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Revspot, AI-Powered Performance Marketing",
+  title: "Revspot — AI-Powered Performance Marketing",
   description: "AI-powered performance marketing platform for lead generation, outreach, and CRM.",
 };
 

@@ -19,9 +19,9 @@ import { getActionLabel } from "../actions/action-labels";
 
 interface CreativeSignalsProps {
   creatives: CreativeMetric[];
-  /** More-actions list, used to link a signal to an existing action when target_entity matches a creative. */
+  /** More-actions list — used to link a signal to an existing action when target_entity matches a creative. */
   actions?: SecondaryAction[];
-  /** Map of action_id → renderable action, when provided, the chip opens the action flow. */
+  /** Map of action_id → renderable action — when provided, the chip opens the action flow. */
   actionsById?: Record<string, RenderableAction>;
   onSelectAction?: (actionId: string) => void;
   onOpenAction?: (action: RenderableAction) => void;
@@ -43,7 +43,7 @@ interface Signal {
   /** Linked action id when the signal motivates a real action in the payload. */
   actionId?: string;
   actionLabel?: string;
-  /** Synthesized action, used when the signal is creative-specific (e.g., video weakness)
+  /** Synthesized action — used when the signal is creative-specific (e.g., video weakness)
    *  and there's no matching action in the diagnosis payload. */
   synthesizedAction?: RenderableAction;
 }
@@ -105,7 +105,7 @@ export function CreativeSignals({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Signal computation, deterministic, capped at 3.                   */
+/*  Signal computation — deterministic, capped at 3.                   */
 /* ------------------------------------------------------------------ */
 
 function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[]): Signal[] {
@@ -126,7 +126,7 @@ function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[])
       iconCls: "text-[#15803D]",
       text: (
         <>
-          <span className="font-medium">{top.name}</span> leads, CTR{" "}
+          <span className="font-medium">{top.name}</span> leads — CTR{" "}
           <span className="font-semibold tabular-nums">{top.ctr}%</span>{" "}
           <span className="text-text-tertiary">
             ({(top.ctr / avgCtr).toFixed(1)}× adset avg)
@@ -137,7 +137,7 @@ function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[])
     });
   }
 
-  // 2. Video diagnostics, for video creatives, prefer a specific weakness signal
+  // 2. Video diagnostics — for video creatives, prefer a specific weakness signal
   //    (thumbnail / hook / pacing / story) over the generic fatigue/weak rule.
   const videoSignaledIds = new Set<string>();
   for (const c of active) {
@@ -167,7 +167,7 @@ function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[])
       iconCls: "text-[#92400E]",
       text: (
         <>
-          <span className="font-medium">{fatigued.name}</span> fatiguing, frequency{" "}
+          <span className="font-medium">{fatigued.name}</span> fatiguing — frequency{" "}
           <span className="font-semibold tabular-nums">{fatigued.frequency.toFixed(2)}</span>, CTR{" "}
           <span className="font-semibold tabular-nums text-[#B91C1C]">
             {fatigued.ctrDelta7d}%
@@ -199,7 +199,7 @@ function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[])
       iconCls: "text-[#B91C1C]",
       text: (
         <>
-          <span className="font-medium">{weak.name}</span> dragging spend, CTR{" "}
+          <span className="font-medium">{weak.name}</span> dragging spend — CTR{" "}
           <span className="font-semibold tabular-nums">{weak.ctr}%</span>,{" "}
           <span className="text-text-tertiary tabular-nums">
             {(top.ctr / Math.max(weak.ctr, 0.01)).toFixed(1)}×
@@ -232,7 +232,7 @@ function computeSignals(creatives: CreativeMetric[], actions: SecondaryAction[])
             <>
               <span className="font-medium">{byFormat[0].format}</span> out-performs{" "}
               <span className="font-medium">{byFormat[byFormat.length - 1].format}</span>{" "}
-              <span className="text-text-tertiary tabular-nums">{ratio.toFixed(1)}×</span> on CTR, shift weight.
+              <span className="text-text-tertiary tabular-nums">{ratio.toFixed(1)}×</span> on CTR — shift weight.
             </>
           ),
         });
@@ -260,7 +260,7 @@ function matchAction(actions: SecondaryAction[], needle: string): SecondaryActio
 /**
  * Detect a video-specific weakness on a creative.
  * Priority order: thumbnail/preview > weak hook > pacing collapse > story incomplete.
- * Returns a Signal with a synthesized REFRESH action, chip label reads "Reformat" because
+ * Returns a Signal with a synthesized REFRESH action — chip label reads "Reformat" because
  * the fix is a rebuild of the relevant segment, not a cosmetic refresh.
  */
 function videoWeaknessSignal(c: CreativeMetric): Signal | undefined {
@@ -279,7 +279,7 @@ function videoWeaknessSignal(c: CreativeMetric): Signal | undefined {
       iconCls: "text-[#B91C1C]",
       text: (
         <>
-          <span className="font-medium">{c.name}</span>, first-frame retention{" "}
+          <span className="font-medium">{c.name}</span> — first-frame retention{" "}
           <span className="font-semibold tabular-nums text-[#B91C1C]">{(ff * 100).toFixed(0)}%</span>,
           viewers skip before the video plays. Likely thumbnail or preview issue.
         </>
@@ -299,7 +299,7 @@ function videoWeaknessSignal(c: CreativeMetric): Signal | undefined {
       iconCls: "text-[#B91C1C]",
       text: (
         <>
-          <span className="font-medium">{c.name}</span>, weak hook{" "}
+          <span className="font-medium">{c.name}</span> — weak hook{" "}
           <span className="font-semibold tabular-nums">{hrPct}</span>{" "}
           <span className="text-text-tertiary">({hdTxt})</span>. First 3 seconds aren't holding viewers.
         </>
@@ -319,7 +319,7 @@ function videoWeaknessSignal(c: CreativeMetric): Signal | undefined {
       iconCls: "text-[#92400E]",
       text: (
         <>
-          <span className="font-medium">{c.name}</span>, hold rate{" "}
+          <span className="font-medium">{c.name}</span> — hold rate{" "}
           <span className="font-semibold tabular-nums">{hlPct}</span>{" "}
           <span className="text-text-tertiary">({ldTxt})</span>. Viewers drop off mid-video.
         </>
@@ -338,7 +338,7 @@ function videoWeaknessSignal(c: CreativeMetric): Signal | undefined {
       iconCls: "text-text-secondary",
       text: (
         <>
-          <span className="font-medium">{c.name}</span>, only{" "}
+          <span className="font-medium">{c.name}</span> — only{" "}
           <span className="font-semibold tabular-nums">{p95Pct}</span> finish despite holding through
           the middle. Ending isn't earning the watch.
         </>
@@ -356,7 +356,7 @@ function synthRefresh(c: CreativeMetric, reasonSummary: string): RenderableActio
     id: `synth-refresh-${c.id}`,
     verb: "REFRESH",
     headline: `Reformat ${c.name}`,
-    reason: `${c.name}, ${reasonSummary}.`,
+    reason: `${c.name} — ${reasonSummary}.`,
     expected: "Restores video performance; CTR and qualifier rate typically recover within 7 days of a fresh cut.",
     cta_label: getActionLabel("REFRESH", c.name, campaignDetail.budgetMode),
     target_entity: c.name,

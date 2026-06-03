@@ -111,7 +111,7 @@ export const GODREJ_BRAND: Brand = {
       "RERA number must appear on every creative",
       "No claims about return-on-investment in copy",
       "Floor plans shown must match approved building plans",
-      "All photography must be marked CGI or REAL, never ambiguous",
+      "All photography must be marked CGI or REAL — never ambiguous",
     ],
   },
 };

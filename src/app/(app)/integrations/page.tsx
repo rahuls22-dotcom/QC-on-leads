@@ -27,8 +27,8 @@ import {
   syncLog,
 } from "@/lib/integrations-data";
 import type { AdAccount, AutoSyncRule } from "@/lib/integrations-data";
-import { usePlanMode } from "@/lib/plan-mode";
-import { InDevelopment } from "@/components/locked/in-development";
+import WhatsAppConnectPage from "@/app/(app)/channels/whatsapp/page";
+import { useWA } from "@/lib/whatsapp-context";
 
 const stagger: Variants = {
   hidden: {},
@@ -186,21 +186,15 @@ function AdAccountCard({ account }: { account: AdAccount }) {
 }
 
 // ── Main Page ───────────────────────────────────────────────
-type Tab = "ad-accounts" | "crm" | "enrichment" | "notifications";
+type Tab = "ad-accounts" | "crm" | "whatsapp" | "enrichment" | "notifications";
 
 export default function IntegrationsPage() {
-  const { enrichmentOnly } = usePlanMode();
   const [activeTab, setActiveTab] = useState<Tab>("ad-accounts");
-
-  if (enrichmentOnly) {
-    return (
-      <InDevelopment
-        title="Integrations"
-        blurb="CRM, enrichment APIs, and notification channels will live here."
-      />
-    );
-  }
   const [syncRules, setSyncRules] = useState(initialSyncRules);
+  // Sync state with the WhatsApp context so the tab can warn the user
+  // when no connection exists yet. Notifications tab may grow similar
+  // indicators (Slack/email) later — keep the variable name specific.
+  const { isConnected: waConnected } = useWA();
 
   // Notification state
   const [slackUrl, setSlackUrl] = useState("");
@@ -225,6 +219,7 @@ export default function IntegrationsPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "ad-accounts", label: "Ad Accounts" },
     { key: "crm", label: "CRM" },
+    { key: "whatsapp", label: "WhatsApp" },
     { key: "enrichment", label: "Enrichment" },
     { key: "notifications", label: "Notifications" },
   ];
@@ -252,7 +247,20 @@ export default function IntegrationsPage() {
                 : "text-text-secondary hover:text-text-primary"
             }`}
           >
-            {tab.label}
+            <span className="inline-flex items-center gap-1.5">
+              {tab.label}
+              {/* Status dot — red when WhatsApp isn't connected yet, so
+                  the user notices the setup is pending without having
+                  to click into the tab. Easy to extend to other tabs
+                  by adding more conditions. */}
+              {tab.key === "whatsapp" && !waConnected && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-[#DC2626]"
+                  title="WhatsApp not connected yet"
+                  aria-label="Not connected"
+                />
+              )}
+            </span>
             {activeTab === tab.key && (
               <motion.div
                 layoutId="integrations-tab"
@@ -479,6 +487,13 @@ export default function IntegrationsPage() {
               <ArrowRight size={11} strokeWidth={1.5} />
             </button>
           </CollapsibleSection>
+        </motion.div>
+      )}
+
+      {/* ── WHATSAPP TAB ─────────────────────────────────────── */}
+      {activeTab === "whatsapp" && (
+        <motion.div variants={fadeUp}>
+          <WhatsAppConnectPage />
         </motion.div>
       )}
 

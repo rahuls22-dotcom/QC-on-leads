@@ -223,7 +223,7 @@ function PlacementCell({ placement, tone }: { placement: Placement; tone: "good"
 }
 
 /* ------------------------------------------------------------------ */
-/*  Row computation, deterministic, grounded in real numbers          */
+/*  Row computation — deterministic, grounded in real numbers          */
 /* ------------------------------------------------------------------ */
 
 function buildRow(
@@ -258,42 +258,42 @@ function buildRow(
 
   // ── Verdict rules (priority order) ──────────────────────────────
   let verdict: Verdict = "hold";
-  let recommendation = "Steady, keep monitoring CTR and qualifier rate.";
+  let recommendation = "Steady — keep monitoring CTR and qualifier rate.";
   let action: RenderableAction | undefined;
 
   const allWeak = placements.length > 0 && placements.every((p) => p.metric.ctr < 1.0);
   const allDry = totalLeads === 0 && placements.length > 0;
   const ctrGap = best && worst ? best.metric.ctr / Math.max(worst.metric.ctr, 0.01) : 1;
 
-  // Video-weakness check across placements, drives the Reformat verdict.
+  // Video-weakness check across placements — drives the Reformat verdict.
   const videoPlacements = placements.filter((p) => p.metric.format === "Video");
   const videoWeakPlacements = videoPlacements.filter((p) => isVideoWeakness(p.metric));
 
   if (allWeak || allDry) {
     verdict = "pause";
-    recommendation = `Pause everywhere, CTR < 1% across ${placements.length} placement${placements.length === 1 ? "" : "s"}. Persona-creative isn't landing.`;
-    action = synthesizeAction(`pscore-${persona.id}-pause`, "PAUSE", `Ad, ${persona.name}`, recommendation, `Stop spending ~₹${(totalSpend / 1000).toFixed(0)}K/period on this persona-ad.`);
+    recommendation = `Pause everywhere — CTR < 1% across ${placements.length} placement${placements.length === 1 ? "" : "s"}. Persona-creative isn't landing.`;
+    action = synthesizeAction(`pscore-${persona.id}-pause`, "PAUSE", `Ad — ${persona.name}`, recommendation, `Stop spending ~₹${(totalSpend / 1000).toFixed(0)}K/period on this persona-ad.`);
   } else if (
     videoPlacements.length >= 2 &&
     videoWeakPlacements.length > videoPlacements.length / 2
   ) {
     verdict = "reformat";
     const summary = describeVideoWeakness(videoWeakPlacements);
-    recommendation = `Reformat, ${summary} across ${videoWeakPlacements.length} of ${videoPlacements.length} placements. Rebuild the video, don't just swap creative.`;
+    recommendation = `Reformat — ${summary} across ${videoWeakPlacements.length} of ${videoPlacements.length} placements. Rebuild the video, don't just swap creative.`;
     action = synthesizeAction(
       `pscore-${persona.id}-reformat`,
       "REFRESH",
-      `Ad, ${persona.name}`,
+      `Ad — ${persona.name}`,
       recommendation,
       `Rebuilds the failing segment; restores CTR and qualifier rate.`,
     );
   } else if (fatiguedPlacement) {
     verdict = "refresh";
-    recommendation = `Refresh in ${fatiguedPlacement.adsetName}, frequency ${fatiguedPlacement.metric.frequency.toFixed(2)}, CTR ${fatiguedPlacement.metric.ctrDelta7d}% in 7d.`;
-    action = synthesizeAction(`pscore-${persona.id}-refresh`, "REFRESH", `Ad, ${persona.name}`, recommendation, `Restores CTR; lowers CPL across ${fatiguedPlacement.adsetName}.`);
+    recommendation = `Refresh in ${fatiguedPlacement.adsetName} — frequency ${fatiguedPlacement.metric.frequency.toFixed(2)}, CTR ${fatiguedPlacement.metric.ctrDelta7d}% in 7d.`;
+    action = synthesizeAction(`pscore-${persona.id}-refresh`, "REFRESH", `Ad — ${persona.name}`, recommendation, `Restores CTR; lowers CPL across ${fatiguedPlacement.adsetName}.`);
   } else if (placements.length >= 2 && best && worst && ctrGap >= 2 && worst.metric.ctr < 1.5) {
     verdict = "mismatch";
-    recommendation = `Pause in ${worst.adsetName} (CTR ${worst.metric.ctr}%), ${ctrGap.toFixed(1)}× weaker than ${best.adsetName} (${best.metric.ctr}%). Audience-creative mismatch.`;
+    recommendation = `Pause in ${worst.adsetName} (CTR ${worst.metric.ctr}%) — ${ctrGap.toFixed(1)}× weaker than ${best.adsetName} (${best.metric.ctr}%). Audience-creative mismatch.`;
     action = synthesizeAction(`pscore-${persona.id}-pause-mismatch`, "PAUSE", worst.adsetName, recommendation, `Frees ~₹${(worst.metric.spend / 1000).toFixed(0)}K/period from a non-fitting placement.`);
   } else if (
     best &&
@@ -302,11 +302,11 @@ function buildRow(
   ) {
     verdict = "cross-deploy";
     const target = missingFromAdsets[0];
-    recommendation = `Strong in ${best.adsetName} (CTR ${best.metric.ctr}%, ${best.metric.leads} leads), try in ${target.name}, not yet running there.`;
-    action = synthesizeAction(`pscore-${persona.id}-deploy`, "ADD_CREATIVE", target.name, recommendation, `Test Ad, ${persona.name} in ${target.name}.`);
+    recommendation = `Strong in ${best.adsetName} (CTR ${best.metric.ctr}%, ${best.metric.leads} leads) — try in ${target.name}, not yet running there.`;
+    action = synthesizeAction(`pscore-${persona.id}-deploy`, "ADD_CREATIVE", target.name, recommendation, `Test Ad — ${persona.name} in ${target.name}.`);
   } else if (best && best.metric.ctr >= campaignAvgCtr * 1.2 && totalLeads >= 15) {
     verdict = "scale";
-    recommendation = `Top performer, CTR ${best.metric.ctr}% in ${best.adsetName}, ${totalLeads} leads. Increase budget on this placement.`;
+    recommendation = `Top performer — CTR ${best.metric.ctr}% in ${best.adsetName}, ${totalLeads} leads. Increase budget on this placement.`;
     action = synthesizeAction(`pscore-${persona.id}-scale`, "SCALE", best.adsetName, recommendation, `~+20% leads on the strongest placement.`);
   } else if (placements.length === 0) {
     verdict = "hold";

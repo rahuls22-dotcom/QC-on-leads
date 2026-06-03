@@ -52,13 +52,13 @@ export function CreativeResizeEditor({
   onAddCustomSize,
 }: CreativeResizeEditorProps) {
   const selected = workspace.selected_sizes;
-  // Per-size spinner, only the card being regenerated dims.
+  // Per-size spinner — only the card being regenerated dims.
   const [activeRegenSizeId, setActiveRegenSizeId] = useState<string | null>(null);
   // Track which card has its inline refine textarea expanded.
   const [refineOpenFor, setRefineOpenFor] = useState<string | null>(null);
   // Track which size has the right-side Edit panel open (null = closed).
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
-  // Scroll the grid container, used to scroll new/edited cards into view.
+  // Scroll the grid container — used to scroll new/edited cards into view.
   const gridScrollRef = useRef<HTMLDivElement>(null);
 
   // Resolve a size id against both built-in catalog and the workspace's
@@ -76,7 +76,7 @@ export function CreativeResizeEditor({
     node?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [editingSizeId]);
 
-  // Watch selected_sizes length, when it grows (a size was added), scroll
+  // Watch selected_sizes length — when it grows (a size was added), scroll
   // the newest card into view.
   const prevSelectedLen = useRef(selected.length);
   useEffect(() => {
@@ -111,7 +111,7 @@ export function CreativeResizeEditor({
     onRegenerateSize(sizeId, refinement);
   };
 
-  // Unused built-in sizes, surface in the "+ Add size" popover.
+  // Unused built-in sizes — surface in the "+ Add size" popover.
   const unusedSizes = SIZE_OPTIONS.filter((s) => !selected.includes(s.id));
 
   return (
@@ -290,7 +290,7 @@ function SizeCard({
         )}
       </div>
 
-      {/* Preview, Canva-style inline edit when editOpen is true */}
+      {/* Preview — Canva-style inline edit when editOpen is true */}
       <div
         className="p-3 flex items-center justify-center bg-surface-page"
         style={{ height: PREVIEW_BOX_H + 24 }}
@@ -323,7 +323,7 @@ function SizeCard({
         )}
       </div>
 
-      {/* Post-text, readonly when not editing, textarea when editing */}
+      {/* Post-text — readonly when not editing, textarea when editing */}
       {version && (
         <div className="px-3 py-2.5 border-t border-border-subtle bg-white">
           <div className="text-[9px] font-semibold text-text-tertiary uppercase tracking-[0.5px] mb-1 flex items-center gap-1">
@@ -344,7 +344,7 @@ function SizeCard({
         </div>
       )}
 
-      {/* Inline refine strip, still inline because it's just a quick prompt input */}
+      {/* Inline refine strip — still inline because it's just a quick prompt input */}
       <AnimatePresence>
         {refineOpen && (
           <RefineStrip
@@ -417,7 +417,7 @@ function RefineStrip({ onCancel, onSubmit }: RefineStripProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Post text inline editor, buffered textarea, commits on blur       */
+/*  Post text inline editor — buffered textarea, commits on blur       */
 /* ------------------------------------------------------------------ */
 
 interface PostTextEditorProps {

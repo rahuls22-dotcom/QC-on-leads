@@ -322,7 +322,7 @@ function buildActivitySummary(calls: CallRecord[]): string {
     parts.push(`${completed} connected${lastCompleted ? ` (${lastCompleted.duration})` : ""}`);
   }
 
-  const summary = `Called ${total} time${total > 1 ? "s" : ""}, ${parts.join(", ")}.`;
+  const summary = `Called ${total} time${total > 1 ? "s" : ""} — ${parts.join(", ")}.`;
 
   if (completed > 0) {
     const lastCompleted = calls.find((c) => c.status === "completed");
@@ -721,7 +721,7 @@ function ActivityTab({
         );
       })}
 
-      {/* Lead Created, always at the bottom (chronologically first) */}
+      {/* Lead Created — always at the bottom (chronologically first) */}
       {createdAt && (
         <div className="bg-surface-page rounded-[8px] overflow-hidden">
           <button

@@ -519,7 +519,7 @@ const importableCampaigns = {
     { id: "imp-m1", name: "Whitefield Villas LeadGen", status: "Active", spend: "₹2.4L/mo", leads: 320, adSets: 4, imported: false },
     { id: "imp-m2", name: "Sarjapur 2BHK Campaign", status: "Active", spend: "₹89K/mo", leads: 210, adSets: 3, imported: false },
     { id: "imp-m3", name: "NRI Investment Campaign", status: "Active", spend: "₹45K/mo", leads: 65, adSets: 2, imported: false },
-    { id: "imp-m4", name: "Brand Awareness, Q1", status: "Paused", spend: "₹25K/mo", leads: 0, adSets: 1, imported: true },
+    { id: "imp-m4", name: "Brand Awareness — Q1", status: "Paused", spend: "₹25K/mo", leads: 0, adSets: 1, imported: true },
   ],
   google: [
     { id: "imp-g1", name: "Luxury Villas Search", status: "Active", spend: "₹1.8L/mo", leads: 148, adSets: 5, imported: false },
@@ -611,7 +611,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
-            {/* Step 0, Select Platform */}
+            {/* Step 0 — Select Platform */}
             {step === 0 && (
               <div className="space-y-4">
                 <p className="text-[13px] text-text-secondary mb-4">Import campaigns from</p>
@@ -625,7 +625,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
                         <div className="text-[14px] font-medium text-text-primary">{p.label}</div>
                         <div className="text-[12px] text-text-secondary mt-0.5 flex items-center gap-1">
                           {p.connected ? (
-                            <><CheckCircle2 size={12} strokeWidth={2} className="text-[#15803D]" /> Connected, {p.account}</>
+                            <><CheckCircle2 size={12} strokeWidth={2} className="text-[#15803D]" /> Connected — {p.account}</>
                           ) : "Not connected"}
                         </div>
                       </div>
@@ -636,7 +636,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            {/* Step 1, Select Campaigns */}
+            {/* Step 1 — Select Campaigns */}
             {step === 1 && (
               <div>
                 <p className="text-[13px] text-text-secondary mb-4">Select campaigns from {platforms.find((p) => p.key === platform)?.label}</p>
@@ -677,7 +677,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            {/* Step 2, Lead Processing (conditional) */}
+            {/* Step 2 — Lead Processing (conditional) */}
             {step === 2 && hasLeadGen && (
               <div className="space-y-4">
                 <p className="text-[13px] text-text-secondary">Configure lead processing for imported campaigns</p>
@@ -693,13 +693,13 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
                 </div>
 
                 <div className="border border-border rounded-card overflow-hidden">
-                  {/* Verification, for existing leads */}
+                  {/* Verification — for existing leads */}
                   <div className="border-b border-border-subtle">
                     <ImportToggle enabled={verifyLeads} onToggle={() => setVerifyLeads(!verifyLeads)}
                       label="Verify existing leads" helper={`Run email & phone verification on ${selectedLeadGen.reduce((s, c) => s + c.leads, 0).toLocaleString()} imported leads`} />
                   </div>
 
-                  {/* AI Calling, for future leads only */}
+                  {/* AI Calling — for future leads only */}
                   <div className="border-b border-border-subtle">
                     <ImportToggle enabled={enableAICalling} onToggle={() => setEnableAICalling(!enableAICalling)}
                       label="Enable AI calling for new leads" helper="Automatically call and qualify new leads that come in after import. Past leads won't be called." />
@@ -709,7 +709,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
                     <div className="px-4 py-3 space-y-2.5">
                       <div className="flex items-start gap-2 bg-[#EFF6FF] border border-[#3B82F6]/15 rounded-[6px] px-3 py-2">
                         <span className="text-[11px] text-[#1D4ED8] leading-relaxed">
-                          AI calling applies to <span className="font-medium">future leads only</span>. Existing {selectedLeadGen.reduce((s, c) => s + c.leads, 0).toLocaleString()} leads won&apos;t be called, use Sequences for bulk calling past leads.
+                          AI calling applies to <span className="font-medium">future leads only</span>. Existing {selectedLeadGen.reduce((s, c) => s + c.leads, 0).toLocaleString()} leads won&apos;t be called — use Sequences for bulk calling past leads.
                         </span>
                       </div>
                       <div>
@@ -729,17 +729,17 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            {/* Step 3, Assign to Project */}
+            {/* Step 3 — Assign to Project */}
             {step === 3 && (
               <div className="space-y-4">
                 <p className="text-[13px] text-text-secondary">Assign to a project (optional)</p>
                 <p className="text-[12px] text-text-tertiary">Organize imported campaigns into a project, or leave them unassigned.</p>
                 <div className="space-y-2">
                   {[
-                    { value: "skip", label: "Skip, leave unassigned" },
+                    { value: "skip", label: "Skip — leave unassigned" },
                     { value: "proj-1", label: "Whitefield Luxury Villas" },
-                    { value: "proj-2", label: "Godrej Air, Phase 3 Launch" },
-                    { value: "proj-3", label: "Godrej Eternity, Pre-launch" },
+                    { value: "proj-2", label: "Godrej Air — Phase 3 Launch" },
+                    { value: "proj-3", label: "Godrej Eternity — Pre-launch" },
                     { value: "__new__", label: "+ Create new project" },
                   ].map((opt) => (
                     <label key={opt.value} className={`flex items-center gap-3 p-3 border rounded-card cursor-pointer transition-all ${
@@ -754,7 +754,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
 
-            {/* Step 4, Importing / Conclusion */}
+            {/* Step 4 — Importing / Conclusion */}
             {step === 4 && (
               <div className="py-4">
                 {importing ? (
@@ -800,7 +800,7 @@ function ImportCampaignsModal({ onClose }: { onClose: () => void }) {
                               <p className="text-[13px] text-text-primary font-medium">AI calling enabled for new leads</p>
                               <p className="text-[11px] text-text-tertiary mt-0.5">
                                 New leads from {selectedLeadGen.length} campaign{selectedLeadGen.length !== 1 ? "s" : ""} will be automatically called and qualified by your voice agent.
-                                Existing leads are not affected, use <span className="font-medium text-text-secondary">Sequences</span> to call past leads in bulk.
+                                Existing leads are not affected — use <span className="font-medium text-text-secondary">Sequences</span> to call past leads in bulk.
                               </p>
                             </div>
                           </div>

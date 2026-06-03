@@ -25,10 +25,10 @@ export interface UploadCreativeModalProps {
 }
 
 const SIZE_OPTIONS = [
-  { id: "sq", dimensions: "1080×1080", label: "Square, Feed", aspectW: 1, aspectH: 1 },
+  { id: "sq", dimensions: "1080×1080", label: "Square — Feed", aspectW: 1, aspectH: 1 },
   { id: "story", dimensions: "1080×1920", label: "Story / Reel", aspectW: 9, aspectH: 16 },
-  { id: "landscape", dimensions: "1200×628", label: "Landscape, Feed", aspectW: 1200, aspectH: 628 },
-  { id: "portrait", dimensions: "1080×1350", label: "Portrait, Feed", aspectW: 4, aspectH: 5 },
+  { id: "landscape", dimensions: "1200×628", label: "Landscape — Feed", aspectW: 1200, aspectH: 628 },
+  { id: "portrait", dimensions: "1080×1350", label: "Portrait — Feed", aspectW: 4, aspectH: 5 },
 ];
 
 export function UploadCreativeModal({ open, onClose, onComplete, angleName, personaName }: UploadCreativeModalProps) {
@@ -97,7 +97,7 @@ export function UploadCreativeModal({ open, onClose, onComplete, angleName, pers
             <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
               <div>
                 <h3 className="text-[16px] font-semibold text-text-primary">Upload Creative</h3>
-                <p className="text-[12px] text-text-secondary mt-0.5">{personaName}, {angleName}</p>
+                <p className="text-[12px] text-text-secondary mt-0.5">{personaName} — {angleName}</p>
               </div>
               <button onClick={handleClose} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-secondary rounded-button transition-colors">
                 <X size={16} strokeWidth={1.5} />
@@ -164,7 +164,7 @@ export function UploadCreativeModal({ open, onClose, onComplete, angleName, pers
                 </div>
               </div>
 
-              {/* Size Selection, generate other sizes from one upload */}
+              {/* Size Selection — generate other sizes from one upload */}
               {imageFile && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -195,7 +195,7 @@ export function UploadCreativeModal({ open, onClose, onComplete, angleName, pers
                             </div>
                           </div>
                           <div className="text-center">
-                            <div className="text-[10px] font-medium text-text-primary leading-tight">{opt.label.split(", ")[0]}</div>
+                            <div className="text-[10px] font-medium text-text-primary leading-tight">{opt.label.split(" — ")[0]}</div>
                             <div className="text-[9px] text-text-tertiary font-mono">{opt.dimensions}</div>
                           </div>
                         </button>

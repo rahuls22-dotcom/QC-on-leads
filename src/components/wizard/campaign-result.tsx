@@ -101,7 +101,7 @@ function SuccessView() {
         </h3>
         <div className="space-y-2.5">
           {[
-            { label: "Campaign", value: "Godrej Air Phase 3, Lead Gen" },
+            { label: "Campaign", value: "Godrej Air Phase 3 — Lead Gen" },
             { label: "Ad Sets", value: "3 (Whitefield HNI, Sarjapur IT, Broad Bangalore)" },
             { label: "Ads", value: "9 (3 per ad set)" },
             { label: "Lead Forms", value: "2 (High Intent, Quick Inquiry)" },
@@ -110,7 +110,7 @@ function SuccessView() {
               label: "Status",
               value: (
                 <span className="inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded-badge bg-surface-secondary text-text-secondary">
-                  Paused, ready for review
+                  Paused — ready for review
                 </span>
               ),
             },

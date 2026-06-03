@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Zap, Bot, Phone, MessageCircle, Plus, Sparkles, Play, Pause,
   Clock, ArrowRight, Pencil, Upload, FileText, X,
@@ -28,10 +28,10 @@ const stagger: Variants = {
 const agentsMvp = [
   {
     id: "amvp-1",
-    name: "Godrej Air, Lead Qualifier",
+    name: "Godrej Air — Lead Qualifier",
     status: "active" as const,
     channels: ["Voice", "WhatsApp"],
-    campaign: "Godrej Air Phase 3, Lead Gen",
+    campaign: "Godrej Air Phase 3 — Lead Gen",
     createdBy: "AI (Campaign Launcher)",
     objectives: ["Budget fit (≥₹1Cr)", "Timeline (≤6 months)", "Site visit interest", "Decision maker"],
     sequence: {
@@ -44,10 +44,10 @@ const agentsMvp = [
   },
   {
     id: "amvp-2",
-    name: "Godrej Reflections, Re-engagement",
+    name: "Godrej Reflections — Re-engagement",
     status: "active" as const,
     channels: ["Voice"],
-    campaign: "Godrej Reflections Habitat, Lead Gen",
+    campaign: "Godrej Reflections Habitat — Lead Gen",
     createdBy: "AI (Campaign Launcher)",
     objectives: ["Re-confirm interest", "Budget update", "Schedule site visit"],
     sequence: {
@@ -60,13 +60,37 @@ const agentsMvp = [
   },
 ];
 
+// Wrap the body in Suspense because it consumes useSearchParams.
+// Without this Next.js 16 fails the production build with
+// "useSearchParams() should be wrapped in a suspense boundary"
+// during static prerender — see /agents-mvp?create=1&onboarding=1
+// deep-link flow.
 export default function AgentsMvpPage() {
+  return (
+    <Suspense fallback={null}>
+      <AgentsMvpInner />
+    </Suspense>
+  );
+}
+
+function AgentsMvpInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isEmpty } = useDemoMode();
   const agents = isEmpty ? [] : agentsMvp;
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createMode, setCreateMode] = useState<"select" | "ai" | "manual">("select");
+
+  // Deep-link support — landing on /agents-mvp?create=1 auto-opens the
+  // Create Agent panel so callers (outreach AgentPicker, sidebar shortcuts)
+  // can drop a user straight into the create flow.
+  useEffect(() => {
+    if (searchParams?.get("create") === "1") {
+      setShowCreateForm(true);
+      setCreateMode("select");
+    }
+  }, [searchParams]);
   const [projectContext, setProjectContext] = useState("");
   const [contextSource, setContextSource] = useState<"project" | "campaign" | "manual" | "">("");
   const [selectedProject, setSelectedProject] = useState("");
@@ -77,6 +101,20 @@ export default function AgentsMvpPage() {
     setTimeout(() => {
       setIsCreating(false);
       setShowCreateForm(false);
+      // Onboarding hand-off — if the user arrived from /welcome with
+      // ?onboarding=1, mark the agent step done and route them back
+      // to the welcome plan so they can move to outreach. Otherwise
+      // the create flow ends on the agent detail page as before.
+      const isOnboarding = searchParams?.get("onboarding") === "1";
+      if (isOnboarding) {
+        try {
+          sessionStorage.setItem("onboarding_agent_done", "true");
+        } catch {
+          /* ignore */
+        }
+        router.push("/welcome");
+        return;
+      }
       router.push("/agents-mvp/amvp-1");
     }, 3000);
   };
@@ -90,7 +128,7 @@ export default function AgentsMvpPage() {
             <h1 className="text-page-title text-text-primary">Agents MVP</h1>
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-badge bg-accent/10 text-accent">Beta</span>
           </div>
-          <p className="text-[12px] text-text-secondary mt-1">AI agents with built-in sequences, created automatically from campaign context</p>
+          <p className="text-[12px] text-text-secondary mt-1">AI agents with built-in sequences — created automatically from campaign context</p>
         </div>
         <button onClick={() => setShowCreateForm(true)}
           className="inline-flex items-center gap-1.5 h-9 px-4 bg-accent text-white text-[13px] font-medium rounded-button hover:bg-accent-hover transition-colors duration-150">
@@ -213,7 +251,7 @@ export default function AgentsMvpPage() {
                     value={projectContext}
                     onChange={(e) => setProjectContext(e.target.value)}
                     rows={3}
-                    placeholder="Any specific instructions for the agent, e.g., qualification criteria, tone, special handling..."
+                    placeholder="Any specific instructions for the agent — e.g., qualification criteria, tone, special handling..."
                     className="w-full px-3 py-2.5 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary resize-none leading-relaxed"
                   />
                 </div>

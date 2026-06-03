@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Revspot — Outreach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            'tp': '#0A0A0A', 'ts': '#6B6B6B', 'tt': '#9B9B9B',
+            'bd': '#E4E4E7', 'bs': '#EAEAEC',
+            'sp': '#FAFAFA', 'ss': '#F4F4F5',
+            'ac': '#1A1A1A', 'acH': '#2A2A2A',
+          },
+          borderRadius: { card: '12px', btn: '8px' },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: #FAFAFA; color: #0A0A0A; }
+    .tn { font-variant-numeric: tabular-nums; }
+    .bar { background: rgba(15, 23, 42, 0.78); }
+  </style>
+</head>
+<body>
+<div class="flex min-h-screen">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+  <aside class="w-[240px] shrink-0 bg-white border-r border-bd flex flex-col">
+    <div class="px-4 py-4 border-b border-bs">
+      <button class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-btn hover:bg-sp">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded text-[13px] font-bold text-white bg-ac">R</span>
+        <div class="flex-1 min-w-0 text-left">
+          <div class="text-[13px] font-semibold truncate">Godrej South</div>
+          <div class="text-[11px] text-tt truncate">Bangalore · Hyderabad</div>
+        </div>
+      </button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-5 text-[13px]">
+      <div class="space-y-0.5">
+        <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Dashboard</a>
+        <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Spot</a>
+      </div>
+      <div>
+        <div class="text-[10.5px] font-medium text-tt uppercase tracking-[0.6px] px-2.5 mb-1">Lead Generation</div>
+        <div class="space-y-0.5">
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Projects</a>
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Campaigns</a>
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-tp bg-sp font-medium">Outreach</a>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10.5px] font-medium text-tt uppercase tracking-[0.6px] px-2.5 mb-1">CRM</div>
+        <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Leads</a>
+      </div>
+      <div>
+        <div class="text-[10.5px] font-medium text-tt uppercase tracking-[0.6px] px-2.5 mb-1">Tools</div>
+        <div class="space-y-0.5">
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Creatives</a>
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Agents</a>
+          <a class="flex items-center gap-2.5 px-2.5 py-2 rounded-btn text-ts hover:bg-sp">Integrations</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="px-3 pb-3">
+      <div class="rounded-[8px] border border-bs bg-white px-2.5 py-2">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <span class="text-[10px] font-semibold text-tt uppercase tracking-[0.5px]">Wallet</span>
+          <span class="ml-auto text-[10px] font-semibold tn">65%</span>
+        </div>
+        <div class="h-1 rounded-full bg-ss overflow-hidden">
+          <div class="h-full rounded-full bar" style="width: 65%;"></div>
+        </div>
+        <div class="flex items-center justify-between mt-1.5 text-[10px] tn">
+          <span class="text-tt"><span class="text-ts font-medium">3,250</span>/5,000 min</span>
+          <button class="font-medium hover:underline">+ Top up</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <main class="flex-1 px-8 py-6 min-w-0">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <div class="text-[11.5px] text-ts mb-1">Lead Generation</div>
+        <h1 class="text-[24px] font-semibold leading-tight">Outreach</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <button class="inline-flex items-center gap-1.5 h-9 px-3 text-[12.5px] font-medium text-ts border border-bd bg-white rounded-btn hover:bg-sp">
+          17 Mar 2026 – 23 Mar 2026 ⌄
+        </button>
+        <button class="inline-flex items-center gap-1.5 h-9 px-4 bg-ac text-white text-[13px] font-medium rounded-btn hover:bg-acH">
+          + New outreach
+        </button>
+      </div>
+    </div>
+
+    <!-- Spot Insights -->
+    <div class="bg-white border border-bd rounded-card overflow-hidden mb-4 relative">
+      <div class="pointer-events-none absolute top-0 right-0 w-64 h-32 opacity-60" style="background: radial-gradient(ellipse at top right, rgba(124,58,237,0.06), transparent 70%);"></div>
+      <div class="relative p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="inline-flex w-3.5 h-3.5 rounded-full bg-gradient-to-br from-amber-300 to-amber-500"></span>
+          <h3 class="text-[13.5px] font-semibold">Spot's read this week</h3>
+          <span class="text-[11.5px] text-tt">· 4 observations</span>
+        </div>
+        <ul class="space-y-2.5">
+          <li class="text-[13px] leading-snug"><span class="font-medium">Cost per qualified lead is down 4%.</span> <span class="text-ts">Now ₹1.1K per qualified — your most efficient week yet.</span></li>
+          <li class="text-[13px] leading-snug"><span class="font-medium">Best slot: Tuesday &amp; Thursday, 2–4 PM.</span> <span class="text-ts">68% pickup rate in that window vs 41% across all outreaches.</span></li>
+          <li class="text-[13px] leading-snug"><span class="font-medium">Lodha Bellissimo is your top performer.</span> <span class="text-ts">23 qualified · ₹1.1K per qualified lead.</span></li>
+          <li class="text-[13px] leading-snug"><span class="font-medium">Wednesdays convert best.</span> <span class="text-ts">24% qualification rate — 6 points above the weekly average.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+
+      <!-- Talktime — green tint (trend up = good) -->
+      <div class="border rounded-card px-4 py-3.5 min-h-[140px] flex flex-col" style="background:#F7FDF9; border-color:#E2F5E9;">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-tt uppercase tracking-[0.3px]">Talktime</span>
+          <span class="text-[11px] font-medium tn" style="color:#15803D;">↗ 4%</span>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-[20px] font-semibold leading-none tn">3,072</span>
+          <span class="text-[11.5px] text-ts leading-none">min</span>
+        </div>
+        <div class="mt-auto pt-2 space-y-1 text-[11.5px] tn">
+          <div class="flex items-center justify-between"><span class="text-tt">Calls</span><span class="font-medium">247</span></div>
+          <div class="flex items-center justify-between"><span class="text-tt">Avg duration</span><span class="font-medium">12m 26s</span></div>
+        </div>
+      </div>
+
+      <!-- Spend — red tint (trend up = bad for spend, inverted) -->
+      <div class="border rounded-card px-4 py-3.5 min-h-[140px] flex flex-col" style="background:#FEF9F9; border-color:#F5E2E2;">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-tt uppercase tracking-[0.3px]">Spend ⓘ</span>
+          <span class="text-[11px] font-medium tn" style="color:#DC2626;">↗ 4%</span>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-[20px] font-semibold leading-none tn">₹61.4K</span>
+        </div>
+        <div class="mt-auto pt-2 space-y-1 text-[11.5px] tn">
+          <div class="flex items-center justify-between"><span class="text-tt">Qualified</span><span class="font-medium">56</span></div>
+          <div class="flex items-center justify-between"><span class="text-tt">CPQL</span><span class="font-medium">₹1.1K</span></div>
+        </div>
+      </div>
+
+      <!-- Performance Funnel (spans 2) -->
+      <div class="col-span-2 bg-white border border-bd rounded-card px-4 py-3.5 min-h-[140px] flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-medium text-tt uppercase tracking-[0.3px]">Performance funnel</span>
+          <span class="text-[10.5px] text-tt tn">16% overall</span>
+        </div>
+        <div class="flex-1 flex flex-col justify-center space-y-1">
+          <div class="grid items-center gap-2" style="grid-template-columns:60px minmax(0,1fr) 72px;">
+            <span class="text-[10.5px] text-tt truncate">Leads</span>
+            <div class="h-2 rounded-full bg-sp overflow-hidden"><div class="h-full rounded-full bar" style="width:100%;"></div></div>
+            <span class="text-[11.5px] font-medium tn text-right">354</span>
+          </div>
+          <div class="grid items-center gap-2" style="grid-template-columns:60px minmax(0,1fr) 72px;">
+            <span class="text-[10.5px] text-tt truncate">Dialed</span>
+            <div class="h-2 rounded-full bg-sp overflow-hidden"><div class="h-full rounded-full bar" style="width:70%;"></div></div>
+            <span class="inline-flex items-baseline gap-1 justify-end tn"><span class="text-[11.5px] font-medium">247</span><span class="text-[10px] text-tt">70%</span></span>
+          </div>
+          <div class="grid items-center gap-2" style="grid-template-columns:60px minmax(0,1fr) 72px;">
+            <span class="text-[10.5px] text-tt truncate">Connected</span>
+            <div class="h-2 rounded-full bg-sp overflow-hidden"><div class="h-full rounded-full bar" style="width:55%;"></div></div>
+            <span class="inline-flex items-baseline gap-1 justify-end tn"><span class="text-[11.5px] font-medium">193</span><span class="text-[10px] text-tt">78%</span></span>
+          </div>
+          <div class="grid items-center gap-2" style="grid-template-columns:60px minmax(0,1fr) 72px;">
+            <span class="text-[10.5px] text-tt truncate">Interacted</span>
+            <div class="h-2 rounded-full bg-sp overflow-hidden"><div class="h-full rounded-full bar" style="width:39%;"></div></div>
+            <span class="inline-flex items-baseline gap-1 justify-end tn"><span class="text-[11.5px] font-medium">138</span><span class="text-[10px] text-tt">72%</span></span>
+          </div>
+          <div class="grid items-center gap-2" style="grid-template-columns:60px minmax(0,1fr) 72px;">
+            <span class="text-[10.5px] text-tt truncate">Qualified</span>
+            <div class="h-2 rounded-full bg-sp overflow-hidden"><div class="h-full rounded-full bar" style="width:16%;"></div></div>
+            <span class="inline-flex items-baseline gap-1 justify-end tn"><span class="text-[11.5px] font-medium">56</span><span class="text-[10px] text-tt">16%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status tabs -->
+    <div class="flex items-center mb-3">
+      <div class="inline-flex items-center gap-0.5 bg-ss rounded-btn p-0.5">
+        <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[6px] bg-white text-tp shadow-sm">All <span class="tn text-tt">15</span></button>
+        <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[6px] text-ts hover:text-tp">Running <span class="tn text-tt">6</span></button>
+        <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[6px] text-ts hover:text-tp">Completed <span class="tn text-tt">4</span></button>
+        <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[6px] text-ts hover:text-tp">Paused <span class="tn text-tt">2</span></button>
+        <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[6px] text-ts hover:text-tp">Scheduled <span class="tn text-tt">3</span></button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white border border-bd rounded-card overflow-hidden">
+      <table class="w-full table-auto">
+        <thead class="border-b border-bs" style="background:rgba(250,250,250,0.6);">
+          <tr>
+            <th class="px-4 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-left">Outreach</th>
+            <th class="px-3 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-left">Status</th>
+            <th class="px-3 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-right">Leads</th>
+            <th class="px-3 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-right">Qualified</th>
+            <th class="px-3 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-right">Qual %</th>
+            <th class="pl-6 pr-3 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-left">Created on</th>
+            <th class="px-4 py-3 text-[11px] font-medium text-tt uppercase tracking-[0.5px] text-left">Updated on</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1 — Running -->
+          <tr class="border-b border-bs hover:bg-sp">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Reflections — Lead Qualification</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Vox outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#F0FDF4; color:#15803D;">Running</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">76</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">14</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">18%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">18 Mar 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">27 May 2026</td>
+          </tr>
+
+          <!-- Row 2 — Completed -->
+          <tr class="border-b border-bs hover:bg-sp" style="background:rgba(250,250,250,0.4);">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Eternity — Re-engagement</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Atlas outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px] bg-ss text-ts">Completed</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">25</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">6</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">24%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">10 Mar 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">9 May 2026</td>
+          </tr>
+
+          <!-- Row 3 — Paused -->
+          <tr class="border-b border-bs hover:bg-sp">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Prestige Lakeside — Re-engagement</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Atlas outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#FEF3C7; color:#92400E;">Paused</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">112</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">6</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">5%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">2 Apr 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">15 May 2026</td>
+          </tr>
+
+          <!-- Row 4 — Running -->
+          <tr class="border-b border-bs hover:bg-sp" style="background:rgba(250,250,250,0.4);">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Lodha Bellissimo — Lead Qualification</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Vox outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#F0FDF4; color:#15803D;">Running</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">113</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">23</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">20%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">25 Mar 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">28 May 2026</td>
+          </tr>
+
+          <!-- Row 5 — Completed -->
+          <tr class="border-b border-bs hover:bg-sp">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Birla Niyaara — Site Visit Follow-up</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Nova outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px] bg-ss text-ts">Completed</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">28</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">7</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">25%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">18 Feb 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">30 Mar 2026</td>
+          </tr>
+
+          <!-- Row 6 — Running -->
+          <tr class="border-b border-bs hover:bg-sp" style="background:rgba(250,250,250,0.4);">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Arden — Brochure follow-up</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Atlas outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#F0FDF4; color:#15803D;">Running</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">62</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">10</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">16%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">4 Apr 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">26 May 2026</td>
+          </tr>
+
+          <!-- Row 7 — Completed -->
+          <tr class="border-b border-bs hover:bg-sp">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Reserve — Walk-in Reminder</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Nova outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px] bg-ss text-ts">Completed</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">31</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">6</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">19%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">28 Feb 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">18 Apr 2026</td>
+          </tr>
+
+          <!-- Row 8 — Running -->
+          <tr class="border-b border-bs hover:bg-sp" style="background:rgba(250,250,250,0.4);">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Banerghatta — Re-engagement Q2</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Atlas outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#F0FDF4; color:#15803D;">Running</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">115</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">16</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">14%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">12 Apr 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">28 May 2026</td>
+          </tr>
+
+          <!-- Row 9 — Paused -->
+          <tr class="border-b border-bs hover:bg-sp">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Lodha Varanya — Cold list outreach</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Vox outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#FEF3C7; color:#92400E;">Paused</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">45</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">3</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">7%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">15 Apr 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">8 May 2026</td>
+          </tr>
+
+          <!-- Row 10 — Running -->
+          <tr class="hover:bg-sp" style="background:rgba(250,250,250,0.4);">
+            <td class="px-4 py-3 max-w-[280px]">
+              <div class="text-[13px] font-medium truncate">Godrej Kukatpally — Site visit booking</div>
+              <div class="mt-0.5 text-[11.5px] text-tt">🤖 Nova outbound bot</div>
+            </td>
+            <td class="px-3 py-3"><span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-[6px]" style="background:#F0FDF4; color:#15803D;">Running</span></td>
+            <td class="px-3 py-3 text-right text-[13px] tn">69</td>
+            <td class="px-3 py-3 text-right text-[13px] tn">12</td>
+            <td class="px-3 py-3 text-right text-[14px] font-semibold tn">17%</td>
+            <td class="pl-6 pr-3 py-3 text-[12.5px] text-ts tn whitespace-nowrap">20 Apr 2026</td>
+            <td class="px-4 py-3 text-[12.5px] text-ts tn whitespace-nowrap">25 May 2026</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pager -->
+      <div class="flex items-center justify-between px-4 py-3 border-t border-bs" style="background:rgba(250,250,250,0.4);">
+        <div class="text-[11.5px] text-tt tn">
+          Showing <span class="text-ts font-medium">1</span>–<span class="text-ts font-medium">10</span> of <span class="text-ts font-medium">12</span>
+        </div>
+        <div class="inline-flex items-center gap-2">
+          <button class="inline-flex items-center gap-1 h-8 px-2.5 text-[12px] font-medium text-ts border border-bd bg-white rounded-btn opacity-40 cursor-not-allowed">← Prev</button>
+          <span class="text-[11.5px] text-tt tn">Page <span class="text-ts font-medium">1</span> of <span class="text-ts font-medium">2</span></span>
+          <button class="inline-flex items-center gap-1 h-8 px-2.5 text-[12px] font-medium text-ts border border-bd bg-white rounded-btn hover:bg-sp">Next →</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

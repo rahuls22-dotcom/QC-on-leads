@@ -24,7 +24,7 @@ import {
  *
  *   1. Pick a concept (already-known when triggered from a concept tile)
  *   2. Pick a campaign + ad set to attach to
- *   3. Confirm, persists a new MediaAd to the chosen ad set + closes
+ *   3. Confirm — persists a new MediaAd to the chosen ad set + closes
  */
 export function LaunchCreativeFlow({
   project,
@@ -171,7 +171,7 @@ export function LaunchCreativeFlow({
       </div>
 
       <div className="grid gap-2.5" style={{ gridTemplateColumns: "1fr 1fr 1fr auto" }}>
-        {/* Step 1, concept */}
+        {/* Step 1 — concept */}
         <Step n={1} title="Concept" icon={<Layers size={11} />}>
           <select
             value={conceptId ?? ""}
@@ -187,7 +187,7 @@ export function LaunchCreativeFlow({
           </select>
         </Step>
 
-        {/* Step 2, campaign */}
+        {/* Step 2 — campaign */}
         <Step n={2} title="Campaign" icon={<Radio size={11} />}>
           <select
             value={campaignId ?? ""}
@@ -195,7 +195,7 @@ export function LaunchCreativeFlow({
             className="w-full outline-none rounded-[6px] border border-border px-2 py-1.5 text-[12px] bg-white"
           >
             {project.mediaPlan.rows.length === 0 && (
-              <option value="">No campaigns, create one first</option>
+              <option value="">No campaigns — create one first</option>
             )}
             {project.mediaPlan.rows.map((r) => (
               <option key={r.id} value={r.id}>
@@ -205,7 +205,7 @@ export function LaunchCreativeFlow({
           </select>
         </Step>
 
-        {/* Step 3, ad set */}
+        {/* Step 3 — ad set */}
         <Step n={3} title="Ad set" icon={<Layers size={11} />}>
           <select
             value={adSetId ?? ""}

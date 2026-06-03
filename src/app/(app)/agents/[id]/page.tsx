@@ -40,7 +40,7 @@ function OutcomeIcon({ outcome }: { outcome: string }) {
   );
 }
 
-// PerfMetricCard removed, using shared MetricCard from @/components/dashboard/metric-card
+// PerfMetricCard removed — using shared MetricCard from @/components/dashboard/metric-card
 
 // ── Donut Chart Custom Label ────────────────────────────────
 const RADIAN = Math.PI / 180;
@@ -250,7 +250,7 @@ export default function AgentDetailPage() {
           <div className="flex items-center justify-between">
             <div />
             <div className="flex items-center gap-3">
-              <span className="text-[12px] text-text-tertiary">1 Oct 2025, 23 Mar 2026</span>
+              <span className="text-[12px] text-text-tertiary">1 Oct 2025 — 23 Mar 2026</span>
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}

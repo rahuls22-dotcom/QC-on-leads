@@ -222,7 +222,7 @@ export default function DeployMediaPlanPage() {
       ok: settings.objective !== "qualified",
       text:
         settings.objective === "qualified"
-          ? "Voice agent needed for qualified leads, not yet connected"
+          ? "Voice agent needed for qualified leads — not yet connected"
           : "Optimization objective ready",
     },
   ];
@@ -254,7 +254,7 @@ export default function DeployMediaPlanPage() {
         </div>
         <button
           type="button"
-          onClick={() => askSpot("Review my media plan before deploy, what's the biggest risk?")}
+          onClick={() => askSpot("Review my media plan before deploy — what's the biggest risk?")}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button border border-border bg-white hover:border-border-hover text-[12.5px]"
         >
           <SpotMark size={13} /> Ask Spot to review
@@ -291,7 +291,7 @@ export default function DeployMediaPlanPage() {
         >
           {/* Intro */}
           <SpotBubble>
-            I&apos;ve drafted everything from your project brief, campaign settings prefilled from
+            I&apos;ve drafted everything from your project brief — campaign settings prefilled from
             your goal of <strong>{project.goal.target} {project.goal.kind} leads</strong> in{" "}
             <strong>{project.goal.window}</strong>, 2 creatives per persona, 4 canonical campaigns,
             and a lead form. Walk through each step, refine what you want, then deploy.
@@ -353,7 +353,7 @@ export default function DeployMediaPlanPage() {
           {currentStage === "adsets" && (
             <>
               <SpotBubble>
-                Here are the 4 campaigns we&apos;ll launch, Experiment, Scaling, Cost/Bid Cap, and
+                Here are the 4 campaigns we&apos;ll launch — Experiment, Scaling, Cost/Bid Cap, and
                 Advantage+. Each card lists its ad sets and which creatives go in each. Tap to expand.
               </SpotBubble>
               <DraftCard
@@ -414,7 +414,7 @@ export default function DeployMediaPlanPage() {
             <>
               <SpotBubble>
                 <strong>Ready to go live.</strong> Once you deploy, I&apos;ll start monitoring CPL and
-                will alert you if anything spikes, but won&apos;t pause anything automatically.
+                will alert you if anything spikes — but won&apos;t pause anything automatically.
               </SpotBubble>
               <div
                 className="rounded-[12px] p-5 mb-3"
@@ -467,7 +467,7 @@ export default function DeployMediaPlanPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      showToast("Media plan deployed, Spot is now monitoring");
+                      showToast("Media plan deployed — Spot is now monitoring");
                       router.push(`/projects/${id}`);
                     }}
                     className="apply-btn"

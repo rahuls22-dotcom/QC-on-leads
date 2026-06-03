@@ -178,7 +178,7 @@ function DraftCard({
                 onChange={(e) => setRefineText(e.target.value)}
                 autoFocus
                 rows={2}
-                placeholder={`Tell Spot what to change, "make the pain sharper", "lean less corporate"…`}
+                placeholder={`Tell Spot what to change — "make the pain sharper", "lean less corporate"…`}
                 className="w-full outline-none p-2 rounded text-[12.5px]"
                 style={{ border: "1px solid #C9A86A", background: "#FFF" }}
               />

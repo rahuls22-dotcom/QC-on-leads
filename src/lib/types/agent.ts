@@ -1,4 +1,4 @@
-// Agent types, channel-agnostic, objective-based conversation configs
+// Agent types — channel-agnostic, objective-based conversation configs
 
 import { FieldDef, Priority, FieldType } from "./common";
 
@@ -28,7 +28,7 @@ export interface Objective {
   };
   /** Guidance for the LLM on how to achieve this objective */
   prompt_hint: string;
-  /** Qualification rule, supports {{variable}} syntax for parameterization */
+  /** Qualification rule — supports {{variable}} syntax for parameterization */
   qualification_rule?: string; // e.g., "budget >= {{min_budget}}"
 }
 
@@ -63,7 +63,7 @@ export interface WhatsAppConfig {
 // ─── Agent Identity ─────────────────────────────────────────────────
 
 export interface AgentIdentity {
-  persona: string; // "Priya"
+  persona: string; // "Vox"
   tone: AgentTone;
   languages: string[];
   language_behavior: LanguageBehavior;
@@ -100,7 +100,7 @@ export interface Agent {
   objectives: Objective[];
   variables: AgentVariable[];
 
-  /** Channel-specific configs, agent supports any channel it has config for */
+  /** Channel-specific configs — agent supports any channel it has config for */
   voice_config?: VoiceConfig;
   whatsapp_config?: WhatsAppConfig;
 

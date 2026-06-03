@@ -55,14 +55,14 @@ export default function EmptyStatesPage() {
         <div className="text-meta text-text-secondary mb-1">Design System</div>
         <h1 className="text-page-title text-text-primary">Empty States</h1>
         <p className="text-[13px] text-text-secondary mt-2 max-w-lg">
-          Every empty state across the app, shown when lists are empty, filters return zero results, or features haven&apos;t been set up yet.
+          Every empty state across the app — shown when lists are empty, filters return zero results, or features haven&apos;t been set up yet.
         </p>
       </motion.div>
 
       {/* ── HIGH PRIORITY: Main List Pages ─────────────────── */}
       <motion.div variants={fadeUp} className="mb-6">
         <h2 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.6px] mb-3">
-          Primary, Empty List Pages
+          Primary — Empty List Pages
         </h2>
       </motion.div>
 
@@ -188,12 +188,12 @@ export default function EmptyStatesPage() {
       {/* ── MEDIUM: Search / Filter Empty ──────────────────── */}
       <motion.div variants={fadeUp} className="mb-6">
         <h2 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.6px] mb-3">
-          Secondary, Search &amp; Filter Empty
+          Secondary — Search &amp; Filter Empty
         </h2>
       </motion.div>
 
       <div className="grid grid-cols-2 gap-4 mb-10">
-        <PreviewCard label="Campaigns, filter empty" tag="Filter">
+        <PreviewCard label="Campaigns — filter empty" tag="Filter">
           <EmptyState
             illustration={<IllustrationSearchEmpty />}
             title="No campaigns match your filters"
@@ -207,7 +207,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Leads, filter empty" tag="Filter">
+        <PreviewCard label="Leads — filter empty" tag="Filter">
           <EmptyState
             illustration={<IllustrationSearchEmpty />}
             title="No leads match your filters"
@@ -221,7 +221,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Contacts, search empty" tag="Search">
+        <PreviewCard label="Contacts — search empty" tag="Search">
           <EmptyState
             illustration={<IllustrationSearchEmpty />}
             title="No contacts found"
@@ -235,7 +235,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Creatives, filter empty" tag="Filter">
+        <PreviewCard label="Creatives — filter empty" tag="Filter">
           <EmptyState
             illustration={<IllustrationSearchEmpty />}
             title="No creatives match your filters"
@@ -253,12 +253,12 @@ export default function EmptyStatesPage() {
       {/* ── DETAIL PAGE SECTIONS ───────────────────────────── */}
       <motion.div variants={fadeUp} className="mb-6">
         <h2 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.6px] mb-3">
-          Tertiary, Detail Page Sections
+          Tertiary — Detail Page Sections
         </h2>
       </motion.div>
 
       <div className="grid grid-cols-2 gap-4 mb-10">
-        <PreviewCard label="Analytics, no data" tag="Waiting">
+        <PreviewCard label="Analytics — no data" tag="Waiting">
           <EmptyState
             illustration={<IllustrationChart />}
             title="Waiting for data"
@@ -267,7 +267,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Call History, empty" tag="Waiting">
+        <PreviewCard label="Call History — empty" tag="Waiting">
           <EmptyState
             illustration={<IllustrationPhone />}
             title="No calls yet"
@@ -276,7 +276,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Agent Performance, no data" tag="Waiting">
+        <PreviewCard label="Agent Performance — no data" tag="Waiting">
           <EmptyState
             illustration={<IllustrationChart />}
             title="No performance data yet"
@@ -285,7 +285,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Campaign Leads, empty" tag="Waiting">
+        <PreviewCard label="Campaign Leads — empty" tag="Waiting">
           <EmptyState
             illustration={<IllustrationLeads />}
             title="No leads yet"
@@ -294,7 +294,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Campaign Insights, no data" tag="Waiting">
+        <PreviewCard label="Campaign Insights — no data" tag="Waiting">
           <EmptyState
             illustration={<IllustrationChart />}
             title="Not enough data for insights"
@@ -303,7 +303,7 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Dashboard, no agent" tag="Setup">
+        <PreviewCard label="Dashboard — no agent" tag="Setup">
           <EmptyState
             illustration={<IllustrationAgents />}
             title="No voice agent connected"

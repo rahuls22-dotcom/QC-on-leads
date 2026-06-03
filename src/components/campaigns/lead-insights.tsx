@@ -64,7 +64,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
 
       {/* Charts */}
       <div className="grid grid-cols-2 gap-5">
-        {/* Age Group, Bar */}
+        {/* Age Group — Bar */}
         <ChartCard title="Age Group" count={total(distributions.ageGroups)}>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={distributions.ageGroups}>
@@ -76,7 +76,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Location, Pie (donut) */}
+        {/* Location — Pie (donut) */}
         <ChartCard title="Location" count={total(distributions.locations)}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -90,7 +90,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Budget Range, Pie (donut) */}
+        {/* Budget Range — Pie (donut) */}
         <ChartCard title="Budget Range" count={total(distributions.budgetRanges)}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
@@ -104,7 +104,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Lead Temperature, Bar with colored bars */}
+        {/* Lead Temperature — Bar with colored bars */}
         <ChartCard title="Lead Temperature" count={total(distributions.temperatures)}>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={distributions.temperatures}>
@@ -120,7 +120,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Net Worth, Pie (optional) */}
+        {/* Net Worth — Pie (optional) */}
         {distributions.netWorth && (
           <ChartCard title="Net Worth" count={total(distributions.netWorth)}>
             <ResponsiveContainer width="100%" height={200}>
@@ -136,7 +136,7 @@ export function LeadInsights({ distributions }: LeadInsightsProps) {
           </ChartCard>
         )}
 
-        {/* Seniority Level, Bar (optional) */}
+        {/* Seniority Level — Bar (optional) */}
         {distributions.seniorityLevel && (
           <ChartCard title="Seniority Level" count={total(distributions.seniorityLevel)}>
             <ResponsiveContainer width="100%" height={200}>

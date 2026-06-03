@@ -31,13 +31,13 @@ import { getWinningConcept, type WinningConcept } from "./persona-hierarchy";
 import { PlacementsAnalysis } from "./placements-analysis";
 
 /**
- * Dashboard tab, project pulse.
+ * Dashboard tab — project pulse.
  *
  * Two metric rows only:
- *   · Outcomes, Verified · Qualified · CPVL · CPQL
- *   · Pipeline, Total leads · CPL · Verification rate · Qualification rate
+ *   · Outcomes — Verified · Qualified · CPVL · CPQL
+ *   · Pipeline — Total leads · CPL · Verification rate · Qualification rate
  *
- * Spend lives on the pacing strip alongside the goal, it's pacing context,
+ * Spend lives on the pacing strip alongside the goal — it's pacing context,
  * not a comparable metric tile. Daily-burn and days-to-goal are inferable
  * from pacing + spend, so they're dropped to reduce noise.
  *
@@ -62,7 +62,7 @@ export function DashboardSection({
       const isSelected = cur.includes(key);
       if (isSelected) return cur.filter((k) => k !== key);
       if (cur.length >= MAX_COMPARISON_METRICS) {
-        // At capacity, drop the oldest selection to make room for the new
+        // At capacity — drop the oldest selection to make room for the new
         // one, FIFO. This keeps the toggle action feeling immediate
         // rather than silently failing.
         return [...cur.slice(1), key];
@@ -330,7 +330,7 @@ function MetricTile({
       }}
       title={
         selected
-          ? `Selected, click to remove from comparison · ${snapshot.def.hint}`
+          ? `Selected — click to remove from comparison · ${snapshot.def.hint}`
           : `Click to add to the comparison chart · ${snapshot.def.hint}`
       }
     >
@@ -424,7 +424,7 @@ function ComparisonPanel({
             {snapshots.length === 1
               ? "Pick another tile to overlay a second metric."
               : atCapacity
-                ? `Showing ${snapshots.length} metrics, max ${MAX_COMPARISON_METRICS}. Click an extra tile to swap the oldest out.`
+                ? `Showing ${snapshots.length} metrics — max ${MAX_COMPARISON_METRICS}. Click an extra tile to swap the oldest out.`
                 : `Showing ${snapshots.length} metrics. Add up to ${MAX_COMPARISON_METRICS - snapshots.length} more by clicking tiles.`}
           </div>
         </div>
@@ -541,7 +541,7 @@ function PersonaPerformance({ project }: { project: ProjectDetail }) {
         ))}
         {project.personas.length === 0 && (
           <div className="px-3.5 py-6 text-center text-[12px] text-text-tertiary">
-            No personas yet, add one on the Personas tab.
+            No personas yet — add one on the Personas tab.
           </div>
         )}
       </div>
@@ -642,11 +642,11 @@ function SpotInsightsCard({
   ).length;
   if (project.goal.target === 0) {
     insights.push(
-      "Set a goal first, without a target, projected pace and gap-to-goal can't be calculated.",
+      "Set a goal first — without a target, projected pace and gap-to-goal can't be calculated.",
     );
   } else if (project.goal.pace === "behind") {
     insights.push(
-      `You're tracking behind goal, forecast is ${project.goal.forecast} of ${project.goal.target}. Open the goal popover for a plan-to-close-gap.`,
+      `You're tracking behind goal — forecast is ${project.goal.forecast} of ${project.goal.target}. Open the goal popover for a plan-to-close-gap.`,
     );
   } else if (project.goal.pace === "ahead") {
     insights.push(
@@ -655,7 +655,7 @@ function SpotInsightsCard({
   }
   if (liveCount === 0 && project.mediaPlan.rows.length > 0) {
     insights.push(
-      `${project.mediaPlan.rows.length} campaign${project.mediaPlan.rows.length === 1 ? "" : "s"} drafted, none live yet, deploy from the Campaigns tab.`,
+      `${project.mediaPlan.rows.length} campaign${project.mediaPlan.rows.length === 1 ? "" : "s"} drafted, none live yet — deploy from the Campaigns tab.`,
     );
   }
   if (
@@ -663,7 +663,7 @@ function SpotInsightsCard({
     project.personas.every((p) => p.angles.length <= 1)
   ) {
     insights.push(
-      "Most personas have only one angle, drafting a second angle per persona usually lifts CPVL within a week.",
+      "Most personas have only one angle — drafting a second angle per persona usually lifts CPVL within a week.",
     );
   }
 

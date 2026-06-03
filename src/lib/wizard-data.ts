@@ -34,12 +34,12 @@ export const cities = [
 export const languages = ["English", "Hindi", "Kannada", "Tamil", "Telugu", "Marathi"];
 
 export const qualityPreferences = [
-  { value: "volume", label: "Volume, Maximize lead count" },
-  { value: "balanced", label: "Balanced, Mix of volume and quality" },
-  { value: "quality", label: "Quality, Fewer but highly qualified leads" },
+  { value: "volume", label: "Volume — Maximize lead count" },
+  { value: "balanced", label: "Balanced — Mix of volume and quality" },
+  { value: "quality", label: "Quality — Fewer but highly qualified leads" },
 ];
 
-// Step 2, Business Profile (AI-extracted)
+// Step 2 — Business Profile (AI-extracted)
 export const extractedProfile = {
   builderName: "Godrej Properties Group",
   projectName: "Godrej Air",
@@ -66,7 +66,7 @@ export const extractedProfile = {
   proofPoints: [
     "1200+ happy families across 8 projects",
     "RERA: PRM/KA/RERA/1251/310/PR/171015/001457",
-    "Godrej Properties ranked #1 in customer satisfaction, Track2Realty 2025",
+    "Godrej Properties ranked #1 in customer satisfaction — Track2Realty 2025",
   ],
   primaryObjections: [
     "Price seems high for Whitefield micro-market",
@@ -81,7 +81,7 @@ export const extractedProfile = {
   specialAdCategory: "housing",
 };
 
-// Step 3, Strategy
+// Step 3 — Strategy
 export const strategyData = {
   campaignStrategy: {
     objective: "Lead Generation via Meta Lead Ads",
@@ -90,17 +90,17 @@ export const strategyData = {
     principles: [
       "Lead with lifestyle and aspiration, not just floor plans",
       "Use social proof and scarcity to drive urgency",
-      "Segment by intent level, separate warm and cold audiences",
+      "Segment by intent level — separate warm and cold audiences",
       "Test 3 creative angles per persona in first week",
     ],
   },
   adSets: [
     {
       id: "as-1",
-      name: "Whitefield HNI, 30-45",
+      name: "Whitefield HNI — 30-45",
       description: "High-net-worth IT professionals near Whitefield who can afford premium apartments",
       targeting: {
-        geo: "Whitefield, ITPL, Marathahalli, Kundalahalli, 10km radius",
+        geo: "Whitefield, ITPL, Marathahalli, Kundalahalli — 10km radius",
         audience: "Age 30-45, IT professionals, income > ₹25L, interested in luxury living",
         exclusions: "Existing Godrej leads, converted customers",
       },
@@ -110,17 +110,17 @@ export const strategyData = {
       name: "Sarjapur IT Corridor",
       description: "IT professionals along Sarjapur road corridor looking to move to East Bangalore",
       targeting: {
-        geo: "Sarjapur Road, HSR Layout, Bellandur, Haralur, 8km radius",
+        geo: "Sarjapur Road, HSR Layout, Bellandur, Haralur — 8km radius",
         audience: "Age 28-42, IT professionals, recently engaged or married, home loan pre-approved",
         exclusions: "Existing leads from past 30 days",
       },
     },
     {
       id: "as-3",
-      name: "Broad Bangalore, 25-55",
+      name: "Broad Bangalore — 25-55",
       description: "Wider Bangalore audience for brand awareness and top-of-funnel lead capture",
       targeting: {
-        geo: "Bangalore city, 25km radius from MG Road",
+        geo: "Bangalore city — 25km radius from MG Road",
         audience: "Age 25-55, interested in real estate, property investment, home buying",
         exclusions: "Existing leads, low-intent audiences",
       },
@@ -135,7 +135,7 @@ export const strategyData = {
       bullets: [
         "Currently renting a 2BHK near Whitefield and tired of paying rent with no ownership.",
         "Wants a home close to work with modern amenities and good connectivity.",
-        "Values smart home features and community living, budget is flexible up to ₹2.5Cr.",
+        "Values smart home features and community living — budget is flexible up to ₹2.5Cr.",
       ],
     },
     {
@@ -146,7 +146,7 @@ export const strategyData = {
       bullets: [
         "Looking for an investment property in Bangalore with strong rental yield and appreciation.",
         "Wants a trusted builder with RERA registration and transparent pricing.",
-        "Needs end-to-end property management since she can't visit frequently, willing to pay premium for hassle-free ownership.",
+        "Needs end-to-end property management since she can't visit frequently — willing to pay premium for hassle-free ownership.",
       ],
     },
     {
@@ -155,7 +155,7 @@ export const strategyData = {
       age: 38,
       role: "Business Owner, Family of 4 Upgrading from 2BHK",
       bullets: [
-        "Kids are growing up and need more space, current 2BHK feels cramped.",
+        "Kids are growing up and need more space — current 2BHK feels cramped.",
         "Wife wants a gated community with good amenities, swimming pool, and play area.",
         "Budget up to ₹3Cr, prefers Whitefield/Sarjapur area for proximity to schools.",
       ],
@@ -168,14 +168,14 @@ export const strategyData = {
         name: "Hero Lifestyle Shot",
         persona: "The IT Professional",
         visual: "Aerial drone shot of the project with the green deck visible, ITPL towers in background, golden hour lighting",
-        text: "Your office is 2 minutes away. Your home should feel like a resort. Godrej Air, Premium 3 & 4 BHK from ₹1.8Cr",
+        text: "Your office is 2 minutes away. Your home should feel like a resort. Godrej Air — Premium 3 & 4 BHK from ₹1.8Cr",
       },
       {
         id: "cr-2",
         name: "Price Anchor Carousel",
         persona: "The Upgrader Family",
         visual: "4-slide carousel: (1) Kitchen interior (2) Kids play area (3) Pool deck (4) Floor plan with pricing",
-        text: "Phase 3 exclusive pricing won't last. 3 BHK from ₹1.8Cr, only 42 units in this release.",
+        text: "Phase 3 exclusive pricing won't last. 3 BHK from ₹1.8Cr — only 42 units in this release.",
       },
       {
         id: "cr-3",
@@ -192,19 +192,19 @@ export const strategyData = {
         scenes: [
           { timestamp: "0-5s", description: "Drone approaching the project through tree-lined avenue" },
           { timestamp: "5-15s", description: "Walking through the zen garden, water features" },
-          { timestamp: "15-25s", description: "Interior shots, living room, kitchen, master bedroom" },
-          { timestamp: "25-35s", description: "Amenities montage, pool, gym, co-working, kids area" },
+          { timestamp: "15-25s", description: "Interior shots — living room, kitchen, master bedroom" },
+          { timestamp: "25-35s", description: "Amenities montage — pool, gym, co-working, kids area" },
           { timestamp: "35-50s", description: "Couple on balcony at sunset, Whitefield skyline visible" },
           { timestamp: "50-60s", description: "Logo, pricing, CTA: 'Book your site visit'" },
         ],
       },
     ],
     primaryTexts: [
-      "Your office is 2 mins from ITPL. Your home should feel like a Japanese retreat. Godrej Air Phase 3, Premium 3 & 4 BHK from ₹1.8Cr. Book your exclusive site visit today.",
+      "Your office is 2 mins from ITPL. Your home should feel like a Japanese retreat. Godrej Air Phase 3 — Premium 3 & 4 BHK from ₹1.8Cr. Book your exclusive site visit today.",
       "1200+ families trust Godrej. Phase 3 of Godrej Air in Whitefield is now open. Japanese-inspired architecture, 3-acre zen gardens, smart homes. Starting ₹1.8Cr. Limited units.",
-      "Stop commuting 2 hours to live in a box. Godrej Air is 2 mins from ITPL, premium 3BHK apartments with zen gardens, infinity pool, and co-working spaces. From ₹1.8Cr.",
-      "Phase 3 exclusive: Only 42 units at pre-launch pricing. Godrej Air, Whitefield, RERA approved, IGBC Gold certified. 3 & 4 BHK from ₹1.8Cr. Register now.",
-      "Your family deserves a 3-acre garden, not a 300 sqft balcony. Upgrade to Godrej Air, Whitefield's most premium address. Starting ₹1.8Cr. Possession Dec 2027.",
+      "Stop commuting 2 hours to live in a box. Godrej Air is 2 mins from ITPL — premium 3BHK apartments with zen gardens, infinity pool, and co-working spaces. From ₹1.8Cr.",
+      "Phase 3 exclusive: Only 42 units at pre-launch pricing. Godrej Air, Whitefield — RERA approved, IGBC Gold certified. 3 & 4 BHK from ₹1.8Cr. Register now.",
+      "Your family deserves a 3-acre garden, not a 300 sqft balcony. Upgrade to Godrej Air — Whitefield's most premium address. Starting ₹1.8Cr. Possession Dec 2027.",
     ],
     headlines: [
       "Premium 3BHK from ₹1.8Cr",
@@ -275,10 +275,10 @@ export const strategyData = {
   ],
 };
 
-// Step 4, Launch
+// Step 4 — Launch
 export const adAccounts = [
-  { id: "act-1", name: "Godrej Properties, Primary (act_1234567890)" },
-  { id: "act-2", name: "Godrej Properties, Backup (act_0987654321)" },
+  { id: "act-1", name: "Godrej Properties — Primary (act_1234567890)" },
+  { id: "act-2", name: "Godrej Properties — Backup (act_0987654321)" },
 ];
 
 export const facebookPages = [
@@ -327,7 +327,7 @@ export const angleData = [
     personaName: "Rahul, 34",
     painPoint: "Tired of paying rent with no ownership, long daily commute to Whitefield office",
     usp: "Premium 3BHK just 2 mins from Whitefield IT corridor, smart home ready with modern amenities",
-    hook: "Stop paying someone else's EMI, own your dream home in Whitefield",
+    hook: "Stop paying someone else's EMI — own your dream home in Whitefield",
     cta: "Book a free site visit this weekend",
     angleName: "Lifestyle Upgrade",
   },
@@ -347,7 +347,7 @@ export const angleData = [
     personaName: "Suresh, 38",
     painPoint: "Kids are growing up and need more space, current 2BHK feels cramped for family of 4",
     usp: "Spacious 3BHK with 3-acre zen gardens, swimming pool, play area, and top schools nearby",
-    hook: "Your kids deserve a garden, not a balcony, upgrade to Godrej Air",
+    hook: "Your kids deserve a garden, not a balcony — upgrade to Godrej Air",
     cta: "See the 3BHK floor plans",
     angleName: "Family-First Living",
   },
@@ -383,11 +383,11 @@ export const quickInquiryFormFields: FormField[] = [
 // ─── Campaign Structure Mock Data ───────────────────────────────────
 
 export const campaignStructureData = {
-  campaignName: "Godrej Air Phase 3, Lead Gen",
+  campaignName: "Godrej Air Phase 3 — Lead Gen",
   adSets: [
     {
       id: "as-1",
-      name: "Whitefield HNI, 30-45",
+      name: "Whitefield HNI — 30-45",
       persona: "Rahul, 34 (IT Professional)",
       targeting: { geo: "Whitefield, Bangalore (10km)", audience: "IT professionals, 30-45, income 20L+", interests: "Home buying, Real estate, Premium living" },
       dailyBudget: 3000,
@@ -396,7 +396,7 @@ export const campaignStructureData = {
     },
     {
       id: "as-2",
-      name: "NRI, Global",
+      name: "NRI — Global",
       persona: "Meera, 42 (NRI Investor)",
       targeting: { geo: "San Francisco, Dubai, Singapore, London", audience: "NRIs, 35-55, India connection", interests: "Property investment, NRI services, Bangalore real estate" },
       dailyBudget: 3000,
@@ -405,7 +405,7 @@ export const campaignStructureData = {
     },
     {
       id: "as-3",
-      name: "Family Upgraders, Sarjapur/Whitefield",
+      name: "Family Upgraders — Sarjapur/Whitefield",
       persona: "Suresh, 38 (Family Upgrader)",
       targeting: { geo: "Sarjapur Road, Whitefield, Bangalore (15km)", audience: "Families, 35-45, existing homeowners", interests: "Family living, Schools, Kids activities, Home upgrade" },
       dailyBudget: 2000,

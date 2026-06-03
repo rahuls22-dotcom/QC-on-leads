@@ -10,7 +10,7 @@ const HANDOFF_TRIGGERS: { match: RegExp; kind: GuidedKind; label: string; reason
     match: /new persona|add (a )?persona|draft (a )?persona/i,
     kind: "new-persona",
     label: "Walk through adding a new persona",
-    reason: "I'll prompt you for identity, want, pain, USP, and reach, accept or refine each.",
+    reason: "I'll prompt you for identity, want, pain, USP, and reach — accept or refine each.",
   },
   {
     match: /new angle|add (an )?angle|draft (an )?angle/i,
@@ -63,7 +63,7 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
         {
           tone: "concern",
           title: "Whitefield Locals · Interest is converting lower",
-          body: "Reach is fine but qualification rate dropped to 1.8%, buyers can't afford the price band.",
+          body: "Reach is fine but qualification rate dropped to 1.8% — buyers can't afford the price band.",
           evidence: ["QL rate 4% → 1.8%", "Verified rate 12% → 8%"],
         },
         {
@@ -89,7 +89,7 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
       type: "headline",
       verdict: "warn",
       text:
-        "You're at **127 of 320 verified leads**, 21% behind pace. Two things are stretching the gap.",
+        "You're at **127 of 320 verified leads** — 21% behind pace. Two things are stretching the gap.",
     });
     parts.push({
       type: "findings",
@@ -133,7 +133,7 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
     parts.push({
       type: "text",
       text:
-        "Kukatpally is already 56% behind goal and the audience can't afford the price band, pulling spend from there has a low cost. **A re-positioning experiment** would be better than more budget either way.",
+        "Kukatpally is already 56% behind goal and the audience can't afford the price band — pulling spend from there has a low cost. **A re-positioning experiment** would be better than more budget either way.",
     });
     return { role: "spot", parts };
   }
@@ -143,7 +143,7 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
       type: "headline",
       verdict: "warn",
       text:
-        "Pausing isn't the answer yet, your lead volume is healthy. The audience just can't afford the **₹85L–1.4Cr** band. Try the 1BHK price-hero experiment first.",
+        "Pausing isn't the answer yet — your lead volume is healthy. The audience just can't afford the **₹85L–1.4Cr** band. Try the 1BHK price-hero experiment first.",
     });
     parts.push({
       type: "findings",
@@ -184,12 +184,12 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
       items: [
         {
           tone: "concern",
-          title: "Banerghatta, fatigue, not positioning",
+          title: "Banerghatta — fatigue, not positioning",
           body: "Lookalike audiences are saturated. Refresh creatives + reallocate to Search/NRI.",
         },
         {
           tone: "concern",
-          title: "Kukatpally, positioning, not budget",
+          title: "Kukatpally — positioning, not budget",
           body:
             "Audience can't afford the band. Test 1BHK price-hero before adding spend.",
         },
@@ -198,12 +198,12 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
     return { role: "spot", parts };
   }
 
-  // Fallback, generic acknowledgement + handoff if applicable.
+  // Fallback — generic acknowledgement + handoff if applicable.
   const handoff = handoffFor(query);
   if (handoff) {
     parts.push({
       type: "text",
-      text: `I can walk you through that. I won't do it for you, every step needs your nod, but I've drafted the answer so you can refine and accept.`,
+      text: `I can walk you through that. I won't do it for you — every step needs your nod — but I've drafted the answer so you can refine and accept.`,
     });
     parts.push(handoff);
     return { role: "spot", parts };
@@ -211,7 +211,7 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
 
   parts.push({
     type: "text",
-    text: `Scoped to ${scope.label}. I don't have a canned read for that one yet, try asking about goal pace, CPL trend, persona performance, or experiments.`,
+    text: `Scoped to ${scope.label}. I don't have a canned read for that one yet — try asking about goal pace, CPL trend, persona performance, or experiments.`,
   });
   return { role: "spot", parts };
 }

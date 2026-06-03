@@ -65,7 +65,7 @@ export function CreativesFlow({
   onComplete,
 }: {
   projectId: string;
-  /** Optional, when triggered from a specific angle row, biases the focus. */
+  /** Optional — when triggered from a specific angle row, biases the focus. */
   initialAngleId?: string;
   onClose: () => void;
   /** action = "view" → open project page · "campaign" → start media plan flow */
@@ -216,20 +216,20 @@ export function CreativesFlow({
                 <SpotBubble>
                   {focusedAngleName ? (
                     <>
-                      Drafting fresh creatives, focused on the{" "}
-                      <strong>{focusedAngleName}</strong> angle. These live with your project,
+                      Drafting fresh creatives — focused on the{" "}
+                      <strong>{focusedAngleName}</strong> angle. These live with your project —
                       every campaign you launch pulls from this library.
                     </>
                   ) : isRevealing ? (
                     <>
                       Drafting <strong>{orderedTargets.length} creatives</strong> across{" "}
-                      {personaInputs.length} personas, watch each tile populate as it&apos;s ready.
+                      {personaInputs.length} personas — watch each tile populate as it&apos;s ready.
                     </>
                   ) : (
                     <>
                       Drafted <strong>{creativeCount} creatives</strong> across{" "}
                       {personaInputs.length} personas. Swap angles, refine the copy, upload your
-                      own image or video, or add more. These live with your project, every
+                      own image or video, or add more. These live with your project — every
                       campaign you launch pulls from this library.
                     </>
                   )}
@@ -280,7 +280,7 @@ export function CreativesFlow({
               <>
                 <SpotBubble>
                   <strong>Creative angles saved.</strong> {creativeCount} creatives across{" "}
-                  {project.personas.length} personas, ready to test. Want to build the media plan
+                  {project.personas.length} personas — ready to test. Want to build the media plan
                   now, or come back to it later?
                 </SpotBubble>
                 <div className="flex justify-end items-center gap-3 mt-4">

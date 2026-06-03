@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -47,22 +46,22 @@ const audiences: Audience[] = [
     status: "active", description: "High net-worth individuals in Whitefield, aged 30-55, income ₹25L+",
   },
   {
-    id: "aud-2", name: "IT Corridor, Sarjapur", source: "revspot_db",
+    id: "aud-2", name: "IT Corridor — Sarjapur", source: "revspot_db",
     size: 14200, createdAt: "2026-03-05", usedIn: ["Godrej Air Phase 3"],
     status: "active", description: "IT professionals along Sarjapur Road corridor, aged 28-45",
   },
   {
-    id: "aud-3", name: "Website Visitors, Last 30d", source: "website_visitors",
+    id: "aud-3", name: "Website Visitors — Last 30d", source: "website_visitors",
     size: 3850, createdAt: "2026-03-15", usedIn: ["Godrej Eternity"],
     status: "active", description: "Users who visited property pages in the last 30 days",
   },
   {
-    id: "aud-4", name: "CRM Lookalike, Buyers", source: "crm_lookalike",
+    id: "aud-4", name: "CRM Lookalike — Buyers", source: "crm_lookalike",
     size: 22000, createdAt: "2026-02-28", usedIn: [],
     status: "draft", description: "Lookalike of converted buyers from CRM, 1% similarity",
   },
   {
-    id: "aud-5", name: "NRI Investors, UAE+US", source: "csv_upload",
+    id: "aud-5", name: "NRI Investors — UAE+US", source: "csv_upload",
     size: 1240, createdAt: "2026-03-18", usedIn: ["Godrej Reserve"],
     status: "active", description: "NRI investors based in UAE and US, uploaded from broker network CSV",
   },
@@ -80,19 +79,9 @@ function SourceIcon({ source }: { source: AudienceSource }) {
 }
 
 // ── Create Audience Modal ───────────────────────────────────
-function CreateAudienceModal({
-  onClose,
-  initialSource,
-  initialName,
-  fromEnrichment,
-}: {
-  onClose: () => void;
-  initialSource?: AudienceSource;
-  initialName?: string;
-  fromEnrichment?: boolean;
-}) {
+function CreateAudienceModal({ onClose }: { onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
-  const [source, setSource] = useState<AudienceSource>(initialSource || "revspot_db");
+  const [source, setSource] = useState<AudienceSource>("revspot_db");
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
@@ -118,19 +107,8 @@ function CreateAudienceModal({
             {/* Name */}
             <div>
               <label className="block text-[13px] font-medium text-text-primary mb-1.5">Audience Name</label>
-              <input
-                type="text"
-                defaultValue={initialName || ""}
-                placeholder="e.g., HNI Whitefield 30-55"
-                className="w-full h-10 px-3 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary"
-              />
+              <input type="text" placeholder="e.g., HNI Whitefield 30-55" className="w-full h-10 px-3 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary" />
             </div>
-
-            {fromEnrichment && source === "csv_upload" && (
-              <div className="px-3 py-2 rounded-card bg-[#F0FDF4] border border-[#BBF7D0] text-[12px] text-[#15803D]">
-                Enriched lead set will be attached automatically. You can adjust the name above.
-              </div>
-            )}
 
             {/* Source */}
             <div>
@@ -222,42 +200,9 @@ function CreateAudienceModal({
 
 // ── Main Page ───────────────────────────────────────────────
 export default function AudiencesPage() {
-  return (
-    <Suspense fallback={null}>
-      <AudiencesPageInner />
-    </Suspense>
-  );
-}
-
-function AudiencesPageInner() {
   const { isEmpty } = useDemoMode();
-  const params = useSearchParams();
-  const fromEnrichment = params.get("source") === "enrichment";
-  const enrichmentRunId = params.get("runId");
   const [showCreate, setShowCreate] = useState(false);
   const audienceList = isEmpty ? [] : audiences;
-
-  // Auto-open Create Audience modal when arriving from an enrichment run
-  useEffect(() => {
-    if (fromEnrichment) setShowCreate(true);
-  }, [fromEnrichment]);
-
-  // Lightweight banner that confirms the enrichment handoff. Kept narrow on
-  // purpose, the modal carries the bulk of the UX.
-  const enrichmentBanner = useMemo(() => {
-    if (!fromEnrichment) return null;
-    return (
-      <div className="mb-4 px-4 py-2.5 rounded-card border border-border-subtle bg-[#FAF8F2] flex items-center gap-2.5 text-[12px]">
-        <span className="text-text-primary font-medium">From enrichment</span>
-        {enrichmentRunId && (
-          <span className="text-text-tertiary tabular-nums">#{enrichmentRunId}</span>
-        )}
-        <span className="text-text-secondary">
-         , saving these enriched leads as a new audience.
-        </span>
-      </div>
-    );
-  }, [fromEnrichment, enrichmentRunId]);
 
   return (
     <motion.div initial="hidden" animate="show" variants={fadeUp}>
@@ -270,8 +215,6 @@ function AudiencesPageInner() {
           <Plus size={15} strokeWidth={2} /> Create Audience
         </button>
       </div>
-
-      {enrichmentBanner}
 
       {/* Stats */}
       <div className="flex items-center gap-5 mb-5">
@@ -352,18 +295,7 @@ function AudiencesPageInner() {
         ))}
       </div>
 
-      {showCreate && (
-        <CreateAudienceModal
-          onClose={() => setShowCreate(false)}
-          initialSource={fromEnrichment ? "csv_upload" : undefined}
-          initialName={
-            fromEnrichment && enrichmentRunId
-              ? `Enriched · ${enrichmentRunId} · ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
-              : undefined
-          }
-          fromEnrichment={fromEnrichment}
-        />
-      )}
+      {showCreate && <CreateAudienceModal onClose={() => setShowCreate(false)} />}
     </motion.div>
   );
 }

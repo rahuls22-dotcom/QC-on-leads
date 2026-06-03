@@ -7,9 +7,9 @@ interface UploadTileProps {
   helper: string;
   /** When provided, the tile shows the "uploaded" state with this filename. */
   fileName: string | null;
-  /** Mock upload action, sets a flag in parent state. */
+  /** Mock upload action — sets a flag in parent state. */
   onUpload: () => void;
-  /** Remove the upload, sets the parent state back to null. */
+  /** Remove the upload — sets the parent state back to null. */
   onRemove: () => void;
   /** Visual identity for the placeholder accent (icon background tint). */
   tone?: "blue" | "amber";

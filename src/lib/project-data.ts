@@ -1,7 +1,7 @@
 // Rich project model used by the new Chat-Mode project pages.
 // Mirrors the prototype's PROJECT_DETAILS shape (project-data.jsx + v2 merge).
 //
-// The older `campaign-data.ts` continues to back legacy pages, this file is
+// The older `campaign-data.ts` continues to back legacy pages — this file is
 // the new source of truth for `/projects` and `/projects/[id]`.
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ export type Creative = {
   // ─── Asset lifecycle ────────────────────────────────────────────────
   /**
    * URL (or blob URL for uploads) to the actual creative asset. When
-   * absent, the creative is a **shell**, the concept exists but no
+   * absent, the creative is a **shell** — the concept exists but no
    * file has been attached yet. Shells render as placeholders and
    * cannot be launched into a campaign.
    */
@@ -92,12 +92,12 @@ export type Creative = {
 };
 
 /**
- * Derived asset state for a creative, separate from the run state
+ * Derived asset state for a creative — separate from the run state
  * (spend / live / paused / draft). Three values:
  *
- *   · "shell" , concept exists, no asset uploaded yet
- *   · "ready" , asset uploaded but no spend (not in a campaign)
- *   · "live"  , asset uploaded *and* the creative has spend / metrics
+ *   · "shell"  — concept exists, no asset uploaded yet
+ *   · "ready"  — asset uploaded but no spend (not in a campaign)
+ *   · "live"   — asset uploaded *and* the creative has spend / metrics
  */
 export type CreativeAssetState = "shell" | "ready" | "live";
 
@@ -106,7 +106,7 @@ export function creativeAssetState(c: Creative): CreativeAssetState {
   if (c.spend != null) return "live";
   // Ready = an asset has been generated or uploaded but no spend yet.
   if (c.assetSource) return "ready";
-  // Otherwise it's a shell, concept exists, no file attached.
+  // Otherwise it's a shell — concept exists, no file attached.
   return "shell";
 }
 
@@ -250,7 +250,7 @@ export type MediaPlan = {
 /**
  * A single saved-but-not-yet-deployed edit. Tracking edits this way (vs
  * direct mutation) lets the user accumulate several tweaks across
- * campaigns + ad sets and ship them as one batch, closer to how Ads
+ * campaigns + ad sets and ship them as one batch — closer to how Ads
  * Manager actually works.
  */
 export type StagedChange =
@@ -289,7 +289,7 @@ export type StagedChange =
     };
 
 /**
- * Returns the effective value for a campaign field, staged value if
+ * Returns the effective value for a campaign field — staged value if
  * present, otherwise the live value.
  *
  * The staged-change "name" field maps to MediaRow.campaign, since
@@ -336,7 +336,7 @@ export function effectiveAdSetValue<
 }
 
 /**
- * Effective value for an ad-level field, staged value if present,
+ * Effective value for an ad-level field — staged value if present,
  * otherwise the live value. Ad-level edits cover the two settings that
  * make sense to tweak from the project page: display name and run
  * status (live / paused).
@@ -419,12 +419,12 @@ export type LeadForm = {
   /**
    * When the form is the *default* for the project (used by any persona
    * that doesn't have its own form). `null` means a persona-specific
-   * form, `personaId` carries the link.
+   * form — `personaId` carries the link.
    */
   personaId: string | null;
-  /** Short status pill, drafts can't be attached to campaigns. */
+  /** Short status pill — drafts can't be attached to campaigns. */
   status: "draft" | "published";
-  /** Intro screen (optional, when blank, Meta shows the system default). */
+  /** Intro screen (optional — when blank, Meta shows the system default). */
   intro: { headline: string; body: string };
   /** Questions in the order they're shown. */
   questions: LeadFormQuestion[];
@@ -432,7 +432,7 @@ export type LeadForm = {
   privacy: string;
   /** Completion screen copy (after submit). */
   completion: { headline: string; body: string; ctaLabel: string; ctaUrl: string };
-  /** When this form was last edited, used for the list view. */
+  /** When this form was last edited — used for the list view. */
   updatedAt: string;
 };
 
@@ -501,7 +501,7 @@ function cr(
     platform,
     kind,
     spend,
-    // Seeded creatives have run, mark them as generated so the preview
+    // Seeded creatives have run — mark them as generated so the preview
     // surfaces them as proper assets rather than empty shells.
     assetSource: spend !== null ? "generated" : undefined,
     placeholderHue,
@@ -557,16 +557,16 @@ const ARISTOCRAT: ProjectDetail = {
       "Branded Italian-marble interiors as standard",
       "Sky-clubhouse on the 32nd floor of each tower",
       "300m from ITPL Gate 4 · 12 min from KR Puram metro",
-      "Lowest density in micromarket, 132 units per tower",
+      "Lowest density in micromarket — 132 units per tower",
     ],
     avoid: [
       "Investor-only framing (qualified lead rate halves)",
       "Mid-segment lookalike audiences in Bengaluru",
-      "Discount-led creative, dilutes positioning",
+      "Discount-led creative — dilutes positioning",
     ],
     attachments: [
-      { name: "Banerghatta, Brand Book.pdf", size: "8.2 MB", kind: "pdf" },
-      { name: "Floor plans, Tower A,B,C,D.pdf", size: "12.4 MB", kind: "pdf" },
+      { name: "Banerghatta — Brand Book.pdf", size: "8.2 MB", kind: "pdf" },
+      { name: "Floor plans — Tower A,B,C,D.pdf", size: "12.4 MB", kind: "pdf" },
       { name: "Site visit reel.mp4", size: "84 MB", kind: "video" },
     ],
   },
@@ -602,7 +602,7 @@ const ARISTOCRAT: ProjectDetail = {
       approved: true,
       oneLiner: "32–42 senior engineer/director at FAANG-tier company in Bengaluru East.",
       want:
-        "A larger floorplate in the same Whitefield catchment, proximity to ITPL, better school zone, more square-footage for the family.",
+        "A larger floorplate in the same Whitefield catchment — proximity to ITPL, better school zone, more square-footage for the family.",
       painPoint:
         "Currently in a ₹1.6Cr 3 BHK that's outgrown the family. Doesn't want to commute further; doesn't want to compromise on amenities.",
       usp:
@@ -635,7 +635,7 @@ const ARISTOCRAT: ProjectDetail = {
           id: "a-p1-2",
           name: "School-Zone Story",
           status: "live",
-          hook: "VIBGYOR, Greenwood, Inventure, all within 3km.",
+          hook: "VIBGYOR, Greenwood, Inventure — all within 3km.",
           cta: "See the school radius",
           concept: {
             hue: 200,
@@ -707,7 +707,7 @@ const ARISTOCRAT: ProjectDetail = {
       share: 18,
       approved: true,
       oneLiner: "Senior Mumbai/BLR banker with kids in college, looking for a downsizer-luxury 3BHK.",
-      want: "A smaller, branded apartment with great amenities, kids are leaving for college soon.",
+      want: "A smaller, branded apartment with great amenities — kids are leaving for college soon.",
       painPoint: "Has the budget; wants prestige and zero maintenance hassle.",
       usp: "Lowest density per tower, 1:1 servicing, branded everything.",
       demographics: ["46–54", "HHI ₹1.5Cr+", "Owns 2+ properties", "South BLR / SoBo"],
@@ -742,7 +742,7 @@ const ARISTOCRAT: ProjectDetail = {
       approved: false,
       draft: true,
       oneLiner: "Recent exit, looking for a primary home in BLR with status signal.",
-      want: "A primary residence that signals 'arrived', without going overboard.",
+      want: "A primary residence that signals 'arrived' — without going overboard.",
       painPoint: "Doesn't want SoBo prices. Wants the right address in BLR.",
       usp: "Branded interiors, 12-min metro access, low density.",
       demographics: ["35–44", "HHI ₹3Cr+", "Recent liquidity event"],
@@ -752,7 +752,7 @@ const ARISTOCRAT: ProjectDetail = {
       verifiedLeads: 14,
       cpvl: "₹9,100",
       spotNote:
-        "Drafted from your last 4 weeks of leads, 11 of 27 qualified buyers matched this profile and aren't represented in your existing personas. **Recommend approving and running a 10-day pilot.**",
+        "Drafted from your last 4 weeks of leads — 11 of 27 qualified buyers matched this profile and aren't represented in your existing personas. **Recommend approving and running a 10-day pilot.**",
       angles: [
         {
           id: "a-p4-1",
@@ -777,13 +777,13 @@ const ARISTOCRAT: ProjectDetail = {
       principles: [
         "Real photography over CGI for amenities (verified leads 1.4× when authentic)",
         "Wide-angle floorplate shots beat balcony-view shots in qualification",
-        "Avoid skyline composites, flagged in brand audit",
+        "Avoid skyline composites — flagged in brand audit",
       ],
     },
     proofPoints: [
       "38% sold in 10 weeks",
       "Cleared RERA Phase-1 funding milestone",
-      "Recognized 'Best Luxury Launch 2026', Realty+ Awards",
+      "Recognized 'Best Luxury Launch 2026' — Realty+ Awards",
     ],
   },
 
@@ -832,7 +832,7 @@ const ARISTOCRAT: ProjectDetail = {
             expVerified: 2.0,
             cpvl: 6000,
             status: "live",
-            spotChange: "Pause, CPL +44% this week",
+            spotChange: "Pause — CPL +44% this week",
             ads: [
               { id: "ad-m1-b1", name: "School-Zone · 4:5", personaId: "p1", angleIdx: 1, status: "live", spend: 22000, leads: 17, cpl: 1294 },
             ],
@@ -986,7 +986,7 @@ const ARISTOCRAT: ProjectDetail = {
       ],
       progress: 0,
       readout:
-        "Spot drafted this from your last 30 days, Reels creatives index 1.4× on hook rate but only 0.8× on lead-rate. Worth 7-day pilot.",
+        "Spot drafted this from your last 30 days — Reels creatives index 1.4× on hook rate but only 0.8× on lead-rate. Worth 7-day pilot.",
       decision: null,
       owner: "Spot",
     },
@@ -1001,7 +1001,7 @@ const ARISTOCRAT: ProjectDetail = {
   ],
 };
 
-// ─── Seed: Godrej Kukatpally (underperforming, slim) ────────────────────
+// ─── Seed: Godrej Kukatpally (underperforming — slim) ────────────────────
 
 const SPLENDOUR: ProjectDetail = {
   id: "godrej-kukatpally",
@@ -1032,7 +1032,7 @@ const SPLENDOUR: ProjectDetail = {
     ],
     avoid: ["Direct comparison with Banerghatta", "Aspirational-luxury framing"],
     attachments: [
-      { name: "Kukatpally, Brand Brief.pdf", size: "5.4 MB", kind: "pdf" },
+      { name: "Kukatpally — Brand Brief.pdf", size: "5.4 MB", kind: "pdf" },
     ],
   },
 
@@ -1047,7 +1047,7 @@ const SPLENDOUR: ProjectDetail = {
     paceDelta: "−56%",
     forecast: 64,
     spotRead:
-      "Lead volume is healthy (1,240) but only **3% qualify**, the audience can't afford the price band. Recommend testing a **shift to first-time-buyer messaging at lower ticket sizes**, or pausing and re-thinking the offer.",
+      "Lead volume is healthy (1,240) but only **3% qualify** — the audience can't afford the price band. Recommend testing a **shift to first-time-buyer messaging at lower ticket sizes**, or pausing and re-thinking the offer.",
   },
 
   secondary: [
@@ -1111,7 +1111,7 @@ const SPLENDOUR: ProjectDetail = {
       verifiedLeads: 6,
       cpvl: "₹9,400",
       spotNote:
-        "**Recommend approving and testing.** Last week's 27 qualified buyers map cleanly onto this persona, there's room here, but you're not actively selling to them.",
+        "**Recommend approving and testing.** Last week's 27 qualified buyers map cleanly onto this persona — there's room here, but you're not actively selling to them.",
       angles: [],
     },
   ],
@@ -1150,7 +1150,7 @@ const SPLENDOUR: ProjectDetail = {
         expVerified: 2.5,
         cpvl: 5600,
         status: "live",
-        spotChange: "Pause, 3% qualification rate flat for 21 days",
+        spotChange: "Pause — 3% qualification rate flat for 21 days",
         adSets: [],
       },
     ],
@@ -1177,7 +1177,7 @@ const SPLENDOUR: ProjectDetail = {
       ],
       progress: 0,
       readout:
-        "Spot drafted this, your lead volume is fine but they can't afford 2BHK. **Worth a 10-day pilot at ₹3K/day.**",
+        "Spot drafted this — your lead volume is fine but they can't afford 2BHK. **Worth a 10-day pilot at ₹3K/day.**",
       decision: null,
       owner: "Spot",
     },
@@ -1219,7 +1219,7 @@ const ARDEN: ProjectDetail = {
       "Lowest density tower in Sector 80",
     ],
     avoid: ["Investor framing", "Comparison with Whitefield"],
-    attachments: [{ name: "Arden, Brand Book.pdf", size: "7.4 MB", kind: "pdf" }],
+    attachments: [{ name: "Arden — Brand Book.pdf", size: "7.4 MB", kind: "pdf" }],
   },
   goal: {
     kind: "verified",
@@ -1284,7 +1284,7 @@ const RESERVE: ProjectDetail = {
       "Premium MMR offering on the Western suburbs. Lead with **forest-edge** and Mumbai-vs-Thane price arbitrage.",
     usp: ["Backs onto Sanjay Gandhi National Park", "10 min to Borivali station", "Italian-marble interiors as standard"],
     avoid: ["Direct Mumbai price comparisons", "Investor framing"],
-    attachments: [{ name: "Reserve, Brand Brief.pdf", size: "6.1 MB", kind: "pdf" }],
+    attachments: [{ name: "Reserve — Brand Brief.pdf", size: "6.1 MB", kind: "pdf" }],
   },
   goal: {
     kind: "verified",
@@ -1297,7 +1297,7 @@ const RESERVE: ProjectDetail = {
     paceDelta: "+4%",
     forecast: 352,
     spotRead:
-      "Holding pace, projected 352 / 360 by Jun 30. The forest-edge hook is your winner; lookalike audiences are still cheap.",
+      "Holding pace — projected 352 / 360 by Jun 30. The forest-edge hook is your winner; lookalike audiences are still cheap.",
   },
   secondary: [
     { label: "Total leads", value: 2140, sub: "no target" },
@@ -1310,7 +1310,7 @@ const RESERVE: ProjectDetail = {
     updated: "Mar 22, 2026",
     tone: { is: ["Calm", "Premium", "Specific"], isNot: ["Hype-led", "Discount-led"] },
     visualSystem: { palette: ["#0A0A0A", "#15803D", "#C9A86A", "#FAFAF8"], principles: ["Real forest photography", "Avoid CGI skyline composites"] },
-    proofPoints: ["41% sold in 12 months", "Recognized 'Best Premium Launch 2025', MMR"],
+    proofPoints: ["41% sold in 12 months", "Recognized 'Best Premium Launch 2025' — MMR"],
   },
   mediaPlan: {
     window: "Week of May 12 → May 18",
@@ -1348,7 +1348,7 @@ const VARANYA: ProjectDetail = {
       "Luxury Pune launch targeting senior tech leads at the Hinjewadi/Kharadi tech corridor. **Brand-led trust** is the wedge.",
     usp: ["Branded interiors standard", "14 min to Hinjewadi", "Lowest density per tower"],
     avoid: ["NRI framing (no NRI brief yet)", "Discount-led copy"],
-    attachments: [{ name: "Varanya, Brand Book.pdf", size: "9.1 MB", kind: "pdf" }],
+    attachments: [{ name: "Varanya — Brand Book.pdf", size: "9.1 MB", kind: "pdf" }],
   },
   goal: {
     kind: "verified",
@@ -1405,7 +1405,7 @@ export const projectsList: ProjectSummary[] = Object.values(projectDetails).map(
 
 /**
  * Runtime store for projects created through the in-app flow. Lives in
- * module memory only, refreshing the page resets it. Reads merge with
+ * module memory only — refreshing the page resets it. Reads merge with
  * the static seed data.
  */
 const runtimeProjects: Map<string, ProjectDetail> = new Map();
@@ -1425,7 +1425,7 @@ export function getProject(id: string): ProjectDetail | undefined {
 
 /**
  * Has this project produced any signal yet? Used to decide whether the
- * Dashboard tab is worth showing, a brand-new project has no spend,
+ * Dashboard tab is worth showing — a brand-new project has no spend,
  * no impressions, no leads, and no live campaigns, so the Dashboard
  * would just render zeros. We hide it in that state and let the user
  * land on Personas instead.
