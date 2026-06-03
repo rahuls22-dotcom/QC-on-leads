@@ -8,7 +8,7 @@ type CardStatus = "good" | "warning" | "bad" | "neutral";
 interface MetricCardProps {
   label: string;
   value: string | number;
-  /** Previous period value: "₹5.9L", "104", shown as "was ₹5.9L" */
+  /** Previous period value: "₹5.9L", "104" — shown as "was ₹5.9L" */
   previous?: string | number;
   /** Absolute change as chip: "+23", "-₹62", "+₹90K" */
   delta?: string;
@@ -98,7 +98,7 @@ export function MetricCard({
         </div>
       )}
 
-      {/* Row 4: Previous, pushed to bottom */}
+      {/* Row 4: Previous — pushed to bottom */}
       <div className="mt-auto pt-1">
         {previous !== undefined && (
           <div className="text-[10px] text-text-tertiary tabular-nums">

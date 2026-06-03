@@ -41,7 +41,7 @@ export function AnalysisTab({ agentConnected = true }: { agentConnected?: boolea
         <DateRangeSelector compact />
       </div>
 
-      {/* 5 metric cards, full width row */}
+      {/* 5 metric cards — full width row */}
       <div className="grid grid-cols-5 gap-2.5">
         <MetricCard label="Spend" value="₹2.2L" previous="₹1.74L"
           delta="+₹46K" tooltip="Total amount spent in the selected period."
@@ -86,7 +86,7 @@ export function AnalysisTab({ agentConnected = true }: { agentConnected?: boolea
 
       {/* Unified: Funnel + Health in one strip */}
       <div className="bg-white border border-border rounded-card px-5 py-2.5 flex items-center">
-        {/* Funnel, left side */}
+        {/* Funnel — left side */}
         <span className="text-[9px] font-medium text-text-tertiary uppercase tracking-[0.5px] mr-3 shrink-0">Funnel</span>
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {funnelStages.map((stage, i) => {
@@ -117,7 +117,7 @@ export function AnalysisTab({ agentConnected = true }: { agentConnected?: boolea
         {/* Divider */}
         <div className="w-px h-5 bg-border mx-4 shrink-0" />
 
-        {/* Health, right side */}
+        {/* Health — right side */}
         <span className="text-[9px] font-medium text-text-tertiary uppercase tracking-[0.5px] mr-2.5 shrink-0">Health</span>
         <div className="flex items-center gap-4 shrink-0">
           {healthIndicators.map((h) => (

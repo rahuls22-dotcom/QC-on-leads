@@ -1,14 +1,14 @@
 // Campaign-type taxonomy. Every media plan in this product is built from
 // these four canonical Meta-playbook types, in this order:
 //
-//   1. Experiment  , broad audience + creative exploration
-//   2. Scaling     , pour budget into proven winners
-//   3. Cost / Bid cap, predictable CPL under a ceiling
-//   4. Advantage+  , hand audience + placement to Meta's auto
+//   1. Experiment   — broad audience + creative exploration
+//   2. Scaling      — pour budget into proven winners
+//   3. Cost / Bid cap — predictable CPL under a ceiling
+//   4. Advantage+   — hand audience + placement to Meta's auto
 //
 // (The original prototype in chat-mode-handoff/.../campaign-types.jsx also
 // listed Re-marketing as a fifth type. We deliberately drop it here per
-// product direction, the four above are the standard structure.)
+// product direction — the four above are the standard structure.)
 
 export type CampaignTypeId = "experiment" | "scaling" | "cost-cap" | "advantage-plus";
 
@@ -108,7 +108,7 @@ export const CAMPAIGN_TYPES: CampaignType[] = [
     short: "Scaling",
     tagline: "Scale spend on the audiences and creatives that already work.",
     description:
-      "Mirrors the winning ad sets from Experiment at higher daily budget. No new audiences, only proven combinations.",
+      "Mirrors the winning ad sets from Experiment at higher daily budget. No new audiences — only proven combinations.",
     accent: "#15803D",
     objective: "Lead generation",
     bidStrategy: "Lowest cost · no cap",
@@ -120,7 +120,7 @@ export const CAMPAIGN_TYPES: CampaignType[] = [
         id: id("as-sca", 0),
         name: "Top performer · proven LAL",
         audience:
-          "Mirror of the winning Lookalike from Experiment, same seed, higher budget",
+          "Mirror of the winning Lookalike from Experiment — same seed, higher budget",
         optimization: "Verified leads",
         budgetDaily: 18000,
         personaId: personas[0]?.id,
@@ -129,7 +129,7 @@ export const CAMPAIGN_TYPES: CampaignType[] = [
         id: id("as-sca", 1),
         name: "Top performer · proven Interest",
         audience:
-          "Mirror of the winning Interest stack from Experiment, same combination, higher budget",
+          "Mirror of the winning Interest stack from Experiment — same combination, higher budget",
         optimization: "Verified leads",
         budgetDaily: 12000,
       },
@@ -139,7 +139,7 @@ export const CAMPAIGN_TYPES: CampaignType[] = [
     id: "cost-cap",
     name: "Cost / Bid cap campaign",
     short: "Cost / Bid Cap",
-    tagline: "Keep CPL under a hard ceiling, predictable cost per lead.",
+    tagline: "Keep CPL under a hard ceiling — predictable cost per lead.",
     description:
       "Same audiences as Scaling but with a CPL ceiling enforced. Used when the team needs a known cost per lead even at the price of volume.",
     accent: "#1E5BFF",

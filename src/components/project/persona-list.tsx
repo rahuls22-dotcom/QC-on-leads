@@ -5,7 +5,7 @@ import type { Persona } from "@/lib/project-data";
 import { PersonaAvatar } from "./persona-workspace";
 
 /**
- * Compact persona-list, the left pane of the Personas tab. One row per
+ * Compact persona-list — the left pane of the Personas tab. One row per
  * persona, light enough to glance through. Clicking a row swaps the
  * workspace on the right; no other state.
  */
@@ -24,7 +24,7 @@ export function PersonaList({
         className="card-base p-4 text-center text-[12px] text-text-tertiary"
         style={{ background: "var(--bg-page)" }}
       >
-        No personas yet, draft one with Spot above.
+        No personas yet — draft one with Spot above.
       </div>
     );
   }

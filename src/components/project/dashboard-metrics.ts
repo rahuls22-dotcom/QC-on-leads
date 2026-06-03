@@ -3,13 +3,13 @@ import type { ProjectDetail } from "@/lib/project-data";
 /**
  * Dashboard metric & time-series synthesis at the **project level**.
  *
- * Operational/TOFU metrics like CPM, CPC, CTR, which only make sense at
- * the ad / ad-set / creative level, live in the Campaigns tab and the
+ * Operational/TOFU metrics like CPM, CPC, CTR — which only make sense at
+ * the ad / ad-set / creative level — live in the Campaigns tab and the
  * persona winning-concept row. The Dashboard sticks to business outcomes:
  *
- *   · Outcomes, what the goal is measured against
- *   · Pipeline, funnel conversion + cost-per-outcome
- *   · Spend & pacing, burn, runway, days to goal
+ *   · Outcomes — what the goal is measured against
+ *   · Pipeline — funnel conversion + cost-per-outcome
+ *   · Spend & pacing — burn, runway, days to goal
  *
  * Time-series is synthesized deterministically per (projectId, metricKey)
  * so refresh doesn't churn the chart.
@@ -39,14 +39,14 @@ export type MetricDef = {
 };
 
 export const METRIC_DEFS: MetricDef[] = [
-  // Outcomes, the goal-level numbers
+  // Outcomes — the goal-level numbers
   {
     key: "verified",
     label: "Verified leads",
     unit: "raw",
     category: "outcome",
     higherIsBetter: true,
-    hint: "Leads that passed verification, your goal metric for most projects.",
+    hint: "Leads that passed verification — your goal metric for most projects.",
   },
   {
     key: "qualified",
@@ -73,14 +73,14 @@ export const METRIC_DEFS: MetricDef[] = [
     hint: "Spend ÷ qualified leads. Sales-readiness efficiency.",
   },
 
-  // Pipeline, business-level funnel (no impressions/CTR/CPM)
+  // Pipeline — business-level funnel (no impressions/CTR/CPM)
   {
     key: "leads",
     label: "Total leads",
     unit: "raw",
     category: "pipeline",
     higherIsBetter: true,
-    hint: "All leads captured, before verification or qualification.",
+    hint: "All leads captured — before verification or qualification.",
   },
   {
     key: "cpl",
@@ -109,7 +109,7 @@ export const METRIC_DEFS: MetricDef[] = [
 ];
 
 /**
- * Total spend isn't a tile any more, it lives on the pacing strip at the
+ * Total spend isn't a tile any more — it lives on the pacing strip at the
  * top of the Dashboard. Exposed as a separate helper for that strip.
  */
 export function computeTotalSpend(project: ProjectDetail): number {
@@ -121,7 +121,7 @@ export const METRICS_BY_KEY = new Map(METRIC_DEFS.map((m) => [m.key, m]));
 export type MetricSnapshot = {
   def: MetricDef;
   current: number | null;
-  /** Avg over the previous 7 days vs the trailing 7, sign + magnitude. */
+  /** Avg over the previous 7 days vs the trailing 7 — sign + magnitude. */
   delta: { pct: number; sign: "up" | "down" | "flat" } | null;
   /** 14 points, oldest → newest. */
   series: number[];

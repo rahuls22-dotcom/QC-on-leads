@@ -9,14 +9,14 @@ import { formatMetric } from "./dashboard-metrics";
  * Two pure-SVG chart primitives + a multi-metric comparison chart for
  * the Dashboard:
  *
- *   · Sparkline      , slim 14-pt line on tiles
- *   · LargeChart     , single-metric expanded chart
- *   · ComparisonChart, up to 4 metrics on one chart, normalized to their
+ *   · Sparkline       — slim 14-pt line on tiles
+ *   · LargeChart      — single-metric expanded chart
+ *   · ComparisonChart — up to 4 metrics on one chart, normalized to their
  *                       own ranges, with a shared X axis, color-coded
  *                       legend, and a vertical hover guide that shows
  *                       every series' actual value at the hovered day.
  *
- * No charting library, keeps the bundle slim and visuals consistent.
+ * No charting library — keeps the bundle slim and visuals consistent.
  */
 
 // ─── Sparkline ──────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ export function ComparisonChart({
 }: {
   snapshots: MetricSnapshot[];
   colors: string[];
-  /** Optional remove callback per snapshot, when present, the legend
+  /** Optional remove callback per snapshot — when present, the legend
    * shows an X next to each entry. */
   onRemove?: (key: string) => void;
 }) {
@@ -175,7 +175,7 @@ export function ComparisonChart({
           setHover(best);
         }}
       >
-        {/* Horizontal gridlines (top, mid, bottom), purely decorative since
+        {/* Horizontal gridlines (top, mid, bottom) — purely decorative since
             we don't share a Y scale across metrics. */}
         {[0, 0.5, 1].map((t) => (
           <line
@@ -256,7 +256,7 @@ export function ComparisonChart({
         )}
       </svg>
 
-      {/* Tooltip, shows every series' actual value at the hovered day */}
+      {/* Tooltip — shows every series' actual value at the hovered day */}
       {hover != null && (
         <div
           className="absolute rounded-[7px] px-2.5 py-2 pointer-events-none"

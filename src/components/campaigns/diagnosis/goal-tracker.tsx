@@ -147,7 +147,7 @@ function FunnelGoalCard({ label, goal }: { label: string; goal: FunnelGoal }) {
         <div className="flex items-start gap-1.5 text-[12px] text-[#92400E] bg-[#FEF3C7]/40 rounded-button px-2 py-1.5">
           <Info size={12} strokeWidth={1.5} className="mt-0.5 shrink-0" />
           <span className="leading-relaxed">
-            BOFU data not yet available, connect a voice agent.
+            BOFU data not yet available — connect a voice agent.
           </span>
         </div>
       </div>
@@ -184,7 +184,7 @@ function BudgetTimeCard({
         </span>
       </div>
 
-      {/* Stacked bar, budget vs time */}
+      {/* Stacked bar — budget vs time */}
       <div className="space-y-1 mb-1">
         <div className="flex items-center gap-1.5">
           <span className="w-9 text-[9px] font-semibold text-text-tertiary uppercase tracking-[0.4px]">
@@ -225,7 +225,7 @@ function BudgetTimeCard({
           </span>
         ) : pacingIndex < 0.9 ? (
           <span className="text-[#92400E] font-semibold">
-            Underspending, {((1 - pacingIndex) * 100).toFixed(0)}% slower than time
+            Underspending — {((1 - pacingIndex) * 100).toFixed(0)}% slower than time
           </span>
         ) : (
           <span className="text-[#15803D] font-semibold">On pace</span>

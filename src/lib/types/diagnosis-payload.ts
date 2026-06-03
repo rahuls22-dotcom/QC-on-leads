@@ -36,7 +36,7 @@ export type AdsetStance = "scale" | "hold" | "reduce" | "pause";
 
 export interface StatusStripData {
   verdict: Verdict;
-  /** 5–10 words. e.g. "Near Target, projecting 250 of 300 leads". */
+  /** 5–10 words. e.g. "Near Target — projecting 250 of 300 leads". */
   headline: string;
   days_live: number;
   days_total: number;
@@ -48,7 +48,7 @@ export interface NextBestAction {
   id: string; // "nba-1"
   verb: ActionVerb;
   color: ActionColor;
-  /** Verb + object, e.g. "Pause Broad Bangalore, 25-55". */
+  /** Verb + object, e.g. "Pause Broad Bangalore — 25-55". */
   headline: string;
   /** One line citing 2–3 actual numbers from the input. */
   reason: string;
@@ -93,7 +93,7 @@ export interface AdsetAllocation {
   spend_share_pct: number;
   lead_share_pct: number;
   qualified_share_pct: number | null;
-  /** lead_share / spend_share, > 1 punches above its weight. */
+  /** lead_share / spend_share — > 1 punches above its weight. */
   efficiency_ratio: number;
   stance: AdsetStance;
 }

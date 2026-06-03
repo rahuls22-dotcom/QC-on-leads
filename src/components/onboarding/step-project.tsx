@@ -71,7 +71,7 @@ export function StepProject({ importedCampaigns, onNext, onBack }: StepProjectPr
         </h2>
         <p className="text-[14px] text-text-secondary">
           {hasCampaigns
-            ? "Organize your imported campaigns into projects, one per property."
+            ? "Organize your imported campaigns into projects — one per property."
             : "A project groups everything for one property in one place."}
         </p>
       </div>

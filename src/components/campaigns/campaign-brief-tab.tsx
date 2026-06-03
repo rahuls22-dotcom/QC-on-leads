@@ -148,7 +148,7 @@ export function CampaignBriefTab() {
             {/* Stat cards */}
             <div className="grid grid-cols-4 gap-3">
               <StatCard icon={Target} label="Objective" value={objective} sub={`${targetCount} target`} />
-              <StatCard icon={Calendar} label="Duration" value={`${durationDays} days`} sub={`${startDate}, ${endDate}`} />
+              <StatCard icon={Calendar} label="Duration" value={`${durationDays} days`} sub={`${startDate} — ${endDate}`} />
               <StatCard
                 icon={Wallet}
                 label="Budget"
@@ -376,7 +376,7 @@ export function CampaignBriefTab() {
                 <span className="block text-[11px] text-text-secondary leading-relaxed max-w-[520px]">
                   {aiOptimizationOn
                     ? "AI is monitoring performance and reallocating budget across ad sets to minimize CPL."
-                    : "Disabled, budget is fixed as configured at launch."}
+                    : "Disabled — budget is fixed as configured at launch."}
                 </span>
               </div>
               <span

@@ -30,9 +30,9 @@ type Stage = "intent" | "brief" | "personas" | "ready";
 /**
  * Items living in Spot's visual-memory knowledge base. Two flavours:
  *
- * - `source: "extracted"`, surfaced by deep research. No real URL; we
+ * - `source: "extracted"` — surfaced by deep research. No real URL; we
  *   render a hue-tinted gradient placeholder.
- * - `source: "uploaded"`, the user dropped from their laptop. A blob
+ * - `source: "uploaded"` — the user dropped from their laptop. A blob
  *   URL is set and we render the real preview.
  */
 type ProjectImage = {
@@ -176,7 +176,7 @@ const SEED: Draft = {
   keyUSPs: [
     "Branded Italian-marble interiors as standard",
     "Sky-clubhouse on the 28th floor with infinity pool",
-    "Lowest density in Kharadi, 4 units per floor",
+    "Lowest density in Kharadi — 4 units per floor",
     "Smart-home automation pre-installed",
   ],
   locationProximity: [
@@ -256,7 +256,7 @@ function FileDropArea({
         Attach anything <span className="text-text-tertiary normal-case">(optional)</span>
       </div>
 
-      {/* The whole zone is the dropzone, empty state is a tall, obvious target;
+      {/* The whole zone is the dropzone — empty state is a tall, obvious target;
           once files are added it shrinks to a compact list with a footer rail. */}
       <div
         onDragOver={(e) => {
@@ -323,7 +323,7 @@ function FileDropArea({
               {dragOver ? "Release to attach" : "Drop files here"}
             </div>
             <div className="text-[11.5px] text-text-tertiary leading-[1.5] max-w-[320px]">
-              Brand book, brochure deck, site plan, listing PDF, anything you
+              Brand book, brochure deck, site plan, listing PDF — anything you
               have. Or{" "}
               <span
                 className="font-medium"
@@ -516,7 +516,7 @@ function KnowledgeBaseGrid({
                 )
               ) : null}
 
-              {/* Type badge, click to cycle */}
+              {/* Type badge — click to cycle */}
               <button
                 type="button"
                 onClick={() => cycleKind(img)}
@@ -630,7 +630,7 @@ function DraftCard({
 }
 
 /**
- * Tighter field for dense grids, the input has a soft underline on hover
+ * Tighter field for dense grids — the input has a soft underline on hover
  * rather than the heavier framed look. Used in the brief stage where many
  * facts share one card.
  */
@@ -891,7 +891,7 @@ function PersonaSkeleton() {
   );
 }
 
-// Persona prompt presets, used to "draft" a new persona from free-text.
+// Persona prompt presets — used to "draft" a new persona from free-text.
 // In a real app this would hit an LLM; for the prototype we keep a small
 // rotating pool of plausible fills.
 const PROMPT_PERSONA_POOL: Omit<PersonaDraft, "id">[] = [
@@ -902,7 +902,7 @@ const PROMPT_PERSONA_POOL: Omit<PersonaDraft, "id">[] = [
     want:
       "A high-quality apartment that earns rental yield today and becomes a home base when family visits.",
     painPoint:
-      "Trust gap on remote purchases, construction risk, rental management, repatriation rules.",
+      "Trust gap on remote purchases — construction risk, rental management, repatriation rules.",
     solution:
       "RERA-cleared with milestones · managed-rental partner · yield calculator on the listing page.",
     hhi: "$220K+",
@@ -914,7 +914,7 @@ const PROMPT_PERSONA_POOL: Omit<PersonaDraft, "id">[] = [
     age: "39",
     role: "Sold a company · settling back in India",
     want:
-      "A primary residence that signals 'arrived' without going overboard, branded, low-density, close to schools.",
+      "A primary residence that signals 'arrived' without going overboard — branded, low-density, close to schools.",
     painPoint:
       "Doesn't want SoBo prices. Wants the right address with brand assurance and no construction surprises.",
     solution:
@@ -928,7 +928,7 @@ const PROMPT_PERSONA_POOL: Omit<PersonaDraft, "id">[] = [
     age: "46",
     role: "MD / VP at an investment bank",
     want:
-      "A smaller, branded apartment with great amenities, kids are leaving for college, downsizing makes sense.",
+      "A smaller, branded apartment with great amenities — kids are leaving for college, downsizing makes sense.",
     painPoint:
       "Has the budget; wants prestige + zero maintenance hassle. Sceptical of generic 'luxury' branding.",
     solution:
@@ -975,7 +975,7 @@ const PERSONA_REVEAL_FIELDS: Array<keyof PersonaDraft> = [
   "geo",
 ];
 
-// Progressive persona reveal, Spot "discovers" personas one by one,
+// Progressive persona reveal — Spot "discovers" personas one by one,
 // each appearing with a skeleton → real card transition.
 function ProgressivePersonas({
   personas,
@@ -1123,7 +1123,7 @@ function ProgressivePersonas({
           >
             <SpotMark size={16} style={{ flexShrink: 0, marginTop: 2 }} />
             <div className="text-[12.5px] leading-[1.5]">
-              Describe a persona in a sentence or two, who they are, what they want, what&apos;s
+              Describe a persona in a sentence or two — who they are, what they want, what&apos;s
               holding them back. I&apos;ll fill in the details.
             </div>
           </div>
@@ -1202,7 +1202,7 @@ function StreamingPersonaCard({
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
         <SpotMark size={14} />
         <span className="text-[11.5px] text-text-secondary">
-          Drafting your persona, {Math.min(revealedFields, fields.length)} of {fields.length}{" "}
+          Drafting your persona — {Math.min(revealedFields, fields.length)} of {fields.length}{" "}
           fields…
         </span>
         <span className="flex gap-1 ml-auto">
@@ -1270,7 +1270,7 @@ export function CreateProjectFlow({
 
   /**
    * Build + persist the new project in the runtime store, returning its id.
-   * Idempotent across both completion paths (view / creatives), we cache
+   * Idempotent across both completion paths (view / creatives) — we cache
    * the created id on the ref so re-clicking the same CTA doesn't dupe.
    */
   const persistedIdRef = useRef<string | null>(null);
@@ -1323,7 +1323,7 @@ export function CreateProjectFlow({
 
   // Auto mode: when enabled, the agent advances stages without waiting for
   // a click. We stop at the Ready screen and then auto-trigger the "Build
-  // creative angles" CTA, after that, CreativesFlow runs its own generation
+  // creative angles" CTA — after that, CreativesFlow runs its own generation
   // and stops at its ready screen, where manual approval kicks in again.
   //
   // We hold the running timer on a ref so toggling Auto off mid-stride
@@ -1344,7 +1344,7 @@ export function CreateProjectFlow({
       if (stage === "ready") {
         // Trigger the "Build creative angles" CTA programmatically
         const id = persistProject();
-        showToast("Auto mode, drafting creative angles next");
+        showToast("Auto mode — drafting creative angles next");
         onComplete(id, "creatives");
         return;
       }
@@ -1492,8 +1492,8 @@ export function CreateProjectFlow({
           {stage === "intent" && (
             <>
               <SpotBubble>
-                Let&apos;s set up your project. Name it, drop anything you have, a brand book,
-                listing link, anything, and I&apos;ll scan the web for the rest.
+                Let&apos;s set up your project. Name it, drop anything you have — a brand book,
+                listing link, anything — and I&apos;ll scan the web for the rest.
               </SpotBubble>
               <DraftCard hideLabel>
                 {/* Project name */}
@@ -1556,7 +1556,7 @@ export function CreateProjectFlow({
                 <div className="flex items-start gap-1.5 mt-3 text-[11px] text-text-tertiary leading-[1.5]">
                   <Sparkles size={11} style={{ color: "#B98A14", flexShrink: 0, marginTop: 2 }} />
                   <span>
-                    Spot will research the web too, RERA registry, builder pages, comparable
+                    Spot will research the web too — RERA registry, builder pages, comparable
                     launches in the same micromarket.
                   </span>
                 </div>
@@ -1609,7 +1609,7 @@ export function CreateProjectFlow({
                   }}
                 >
                   <Sparkles size={11} />{" "}
-                  {researching ? "Researching…" : "Continue, research project →"}
+                  {researching ? "Researching…" : "Continue — research project →"}
                 </button>
               </div>
             </>
@@ -1637,11 +1637,11 @@ export function CreateProjectFlow({
             return (
               <>
                 <SpotBubble>
-                  Here&apos;s what I pulled together. Verify each section, these go into my
+                  Here&apos;s what I pulled together. Verify each section — these go into my
                   memory and shape every persona and creative from now on.
                 </SpotBubble>
 
-                {/* Knowledge-base section header, frames the two cards below as
+                {/* Knowledge-base section header — frames the two cards below as
                     the agent's persistent memory for this project. */}
                 <div
                   className="rounded-[12px] mb-4 fadeUp"
@@ -1679,7 +1679,7 @@ export function CreateProjectFlow({
                       </div>
                       <div className="text-[11.5px] text-text-secondary leading-[1.55]">
                         Project facts (below) and visual references (further below)
-                        are what Spot remembers. Edit anything that&apos;s wrong, every
+                        are what Spot remembers. Edit anything that&apos;s wrong — every
                         persona, ad and recommendation downstream uses this.
                       </div>
                     </div>
@@ -1828,7 +1828,7 @@ export function CreateProjectFlow({
                     Back
                   </button>
                   <button type="button" className="apply-btn" onClick={next}>
-                    Looks right, draft personas →
+                    Looks right — draft personas →
                   </button>
                 </div>
               </>
@@ -1840,7 +1840,7 @@ export function CreateProjectFlow({
               <SpotBubble>
                 Drafting personas from your brief, the goal you set, and what&apos;s worked for
                 similar Pune luxury launches. Each one uses a <strong>Want / Pain / Solution</strong>{" "}
-                frame, Pain and Solution stay fixed across creative; only hook and CTA flex per ad.
+                frame — Pain and Solution stay fixed across creative; only hook and CTA flex per ad.
                 Remove any that don&apos;t fit, edit inline, or add another.
               </SpotBubble>
               <ProgressivePersonas
@@ -1861,7 +1861,7 @@ export function CreateProjectFlow({
                   onClick={next}
                   disabled={personaCount === 0}
                 >
-                  Looks good, what about images? →
+                  Looks good — what about images? →
                 </button>
               </div>
             </>
@@ -1889,12 +1889,12 @@ export function CreateProjectFlow({
                 proximityCount={draft.locationProximity.length}
                 onView={() => {
                   const id = persistProject();
-                  showToast("Project saved, opening project page");
+                  showToast("Project saved — opening project page");
                   onComplete(id, "view");
                 }}
                 onContinue={() => {
                   const id = persistProject();
-                  showToast("Project saved, let's draft creative angles");
+                  showToast("Project saved — let's draft creative angles");
                   onComplete(id, "creatives");
                 }}
               />
@@ -1908,7 +1908,7 @@ export function CreateProjectFlow({
   );
 }
 
-// ─── Ready stage, celebration card ────────────────────────────────────
+// ─── Ready stage — celebration card ────────────────────────────────────
 
 function ReadyCelebration({
   projectShort,
@@ -1989,7 +1989,7 @@ function ReadyCelebration({
       </div>
       <div className="text-center text-[13px] text-text-secondary mb-6">{projectShort}</div>
 
-      {/* Summary, flat, info-only (no card chrome that hints at clickability) */}
+      {/* Summary — flat, info-only (no card chrome that hints at clickability) */}
       <div
         className="mx-auto mb-5"
         style={{ maxWidth: 460 }}
@@ -2018,11 +2018,11 @@ function ReadyCelebration({
         {/* Goal hint inline below */}
         <div className="text-center text-[11px] text-text-tertiary mt-3">
           <Target size={10} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
-          No goal set yet, add one later from the project page.
+          No goal set yet — add one later from the project page.
         </div>
       </div>
 
-      {/* What's next, proper buttons, not big cards */}
+      {/* What's next — proper buttons, not big cards */}
       <div className="text-center text-[11px] uppercase tracking-[0.5px] text-text-tertiary font-semibold mb-2.5">
         What&apos;s next?
       </div>
@@ -2131,8 +2131,8 @@ function AutoModeToggle({
       onClick={() => onChange(!value)}
       title={
         value
-          ? "Auto mode is on, Spot advances through to creatives"
-          : "Auto mode is off, you click through each step"
+          ? "Auto mode is on — Spot advances through to creatives"
+          : "Auto mode is off — you click through each step"
       }
       className="inline-flex items-center gap-2 h-8 px-2.5 rounded-button"
       style={{

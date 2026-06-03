@@ -6,7 +6,7 @@ import type { MockupCopy, MockupField } from "./types";
 /**
  * Visual mock for a generated creative. Renders one of 4 hard-coded styles
  * keyed by `variant`. All visible text is editable when `onEditText` is
- * provided, clicking any text element converts it to an inline editor
+ * provided — clicking any text element converts it to an inline editor
  * (Canva-style). Commit on blur / Enter; cancel on Escape.
  */
 
@@ -24,7 +24,7 @@ export function AdMockup({ variant, headline, mockup, onEditText }: AdMockupProp
 
   switch (variant) {
     case 1:
-      // Bold typography with lifestyle imagery, warm gradient
+      // Bold typography with lifestyle imagery — warm gradient
       return (
         <div className="relative w-full h-full bg-gradient-to-br from-[#FED7AA] via-[#FCA5A5] to-[#F97373] flex items-end p-5 overflow-hidden">
           <div className="absolute top-4 left-4 h-6 w-6 rounded-[4px] bg-white/30 backdrop-blur-sm" />
@@ -102,7 +102,7 @@ export function AdMockup({ variant, headline, mockup, onEditText }: AdMockupProp
         </div>
       );
     case 3:
-      // Testimonial with social proof, teal
+      // Testimonial with social proof — teal
       return (
         <div className="relative w-full h-full bg-gradient-to-br from-[#0F766E] to-[#134E4A] flex flex-col justify-center p-5 overflow-hidden">
           <div className="text-white/25 text-[56px] leading-none font-serif -mb-2">&ldquo;</div>
@@ -122,7 +122,7 @@ export function AdMockup({ variant, headline, mockup, onEditText }: AdMockupProp
               ))}
             </div>
             <EditableText
-              value={m?.attribution ?? "Rajesh & Priya"}
+              value={m?.attribution ?? "— Rajesh & Priya"}
               onCommit={(v) => onEditText?.("attribution", v)}
               editable={editable}
               tone="onDark"
@@ -188,7 +188,7 @@ export function AdMockup({ variant, headline, mockup, onEditText }: AdMockupProp
 }
 
 /* ------------------------------------------------------------------ */
-/*  EditableText, inline contenteditable wrapper                      */
+/*  EditableText — inline contenteditable wrapper                      */
 /* ------------------------------------------------------------------ */
 
 interface EditableTextProps {

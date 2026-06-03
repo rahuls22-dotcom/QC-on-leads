@@ -5,19 +5,19 @@ import type { Persona, Angle, Creative } from "@/lib/project-data";
 import { creativeAssetState } from "@/lib/project-data";
 
 /**
- * Meta ad preview, mirrors how Facebook / Instagram actually render a
+ * Meta ad preview — mirrors how Facebook / Instagram actually render a
  * lead-gen ad in feed. Used in the Sizes drawer to show users what a
  * creative *will look like* (or already looks like) on Meta.
  *
  * Components (top → bottom):
- *   · Page chrome, brand logo, page name, "Sponsored", settings, X
- *   · Primary text, the body copy (hook above the media)
- *   · Media, image or video at the creative's aspect ratio
- *   · Form callout, bottom card with FORM label, headline, Learn more
+ *   · Page chrome — brand logo, page name, "Sponsored", settings, X
+ *   · Primary text — the body copy (hook above the media)
+ *   · Media — image or video at the creative's aspect ratio
+ *   · Form callout — bottom card with FORM label, headline, Learn more
  *
  * Shells render an empty media slot with an Upload CTA. Ready/live
  * creatives render their asset (or a deterministic hue placeholder if
- * no real asset URL is attached, typical for our prototype seeds).
+ * no real asset URL is attached — typical for our prototype seeds).
  */
 export function MetaPreview({
   creative,
@@ -87,7 +87,7 @@ export function MetaPreview({
         compact={compact}
       />
 
-      {/* Form callout, only relevant for lead-gen ads, but matches the
+      {/* Form callout — only relevant for lead-gen ads, but matches the
           screenshot's structure exactly. */}
       <div
         className="flex items-center gap-3 px-3 py-2"
@@ -140,7 +140,7 @@ function MediaSlot({
   const hue = creative.placeholderHue ?? 240;
   const isVideo = creative.kind === "video";
 
-  // Shell, show empty placeholder with "Awaiting upload" affordance
+  // Shell — show empty placeholder with "Awaiting upload" affordance
   if (state === "shell") {
     return (
       <div
@@ -186,7 +186,7 @@ function MediaSlot({
     );
   }
 
-  // Ready / live, render the asset (or the hue-gradient stand-in)
+  // Ready / live — render the asset (or the hue-gradient stand-in)
   return (
     <div
       className="relative"
@@ -199,7 +199,7 @@ function MediaSlot({
         borderBottom: "1px solid var(--border-subtle)",
       }}
     >
-      {/* Decorative chrome, light interior outline so the placeholder
+      {/* Decorative chrome — light interior outline so the placeholder
           reads as a designed creative rather than a flat fill. */}
       {!creative.assetUrl && (
         <div
@@ -262,7 +262,7 @@ function MediaSlot({
           </div>
         </div>
       )}
-      {/* "Ready" badge, only show when there's no spend yet (asset
+      {/* "Ready" badge — only show when there's no spend yet (asset
           uploaded, waiting on a campaign attach). */}
       {state === "ready" && (
         <span

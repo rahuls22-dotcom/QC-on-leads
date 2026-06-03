@@ -28,16 +28,16 @@ import { InlineSpotComposer, type StreamItem } from "./inline-spot-composer";
 import { CampaignEditor } from "./campaign-editor";
 
 /**
- * Campaigns tab, the project's campaign workspace.
+ * Campaigns tab — the project's campaign workspace.
  *
  * States, in order:
  *   1. Empty → Spot strategy generator (inline composer + "Just do it").
  *   2. Populated → Refine bar pinned at top + campaign list.
  *   3. Selected → Inline campaign editor in one of two layout variants:
- *        a. "full" , list-takes-over editor with a back button.
- *        b. "split", left list + right editor, no back nav.
+ *        a. "full"  — list-takes-over editor with a back button.
+ *        b. "split" — left list + right editor, no back nav.
  *
- * The legacy CampaignCreationFlow modal trigger is gone, Spot drafts the
+ * The legacy CampaignCreationFlow modal trigger is gone — Spot drafts the
  * canonical four campaigns inline; refinements happen via the Refine bar.
  */
 
@@ -64,7 +64,7 @@ export function CampaignsTab({
   const [strategyStream, setStrategyStream] = useState<StreamItem[] | null>(null);
   const strategyPersist = useRef<((i: number) => void) | null>(null);
 
-  // Refine bar state (lighter, just a single textarea)
+  // Refine bar state (lighter — just a single textarea)
   const [refineOpen, setRefineOpen] = useState(false);
   const [refineStream, setRefineStream] = useState<StreamItem[] | null>(null);
 
@@ -163,7 +163,7 @@ export function CampaignsTab({
         title="Campaigns"
         subtitle={
           rows.length === 0
-            ? "No campaigns yet, let Spot draft a strategy"
+            ? "No campaigns yet — let Spot draft a strategy"
             : `${rows.length} campaign${rows.length === 1 ? "" : "s"} · click a row to edit`
         }
         actions={
@@ -184,7 +184,7 @@ export function CampaignsTab({
       <FormsRequiredBanner project={project} />
       <StagedChangesBar project={project} />
 
-      {/* Empty state, Spot strategy generator */}
+      {/* Empty state — Spot strategy generator */}
       {rows.length === 0 && (
         <div className="space-y-3">
           {!strategyOpen ? (
@@ -270,7 +270,7 @@ export function CampaignsTab({
           ) : (
             <InlineSpotComposer
               prompt="Spot's drafting your campaign strategy"
-              placeholder="Optional, give Spot a constraint (e.g. 'budget ₹3L/wk · scale Lookalike 1% first')…"
+              placeholder="Optional — give Spot a constraint (e.g. 'budget ₹3L/wk · scale Lookalike 1% first')…"
               primaryLabel="Draft from prompt"
               secondaryLabel="Just do it"
               onStart={startStrategy}
@@ -323,7 +323,7 @@ function StagedChangesBar({ project }: { project: ProjectDetail }) {
   const deploy = () => {
     setDeploying(true);
     // Brief delay so the Deploy button reads as "actually doing something"
-    // rather than instant, this matches what real Meta deploys feel like.
+    // rather than instant — this matches what real Meta deploys feel like.
     setTimeout(() => {
       const count = deployStagedChanges(project.id);
       setDeploying(false);
@@ -373,7 +373,7 @@ function StagedChangesBar({ project }: { project: ProjectDetail }) {
           <strong>
             {staged.length} change{staged.length === 1 ? "" : "s"} pending
           </strong>{" "}
-         , saved but not yet deployed to Meta.
+          — saved but not yet deployed to Meta.
         </div>
         <button
           type="button"
@@ -496,7 +496,7 @@ function FormsRequiredBanner({ project }: { project: ProjectDetail }) {
         {forms.length > 0 && (
           <>
             You have {forms.length} draft form
-            {forms.length === 1 ? "" : "s"}, publish at least one to unblock.
+            {forms.length === 1 ? "" : "s"} — publish at least one to unblock.
           </>
         )}
       </div>
@@ -718,7 +718,7 @@ function ClickableMediaPlan({
   // obvious; the existing table stays read-only inside the tab.
   return (
     <div>
-      {/* Quick picker, explicit, no DOM hacks */}
+      {/* Quick picker — explicit, no DOM hacks */}
       <div className="card-base p-2.5 mb-3 flex items-center gap-2 flex-wrap">
         <span className="uplabel" style={{ fontSize: 9.5 }}>
           Edit

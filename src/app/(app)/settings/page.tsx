@@ -1,12 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { InDevelopment } from "@/components/locked/in-development";
-
-export default function SettingsPage() {
-  return (
-    <InDevelopment
-      title="Settings"
-      blurb="Workspace, profile, billing, and team controls will live here."
-    />
-  );
+export default function SettingsIndex() {
+  redirect("/settings/agency");
 }

@@ -33,7 +33,7 @@ export default function DeepDivePage() {
   const sectionParam = (params?.section || "").toString() as Section;
   const project = getProject(id);
 
-  // Spot panel visibility, defaults to visible. Honors `?spot=off` in
+  // Spot panel visibility — defaults to visible. Honors `?spot=off` in
   // the URL on first load, then falls back to the saved localStorage
   // preference. Toggling updates both URL and localStorage so direct
   // links (e.g. ?focus=spot) still work.
@@ -62,7 +62,7 @@ export default function DeepDivePage() {
     try {
       window.localStorage.setItem(SPOT_VIS_KEY, next ? "on" : "off");
     } catch {
-      // Quota or private-mode failure, ignore.
+      // Quota or private-mode failure — ignore.
     }
   };
 
@@ -150,7 +150,7 @@ function SectionBody({
         {section === "dashboard" && <DashboardDeepDive project={project} />}
       </div>
 
-      {/* Spot side panel, collapsible via a handle on its left edge. */}
+      {/* Spot side panel — collapsible via a handle on its left edge. */}
       {spotVisible && (
         <div className="relative">
           <CollapseHandle
@@ -167,7 +167,7 @@ function SectionBody({
       )}
 
       {/* When collapsed, a slim handle pinned to the right edge brings it
-          back, the affordance reads as "grab to open" without the header
+          back — the affordance reads as "grab to open" without the header
           clutter of an explicit Hide/Show button. */}
       {!spotVisible && (
         <CollapseHandle
@@ -264,7 +264,7 @@ function DeepDiveShell({
         flexDirection: "column",
       }}
     >
-      {/* Header bar, slim, only the essentials. The Spot panel collapses
+      {/* Header bar — slim, only the essentials. The Spot panel collapses
           via an inline handle on its boundary, not a header toggle. */}
       <div
         className="flex items-center gap-3 px-6 py-2.5"

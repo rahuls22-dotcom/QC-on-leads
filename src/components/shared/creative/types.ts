@@ -4,7 +4,7 @@
  */
 
 /* ------------------------------------------------------------------ */
-/*  Output type, emitted to the parent (step3-creatives.tsx)         */
+/*  Output type — emitted to the parent (step3-creatives.tsx)         */
 /* ------------------------------------------------------------------ */
 
 export interface GeneratedCreative {
@@ -39,19 +39,19 @@ export interface ChatMessage {
  * of variant so inline editing has predictable targets.
  */
 export interface MockupCopy {
-  // Variant 1, bold lifestyle
+  // Variant 1 — bold lifestyle
   eyebrow: string;          // e.g., "Phase 3 · Now Open"
-  // Variant 2, price anchor
+  // Variant 2 — price anchor
   priceMain: string;        // e.g., "₹1.8"
   priceUnit: string;        // e.g., "Cr"
   priceLabel: string;       // e.g., "Starting Price"
   priceSubtext: string;     // e.g., "RERA approved · Phase 3"
   brandCorner: string;      // e.g., "GODREJ"
-  // Variant 3, social proof
+  // Variant 3 — social proof
   quote: string;            // e.g., "Changed our lives."
-  attribution: string;      // e.g., "Rajesh & Priya"
+  attribution: string;      // e.g., "— Rajesh & Priya"
   subAttribution: string;   // e.g., "3BHK owners · 1200+ families"
-  // Variant 4, premium dark
+  // Variant 4 — premium dark
   brandHeader: string;      // e.g., "Godrej Air"
   titleLineA: string;       // e.g., "Luxury"
   titleLineB: string;       // e.g., "Redefined"
@@ -67,7 +67,7 @@ export function defaultMockupCopy(): MockupCopy {
     priceSubtext: "RERA approved · Phase 3",
     brandCorner: "GODREJ",
     quote: "Changed our lives.",
-    attribution: "Rajesh & Priya",
+    attribution: "— Rajesh & Priya",
     subAttribution: "3BHK owners · 1200+ families",
     brandHeader: "Godrej Air",
     titleLineA: "Luxury",
@@ -81,18 +81,18 @@ export function defaultMockupCopy(): MockupCopy {
  * RERA / builder / price / project-name baked in instead of the legacy
  * Godrej Air defaults.
  *
- * Every input is optional, anything blank falls back to the default.
+ * Every input is optional — anything blank falls back to the default.
  */
 export interface MockupCopyProjectContext {
-  /** Project's display name, drops onto variant-4 brandHeader. */
+  /** Project's display name — drops onto variant-4 brandHeader. */
   projectName?: string;
   /** Builder name shown in the bottom-corner badge. */
   builderName?: string;
-  /** "₹1.6 – 2.4 Cr", leading slice becomes priceMain+priceUnit. */
+  /** "₹1.6 – 2.4 Cr" — leading slice becomes priceMain+priceUnit. */
   priceBand?: string;
   /** RERA-shaped status line; falls back to "RERA approved" when truthy. */
   rera?: string;
-  /** Phase / launch tag for the eyebrow line, e.g. "Phase 3 · Now Open". */
+  /** Phase / launch tag for the eyebrow line — e.g. "Phase 3 · Now Open". */
   launchPhase?: string;
   /** Typology label used in the social-proof subAttribution. */
   typology?: string;
@@ -148,7 +148,7 @@ export interface ConceptVersion {
   parent_id: string | null;
   /** Variant style id, drives the AdMockup variant prop (1-4). */
   variant: 1 | 2 | 3 | 4;
-  /** Top-level headline, surfaced in labels/tooltips and rendered on variant 1. */
+  /** Top-level headline — surfaced in labels/tooltips and rendered on variant 1. */
   headline: string;
   /** Post text shown in the resize phase under each size preview. */
   primary_text: string;
@@ -164,7 +164,7 @@ export interface ConceptVersion {
 /** Editable text fields on the AdMockup. "headline" is the top-level field; all others live in `mockup`. */
 export type MockupField = "headline" | keyof MockupCopy;
 
-/** Editable creative strategy values, seeded from the campaign angle on open. */
+/** Editable creative strategy values — seeded from the campaign angle on open. */
 export interface CreativeStrategy {
   angleName: string;
   personaName: string;
@@ -175,7 +175,7 @@ export interface CreativeStrategy {
   cta: string;
 }
 
-/** An attached image (mock upload, picked from a small built-in gallery). */
+/** An attached image (mock upload — picked from a small built-in gallery). */
 export interface AttachedImage {
   /** Stable id of the gallery sample. */
   sampleId: string;
@@ -190,19 +190,19 @@ export interface CreativeWorkspace {
   style_reference: AttachedImage | null;
   project_image: AttachedImage | null;
   brand_logo: AttachedImage | null;
-  /** Boolean toggle, when on, the AI is instructed to follow brand guidelines. */
+  /** Boolean toggle — when on, the AI is instructed to follow brand guidelines. */
   brand_guidelines_attached: boolean;
-  /** Boolean toggle, when on, the campaign strategy is attached to the prompt. */
+  /** Boolean toggle — when on, the campaign strategy is attached to the prompt. */
   creative_strategy_attached: boolean;
-  /** Editable strategy, seeded from the campaign angle, mutable by the user. */
+  /** Editable strategy — seeded from the campaign angle, mutable by the user. */
   strategy: CreativeStrategy;
 
-  // Phase B (concept editor, chat + version history)
+  // Phase B (concept editor — chat + version history)
   concept_messages: ChatMessage[];
   concept_versions: ConceptVersion[];
   active_concept_version_id: string | null;
 
-  // Phase C (resize editor, single current version per size, no chat)
+  // Phase C (resize editor — single current version per size, no chat)
   selected_sizes: string[];
   size_versions: Record<string, ConceptVersion>;
   /** One-deep undo history per size. Captured before regen / manual edit. */
@@ -224,10 +224,10 @@ export interface SizeOption {
 }
 
 export const SIZE_OPTIONS: SizeOption[] = [
-  { id: "sq-feed", dimensions: "1080×1080", label: "Square, Feed", aspectW: 1, aspectH: 1 },
+  { id: "sq-feed", dimensions: "1080×1080", label: "Square — Feed", aspectW: 1, aspectH: 1 },
   { id: "story", dimensions: "1080×1920", label: "Story / Reel", aspectW: 9, aspectH: 16 },
-  { id: "landscape", dimensions: "1200×628", label: "Landscape, Feed", aspectW: 1200, aspectH: 628 },
-  { id: "portrait", dimensions: "1080×1350", label: "Portrait, Feed", aspectW: 4, aspectH: 5 },
+  { id: "landscape", dimensions: "1200×628", label: "Landscape — Feed", aspectW: 1200, aspectH: 628 },
+  { id: "portrait", dimensions: "1080×1350", label: "Portrait — Feed", aspectW: 4, aspectH: 5 },
 ];
 
 /** Visual orientation groups used to lay out the resize grid. */
@@ -254,7 +254,7 @@ export function aspectRatioFor(sizeId: string): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mock concept pool, used by the mock AI to "generate" new versions */
+/*  Mock concept pool — used by the mock AI to "generate" new versions */
 /* ------------------------------------------------------------------ */
 
 interface ConceptCopy {
@@ -270,7 +270,7 @@ const CONCEPT_POOL: ConceptCopy[] = [
     variant: 1,
     primary_text:
       "🏡 Your dream home is closer than you think.\n\nPremium 3BHK apartments in Whitefield, starting at ₹1.8Cr. Smart homes with world-class amenities, just 2 mins from the IT corridor.\n\n📍 Book your free site visit this weekend.",
-    headline: "Premium 3BHK in Whitefield, Starting ₹1.8Cr",
+    headline: "Premium 3BHK in Whitefield — Starting ₹1.8Cr",
     description: "RERA registered. Smart home ready. 3-acre zen gardens.",
     label: "Bold lifestyle",
   },
@@ -278,23 +278,23 @@ const CONCEPT_POOL: ConceptCopy[] = [
     variant: 2,
     primary_text:
       "₹1.8 Cr.\nThat's all it takes to own a Godrej home in Whitefield.\n\n3BHK | Smart Home Ready | RERA Registered\n\nLimited units in Phase 3. Don't wait.\n\n👉 Get the brochure now.",
-    headline: "₹1.8Cr, Own a Godrej Home in Whitefield",
+    headline: "₹1.8Cr — Own a Godrej Home in Whitefield",
     description: "Limited Phase 3 units. 3BHK smart homes with zen gardens.",
     label: "Price anchor",
   },
   {
     variant: 3,
     primary_text:
-      "\"We moved into Godrej Air 6 months ago and it changed our lives.\"\nRajesh & Priya, 3BHK owners\n\n1200+ families already call Godrej Air home. Phase 3 is now open.\n\n🏠 See what they're talking about →",
-    headline: "1200+ Families Chose Godrej Air, Phase 3 Now Open",
+      "\"We moved into Godrej Air 6 months ago and it changed our lives.\"\n— Rajesh & Priya, 3BHK owners\n\n1200+ families already call Godrej Air home. Phase 3 is now open.\n\n🏠 See what they're talking about →",
+    headline: "1200+ Families Chose Godrej Air — Phase 3 Now Open",
     description: "Join India's most loved residential community in Whitefield.",
     label: "Social proof",
   },
   {
     variant: 4,
     primary_text:
-      "Luxury isn't just a word. It's an address.\n\nGodrej Air, Phase 3, Where Japanese-inspired architecture meets Bangalore's most coveted location.\n\nStarting ₹1.8Cr | 3 & 4 BHK\n\n✨ Experience the walkthrough →",
-    headline: "Godrej Air Phase 3, Luxury Redefined",
+      "Luxury isn't just a word. It's an address.\n\nGodrej Air, Phase 3 — Where Japanese-inspired architecture meets Bangalore's most coveted location.\n\nStarting ₹1.8Cr | 3 & 4 BHK\n\n✨ Experience the walkthrough →",
+    headline: "Godrej Air Phase 3 — Luxury Redefined",
     description: "Japanese-inspired architecture. Starting ₹1.8Cr.",
     label: "Premium dark",
   },
@@ -302,7 +302,7 @@ const CONCEPT_POOL: ConceptCopy[] = [
     variant: 1,
     primary_text:
       "This could be your morning view. ☀️\n\nWake up to 3 acres of landscaped gardens at Godrej Air, Whitefield. Phase 3 now open for bookings.\n\nStarting ₹1.8Cr.\n\n👉 Book a site visit",
-    headline: "Wake Up to 3 Acres of Gardens, Godrej Air",
+    headline: "Wake Up to 3 Acres of Gardens — Godrej Air",
     description: "Phase 3 now open. Starting ₹1.8Cr in Whitefield.",
     label: "Garden vibe",
   },
@@ -310,7 +310,7 @@ const CONCEPT_POOL: ConceptCopy[] = [
     variant: 2,
     primary_text:
       "Rent: ₹45K/month. Zero ownership.\nEMI: ₹1.1L/month. 100% yours.\n\nThe math is simple. Make the switch to Godrej Air.\n\n3BHK in Whitefield | RERA Approved\n\n🏡 Get started →",
-    headline: "Rent vs Own, The Math is Simple",
+    headline: "Rent vs Own — The Math is Simple",
     description: "3BHK in Whitefield. RERA Approved. EMI from ₹1.1L/month.",
     label: "Rent-vs-own",
   },
@@ -318,14 +318,14 @@ const CONCEPT_POOL: ConceptCopy[] = [
     variant: 3,
     primary_text:
       "Stop scrolling. Start living.\n\nGodrej Air Phase 3 brings you 3BHK homes designed for modern families. Zen gardens, infinity pool, and a location that puts everything within reach.\n\n📞 Talk to our team today.",
-    headline: "Stop Scrolling. Start Living, Godrej Air",
+    headline: "Stop Scrolling. Start Living — Godrej Air",
     description: "3BHK homes for modern families. Zen gardens & infinity pool.",
     label: "Urgent CTA",
   },
   {
     variant: 4,
     primary_text:
-      "Home is where your story begins.\n\nAt Godrej Air, every detail is designed to make life beautiful, from the zen-inspired gardens to the smartly crafted living spaces.\n\nPhase 3 | Starting ₹1.8Cr\n\n💫 Explore now",
+      "Home is where your story begins.\n\nAt Godrej Air, every detail is designed to make life beautiful — from the zen-inspired gardens to the smartly crafted living spaces.\n\nPhase 3 | Starting ₹1.8Cr\n\n💫 Explore now",
     headline: "Home Is Where Your Story Begins",
     description: "Zen-inspired gardens. Smartly crafted living spaces.",
     label: "Soft luxury",
@@ -401,7 +401,7 @@ function mockupCopyForBase(
   // Variant-specific tweaks that don't depend on context.
   switch (base.variant) {
     case 1:
-      // Variant 1 renders the headline directly, no mockup-specific main text.
+      // Variant 1 renders the headline directly — no mockup-specific main text.
       break;
     case 2:
       // priceMain / priceUnit / priceSubtext already wired in copy seed.
@@ -483,8 +483,8 @@ export function makeInlineEditedVersion(
 /** Compose a short AI summary line for the chat reply. */
 export function makeMockReply(refinementText: string): string {
   const hint = summariseRefinement(refinementText);
-  if (hint) return `Done, I tried "${hint}". Take a look on the right.`;
-  return "Done, here's a fresh take. Take a look on the right.";
+  if (hint) return `Done — I tried "${hint}". Take a look on the right.`;
+  return "Done — here's a fresh take. Take a look on the right.";
 }
 
 function summariseRefinement(text: string): string {
@@ -504,7 +504,7 @@ export const DEFAULT_SIZES: string[] = ["sq-feed", "story", "landscape"];
  * Pre-attached defaults when the generator is launched from a project
  * context. The persona launcher passes these so the user lands in the
  * Setup phase with the brand logo, project image, brand guidelines, and
- * strategy already attached, no manual setup needed.
+ * strategy already attached — no manual setup needed.
  */
 export interface WorkspacePreAttach {
   brandLogo?: AttachedImage | null;

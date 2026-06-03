@@ -82,7 +82,7 @@ export const autoSyncRules: AutoSyncRule[] = [
   {
     id: "sync-unqualified",
     label: "Push unqualified leads",
-    helper: "Not recommended, keeps your CRM pipeline clean",
+    helper: "Not recommended — keeps your CRM pipeline clean",
     enabled: false,
   },
   {

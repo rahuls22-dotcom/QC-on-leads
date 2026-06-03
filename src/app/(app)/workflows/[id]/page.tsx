@@ -70,7 +70,7 @@ export default function WorkflowDetailPage() {
 
   const agentLabel = d.routing
     ? d.routing.branches.map((b) => b.label).join(", ")
-    : "Priya \u2014 Qualification Agent";
+    : "Vox \u2014 Qualification Agent";
 
   // Contacts filtering + pagination
   const filtered = useMemo(() => {

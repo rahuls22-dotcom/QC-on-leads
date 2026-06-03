@@ -39,7 +39,7 @@ import {
  *      every generated size, it surfaces an inline "Pick which sizes to
  *      save" sheet on the angle page so the user explicitly confirms.
  *   3. On confirm, pushes the picked sizes as a new static Concept onto
- *      the angle (each sized Creative in "ready" state, generated, not
+ *      the angle (each sized Creative in "ready" state — generated, not
  *      yet in a campaign).
  */
 export function CreativeGeneratorLauncher({
@@ -58,7 +58,7 @@ export function CreativeGeneratorLauncher({
   const showToast = useSpotStore((s) => s.showToast);
 
   // Once the modal completes we capture the generated creatives and
-  // switch this component to "review" mode, the modal is dismissed but
+  // switch this component to "review" mode — the modal is dismissed but
   // the inline sheet stays so the user can pick which sizes to save.
   const [review, setReview] = useState<GeneratedCreative[] | null>(null);
 
@@ -166,7 +166,7 @@ function SaveSheet({
   onCancel: () => void;
   onSave: (picked: GeneratedCreative[]) => void;
 }) {
-  // All checked by default, the user explicitly went through Resize, so
+  // All checked by default — the user explicitly went through Resize, so
   // the assumption is they want all the sizes they touched.
   const [pickedIds, setPickedIds] = useState<Set<string>>(
     () => new Set(creatives.map((c) => c.id)),
@@ -400,7 +400,7 @@ function sizeToFormatSurface(size: string): {
     case "portrait":
       return { format: "4:5", surface: "Meta Feed" };
     default:
-      // Custom size, best-effort fallback to 1:1 / Meta Feed.
+      // Custom size — best-effort fallback to 1:1 / Meta Feed.
       return { format: "1:1", surface: "Meta Feed" };
   }
 }

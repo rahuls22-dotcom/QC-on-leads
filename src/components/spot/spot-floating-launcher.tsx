@@ -1,20 +1,11 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { SpotMark } from "./spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
 
 export function SpotFloatingLauncher() {
   const open = useSpotStore((s) => s.open);
   const askSpot = useSpotStore((s) => s.askSpot);
-  const pathname = usePathname();
-  // Hide Ask Spot launcher inside Data products (Enrichment + Contact extraction),
-  // they're operational dashboards, not coach-driven flows.
-  const dataProduct =
-    pathname?.startsWith("/data") ||
-    pathname?.startsWith("/enrichment") ||
-    pathname?.startsWith("/contact-extraction");
-  if (dataProduct) return null;
   if (open) return null;
   return (
     <button

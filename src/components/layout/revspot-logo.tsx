@@ -1,5 +1,5 @@
 /**
- * Revspot R brand mark, used as the "All workspaces" indicator in the
+ * Revspot R brand mark — used as the "All workspaces" indicator in the
  * workspace switcher, and reserved for any other org-level surface.
  *
  * The mark scales gracefully via the `size` prop. Defaults to 30px to

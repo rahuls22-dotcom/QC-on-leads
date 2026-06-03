@@ -16,7 +16,7 @@ import { getWorkspace } from "@/lib/workspace-data";
 import { projectsForWorkspace } from "@/lib/project-data";
 
 function AllMark({ size = 26 }: { size?: number }) {
-  // Revspot R brand mark, used as the "All workspaces" indicator since
+  // Revspot R brand mark — used as the "All workspaces" indicator since
   // crossing workspaces means operating at org level.
   return (
     <span
@@ -88,7 +88,7 @@ export function WorkspaceSwitcher() {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-2 py-2 rounded-[8px] hover:bg-surface-secondary transition-colors text-left"
       >
-        {/* Revspot R is the only mark in the trigger, workspace identity
+        {/* Revspot R is the only mark in the trigger — workspace identity
             is carried by the name + region text. */}
         <RevspotLogo size={22} />
         <div className="flex-1 min-w-0">

@@ -22,7 +22,7 @@ export function Step4Launch({ onNext, onBack }: Step4Props) {
   const [selectedAgent, setSelectedAgent] = useState("");
   const [launchState, setLaunchState] = useState<"paused" | "enabled">("paused");
 
-  // Verification, ON by default, locked ON if objective is verified_leads
+  // Verification — ON by default, locked ON if objective is verified_leads
   const isVerifiedLeadsObjective = true;
   const [verificationEnabled, setVerificationEnabled] = useState(true);
 
@@ -50,7 +50,7 @@ export function Step4Launch({ onNext, onBack }: Step4Props) {
           </div>
           <div>
             <span className="block text-[11px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">Ad Account</span>
-            <span className="block text-[13px] text-text-primary font-medium">Godrej Properties, Primary</span>
+            <span className="block text-[13px] text-text-primary font-medium">Godrej Properties — Primary</span>
           </div>
           <div>
             <span className="block text-[11px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">Ad Sets</span>
@@ -76,7 +76,7 @@ export function Step4Launch({ onNext, onBack }: Step4Props) {
                 Automatically verify incoming leads via phone/email.
                 {isVerifiedLeadsObjective && (
                   <span className="text-[11px] text-[#15803D] font-medium block mt-1">
-                    Required, your campaign objective is set to Verified Leads
+                    Required — your campaign objective is set to Verified Leads
                   </span>
                 )}
               </p>
@@ -112,7 +112,7 @@ export function Step4Launch({ onNext, onBack }: Step4Props) {
         <select value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}
           className="w-full h-10 px-3 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent appearance-none cursor-pointer"
           style={selectStyle}>
-          <option value="">No agent, skip qualification</option>
+          <option value="">No agent — skip qualification</option>
           {activeAgents.map((a) => (
             <option key={a.id} value={a.id}>{a.name} · {a.qualification_rate}% qual rate</option>
           ))}
@@ -134,7 +134,7 @@ export function Step4Launch({ onNext, onBack }: Step4Props) {
         )}
       </div>
 
-      {/* Launch state, choose how campaign goes live on Meta */}
+      {/* Launch state — choose how campaign goes live on Meta */}
       <div className="bg-white border border-border rounded-card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-8 h-8 rounded-full bg-surface-secondary flex items-center justify-center shrink-0">

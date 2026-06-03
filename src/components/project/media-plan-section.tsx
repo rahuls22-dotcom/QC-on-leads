@@ -90,7 +90,7 @@ export function MediaPlanSection({
     else openGuided({ kind: "new-campaign", projectId: project.id });
   };
 
-  // ─── Mode: "campaigns", TOFU performance table with column picker ────
+  // ─── Mode: "campaigns" — TOFU performance table with column picker ────
   if (isCampaigns) {
     const filteredRows = mp.rows.filter(
       (r) => r.status === "live" || r.status === "paused",
@@ -106,7 +106,7 @@ export function MediaPlanSection({
     );
   }
 
-  // ─── Mode: "drafts", recommendation queue ─────────────────────────────
+  // ─── Mode: "drafts" — recommendation queue ─────────────────────────────
   return (
     <DraftsQueueView
       project={project}
@@ -242,7 +242,7 @@ function DetailedMediaPlanView({
   const mp = project.mediaPlan;
   const planCampaigns = useMemo(() => buildPlanCampaigns(project), [project]);
 
-  // Recommendation approval state, keyed by row id
+  // Recommendation approval state — keyed by row id
   const [approved, setApproved] = useState<Record<string, boolean>>({});
   const [dismissed, setDismissed] = useState<Record<string, boolean>>({});
 
@@ -258,7 +258,7 @@ function DetailedMediaPlanView({
     .filter((r) => approved[r.id])
     .reduce((s, r) => s + (r.budgetDaily || 0) * 7, 0);
 
-  // ─── Empty state, no media plan yet ─────────────────────────────────
+  // ─── Empty state — no media plan yet ─────────────────────────────────
   if (mp.rows.length === 0) {
     return (
       <div>
@@ -295,7 +295,7 @@ function DetailedMediaPlanView({
             className="text-[12.5px] text-text-secondary leading-[1.5] mx-auto mb-4"
             style={{ maxWidth: 460 }}
           >
-            I&apos;ll draft a starting plan from your project, 4 canonical campaigns
+            I&apos;ll draft a starting plan from your project — 4 canonical campaigns
             (Experiment, Scaling, Cost/Bid Cap, Advantage+) with ad sets, creatives, and a lead
             form. You review and tweak before anything goes live.
           </div>
@@ -326,7 +326,7 @@ function DetailedMediaPlanView({
         icon={Monitor}
         title={`Media plan · ${mp.window}`}
         subtitle="Spot's recommended structure · approve / dismiss inline"
-        onAsk={() => onAsk("Refine the media plan, what should I tweak first?")}
+        onAsk={() => onAsk("Refine the media plan — what should I tweak first?")}
         actions={
           <>
             <button
@@ -379,13 +379,13 @@ function DetailedMediaPlanView({
           <div className="text-[10.5px] text-text-tertiary mt-0.5">
             {stagedCount > 0
               ? "Deploy applies these changes as a batch on next campaign refresh."
-              : "Approve a Spot recommendation below, staged changes show up here."}
+              : "Approve a Spot recommendation below — staged changes show up here."}
           </div>
         </div>
         <button
           type="button"
           disabled={stagedCount === 0}
-          onClick={() => onAsk(`Deploy the ${stagedCount} staged changes, what's the risk?`)}
+          onClick={() => onAsk(`Deploy the ${stagedCount} staged changes — what's the risk?`)}
           className="apply-btn"
           style={{
             height: 32,
@@ -501,7 +501,7 @@ function DetailedMediaPlanView({
                 >
                   {c.rows.length === 0 ? (
                     <div className="px-4 py-5 text-[11.5px] text-text-tertiary italic">
-                      Not started yet, Spot hasn&apos;t proposed a structure for{" "}
+                      Not started yet — Spot hasn&apos;t proposed a structure for{" "}
                       {c.label.toLowerCase()} on this project. Once Experiment gathers data,
                       you&apos;ll see ad sets suggested here.
                     </div>
@@ -757,7 +757,7 @@ function ApprovedBadge({
 
 /**
  * Realistic TOFU metric derivation. The seed `MediaAd` only has spend/leads
- *, everything else we compute deterministically from those plus an id-based
+ * — everything else we compute deterministically from those plus an id-based
  * hash so each row looks distinct without random jitter on every render.
  */
 type Metrics = {
@@ -1039,7 +1039,7 @@ function CampaignsPerformanceView({
             className="grid gap-3 max-w-2xl mx-auto"
             style={{ gridTemplateColumns: "1fr 1fr" }}
           >
-            {/* Primary, launch new */}
+            {/* Primary — launch new */}
             <button
               type="button"
               onClick={onNewCampaign}
@@ -1058,11 +1058,11 @@ function CampaignsPerformanceView({
                 className="text-[11.5px] leading-[1.5]"
                 style={{ color: "rgba(255,255,255,0.85)" }}
               >
-                Spot drafts a media plan from your project, settings, ad sets, lead form,
+                Spot drafts a media plan from your project — settings, ad sets, lead form —
                 then you launch.
               </div>
             </button>
-            {/* Secondary, import existing */}
+            {/* Secondary — import existing */}
             <button
               type="button"
               onClick={() => setImportOpen(true)}
@@ -1295,7 +1295,7 @@ function CampaignsPerformanceView({
  *  · Vertical divider separates secondary tools from the primary CTA so
  *    the eye lands on Launch first.
  *  · "Analyze with Spot" was redundant with "Deep dive" (deep dive already
- *    hosts the Spot side panel), dropped to reduce noise.
+ *    hosts the Spot side panel) — dropped to reduce noise.
  */
 function CampaignsToolbar({
   visibleCount,
@@ -1369,7 +1369,7 @@ function CampaignsToolbar({
         <Maximize2 size={12} /> Deep dive
       </button>
 
-      {/* Import (icon-only, less common action) */}
+      {/* Import (icon-only — less common action) */}
       <button
         type="button"
         onClick={onImport}
@@ -1566,12 +1566,12 @@ function ImportCampaignsModal({
             <ConnectAccountRow
               channel="Meta"
               brand="#1E5BFF"
-              description="Meta Ads, Facebook & Instagram lead generation campaigns"
+              description="Meta Ads — Facebook & Instagram lead generation campaigns"
             />
             <ConnectAccountRow
               channel="Google"
               brand="#9C6D00"
-              description="Google Ads, Search, Display, Performance Max"
+              description="Google Ads — Search, Display, Performance Max"
             />
           </div>
 
@@ -1584,7 +1584,7 @@ function ImportCampaignsModal({
           >
             <SpotMark size={14} style={{ flexShrink: 0, marginTop: 1 }} />
             <div className="text-[11.5px] leading-[1.5]">
-              Once connected, I&apos;ll map each imported campaign to a persona, you can
+              Once connected, I&apos;ll map each imported campaign to a persona — you can
               edit the mapping before it shows up on the Campaigns tab. Historical metrics
               get backfilled, and recommendations start within ~24 hours.
             </div>

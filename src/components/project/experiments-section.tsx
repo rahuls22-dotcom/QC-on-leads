@@ -1,9 +1,9 @@
 "use client";
 
-// PARKED, the Experiments tab was removed from the project page during the
+// PARKED — the Experiments tab was removed from the project page during the
 // project-page redesign (Dashboard · Personas · Campaigns · Library · Settings).
-// This component is left in-repo so it can be revived later, either as a
-// dedicated sub-section under Campaigns or its own tab, without rebuilding
+// This component is left in-repo so it can be revived later — either as a
+// dedicated sub-section under Campaigns or its own tab — without rebuilding
 // the experiment-card UI from scratch.
 
 import { FlaskConical, Eye, MoreHorizontal } from "lucide-react";

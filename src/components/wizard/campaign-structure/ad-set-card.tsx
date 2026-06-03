@@ -37,7 +37,7 @@ export function AdSetCard({
   // AI-picked audience for this ad set (single, pre-applied)
   const aiAudienceNames = [
     "Real Estate Investors 30-45 in Bangalore",
-    "NRI Property Buyers, Global",
+    "NRI Property Buyers — Global",
     "Family Upgraders in Whitefield/Sarjapur",
   ];
   const aiAudience = aiAudienceNames[index % aiAudienceNames.length];

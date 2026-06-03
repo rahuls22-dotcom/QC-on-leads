@@ -51,11 +51,11 @@ export function CreativeConceptEditor({
     (v) => v.parent_id === null && !hasDescendants.has(v.id)
   );
 
-  // Find the user's original prompt, the first user message in the chat, to
+  // Find the user's original prompt — the first user message in the chat — to
   // surface in picker mode so the user can see what they asked for.
   const userPrompt = messages.find((m) => m.role === "user")?.text;
 
-  // Edit toggle, flips the AdMockup into click-to-edit (Canva-style).
+  // Edit toggle — flips the AdMockup into click-to-edit (Canva-style).
   // Available both on the Selected view and inside refine mode.
   const [editMode, setEditMode] = useState(false);
   // refineOpen flips between the lightweight Selected view (default after pick)
@@ -65,7 +65,7 @@ export function CreativeConceptEditor({
   // When the user transitions from picker (null) → picked: reset to the
   // Selected view (not refine), and clear any leftover edit toggle.
   // Subsequent activeVersionId changes (e.g., inline edits create new versions)
-  // should NOT reset these, otherwise inline editing would bounce out of edit
+  // should NOT reset these — otherwise inline editing would bounce out of edit
   // mode every keystroke commit.
   const prevActiveRef = useRef<string | null>(activeVersionId);
   useEffect(() => {
@@ -122,7 +122,7 @@ export function CreativeConceptEditor({
           isGenerating={isGenerating}
           onSend={onSendMessage}
           isPickerMode={false}
-          placeholder="Refine, e.g., 'make it more luxurious', 'use a darker palette'"
+          placeholder="Refine — e.g., 'make it more luxurious', 'use a darker palette'"
           emptyMessage="Send a message to refine this concept."
         />
       </div>
@@ -175,7 +175,7 @@ export function CreativeConceptEditor({
           </div>
         </div>
 
-        {/* Active preview, image only */}
+        {/* Active preview — image only */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-surface-page">
           {activeVersion ? (
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-5">
@@ -191,7 +191,7 @@ export function CreativeConceptEditor({
                       className="inline-flex items-center gap-1.5 text-[12px] font-semibold bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent"
                     >
                       <Pencil size={11} strokeWidth={1.5} className="text-violet-500" />
-                      Editing, click any text to change it
+                      Editing — click any text to change it
                     </motion.div>
                   ) : (
                     <motion.h3
@@ -235,7 +235,7 @@ export function CreativeConceptEditor({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Picker mode, full-width 2×2 grid, no chat panel                   */
+/*  Picker mode — full-width 2×2 grid, no chat panel                   */
 /* ------------------------------------------------------------------ */
 
 interface PickerModeProps {
@@ -277,7 +277,7 @@ function PickerMode({ slots, concepts, userPrompt, isGenerating, onPick }: Picke
           <div className="flex-1">
             <p className="text-[13px] text-text-primary leading-relaxed">
               {readyCount === slots
-                ? "Here are 4 options, click one to refine it."
+                ? "Here are 4 options — click one to refine it."
                 : isGenerating
                 ? `Generating option ${readyCount + 1} of ${slots}…`
                 : "Generating your concepts…"}
@@ -319,7 +319,7 @@ interface PickerTileProps {
 
 function PickerTile({ concept, index, onPick }: PickerTileProps) {
   if (!concept) {
-    // Skeleton with shimmer sweep, Canva/Linear style.
+    // Skeleton with shimmer sweep — Canva/Linear style.
     return (
       <div className="aspect-square rounded-card overflow-hidden border border-border bg-white relative">
         <div className="absolute inset-0 bg-surface-secondary" />
@@ -361,7 +361,7 @@ function PickerTile({ concept, index, onPick }: PickerTileProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Selected view, between picker and refine                          */
+/*  Selected view — between picker and refine                          */
 /* ------------------------------------------------------------------ */
 
 interface SelectedViewProps {
@@ -404,7 +404,7 @@ function SelectedView({
                 className="inline-flex items-center gap-1.5 text-[12px] font-semibold bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent"
               >
                 <Pencil size={11} strokeWidth={1.5} className="text-violet-500" />
-                Editing, click any text to change it
+                Editing — click any text to change it
               </motion.div>
             ) : (
               <motion.div

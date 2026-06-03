@@ -7,7 +7,7 @@ import { PacePill } from "./shared/pace-pill";
 import { GoalEditor } from "./goal-editor";
 
 /**
- * Compact goal strip, slim band that sits below the project hero on every
+ * Compact goal strip — slim band that sits below the project hero on every
  * tab. Full detail (Spot's read, plan-to-close-gap, secondary metrics) lives
  * inside a popover triggered from the right-hand chevron, so the working
  * surface below is not pushed off-screen.
@@ -40,7 +40,7 @@ export function GoalPanel({
 
   const goalSet = goal.target > 0;
 
-  // ─── Empty state, slim prompt strip ────────────────────────────────
+  // ─── Empty state — slim prompt strip ────────────────────────────────
   if (!goalSet) {
     return (
       <div className="card-base mb-4" style={{ padding: "10px 14px" }}>
@@ -104,7 +104,7 @@ export function GoalPanel({
     );
   }
 
-  // ─── Normal state, compact strip ────────────────────────────────────
+  // ─── Normal state — compact strip ────────────────────────────────────
   const pct = Math.round((goal.achieved / goal.target) * 100);
   const expectedPct = goal.daysTotal
     ? Math.round((goal.daysElapsed / goal.daysTotal) * 100)
@@ -187,7 +187,7 @@ export function GoalPanel({
         </div>
       )}
 
-      {/* Popover, Spot's read + secondary metrics + close-gap CTA */}
+      {/* Popover — Spot's read + secondary metrics + close-gap CTA */}
       {popoverOpen && !editing && (
         <div
           ref={popoverRef}
@@ -293,7 +293,7 @@ export function GoalPanel({
 }
 
 /**
- * Tight progress bar, same data the old TripleProgress was showing, but
+ * Tight progress bar — same data the old TripleProgress was showing, but
  * collapsed into a single ~10px row with markers for "expected by now" and
  * "forecast end-of-window". Fill is the actual achievement.
  */

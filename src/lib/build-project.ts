@@ -33,7 +33,7 @@ export type ProjectDraftInput = {
     share: number;
   }>;
   /**
-   * Items from Spot's visual-memory knowledge base, both web-extracted
+   * Items from Spot's visual-memory knowledge base — both web-extracted
    * placeholders (no URL) and laptop uploads (blob URL).
    */
   images?: Array<{
@@ -65,7 +65,7 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
     year: "numeric",
   });
   // goalKind / goalTarget / goalWindow / budgetTotal are intentionally
-  // unused, the goal stage was removed from project creation. The user
+  // unused — the goal stage was removed from project creation. The user
   // sets the goal manually on the project page after creation.
 
   const personas: Persona[] = input.personas.map((p) => ({
@@ -119,14 +119,14 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
     brandId: "brand-godrej-properties",
     brief: {
       updated: today,
-      summary: `${input.name}, ${input.typology} in ${input.micromarket}. Priced ${input.priceBand}${
+      summary: `${input.name} — ${input.typology} in ${input.micromarket}. Priced ${input.priceBand}${
         input.pricePerSqft ? ` (${input.pricePerSqft})` : ""
       }.`,
       usp: input.keyUSPs,
       avoid: [],
       attachments: [],
     },
-    // Projects created from the new flow do not have a goal set yet, the
+    // Projects created from the new flow do not have a goal set yet — the
     // user is expected to configure it later from the project page. Target=0
     // signals "no goal configured" everywhere downstream.
     goal: {
@@ -140,7 +140,7 @@ export function buildProjectFromDraft(input: ProjectDraftInput): ProjectDetail {
       paceDelta: "new",
       forecast: 0,
       spotRead:
-        "No goal set yet. When you set one, number of leads + window, I'll start projecting your pace and flagging the gap.",
+        "No goal set yet. When you set one — number of leads + window — I'll start projecting your pace and flagging the gap.",
     },
     secondary: [
       { label: "Spend to date", value: "₹0", sub: "no spend yet" },

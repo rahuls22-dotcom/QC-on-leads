@@ -67,12 +67,12 @@ export function ProjectPerformanceTable() {
   const scope = useCurrentScope();
 
   // All-workspaces view: roll up by workspace, not by project. Same
-  // page, same surface, the table just switches its row entity.
+  // page, same surface — the table just switches its row entity.
   if (scope.kind === "all") {
     return <WorkspaceRollupTable />;
   }
 
-  // scope.kind === "workspace" here, narrowed by the early return above.
+  // scope.kind === "workspace" here — narrowed by the early return above.
   const projects = projectsForWorkspace(scope.id);
 
   if (projects.length === 0) {
@@ -273,7 +273,7 @@ function WorkspaceRollupTable() {
 
   const openWorkspace = (id: string) => {
     setScope(id);
-    // Stay on /dashboard, the user drills in by re-scoping, not by
+    // Stay on /dashboard — the user drills in by re-scoping, not by
     // navigating away. The Project Performance variant of this table
     // will render on the next frame.
   };

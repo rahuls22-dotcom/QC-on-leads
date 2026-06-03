@@ -9,6 +9,10 @@ const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 interface DateRangeSelectorProps {
   compact?: boolean;
   onChange?: (preset: string) => void;
+  // Initial preset to display. Defaults to "30" (Last 30 days) for back-compat
+  // with existing dashboards; pages that want a different opening view (e.g.
+  // outreach landing → last 7 days) pass it explicitly.
+  defaultPreset?: string;
 }
 
 const presets = [
@@ -105,8 +109,8 @@ function CalendarGrid({ month, year, onNav, onDateClick, onHover, isInRange, isS
 }
 
 // ── Main Component ──────────────────────────────────────────
-export function DateRangeSelector({ compact, onChange }: DateRangeSelectorProps) {
-  const [selected, setSelected] = useState("30");
+export function DateRangeSelector({ compact, onChange, defaultPreset = "30" }: DateRangeSelectorProps) {
+  const [selected, setSelected] = useState(defaultPreset);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

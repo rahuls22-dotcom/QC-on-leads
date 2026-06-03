@@ -33,7 +33,7 @@ export function StepCompany({ onNext }: StepCompanyProps) {
       </div>
 
       <div className="bg-white border border-border rounded-card p-6 space-y-5">
-        {/* Company Name, read-only */}
+        {/* Company Name — read-only */}
         <div>
           <label className="block text-[13px] font-medium text-text-primary mb-1.5">
             Company Name
@@ -43,7 +43,7 @@ export function StepCompany({ onNext }: StepCompanyProps) {
           </div>
         </div>
 
-        {/* Industry, read-only */}
+        {/* Industry — read-only */}
         <div>
           <label className="block text-[13px] font-medium text-text-primary mb-1.5">
             Industry

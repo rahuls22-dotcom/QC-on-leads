@@ -51,7 +51,7 @@ export function VoiceAgentPerformance({
         </div>
       </div>
 
-      {/* Disqualification reasons, pie chart */}
+      {/* Disqualification reasons — pie chart */}
       <div>
         <h3 className="text-[12px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-3">
           Top disqualification reasons

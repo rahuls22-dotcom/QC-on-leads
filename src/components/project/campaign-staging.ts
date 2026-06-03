@@ -3,7 +3,7 @@ import { mutateRuntimeProject } from "@/lib/project-data";
 
 /**
  * Helpers for the Campaigns staging buffer. The editor calls these
- * instead of directly mutating MediaRow/MediaAdSet fields, that way
+ * instead of directly mutating MediaRow/MediaAdSet fields — that way
  * edits accumulate until the user clicks Deploy.
  */
 
@@ -44,7 +44,7 @@ export function stageCampaignEdit(
     );
 
     if (newValue === live) {
-      // Reverted to live, drop the staged change entirely.
+      // Reverted to live — drop the staged change entirely.
       if (existingIdx >= 0) plan.stagedChanges.splice(existingIdx, 1);
       return;
     }
@@ -116,7 +116,7 @@ export function stageAdSetEdit(
 }
 
 /** Stage an ad-level edit. Ad scope today covers name + status
- * (live / paused), those are the two settings that make sense to
+ * (live / paused) — those are the two settings that make sense to
  * adjust from the project page without bouncing into Ads Manager. */
 export function stageAdEdit(
   projectId: string,
@@ -271,7 +271,7 @@ function labelForAd(
   if (field === "name") {
     return `${adSetName} · ad renamed "${oldValue}" → "${newValue}"`;
   }
-  // status, describe the transition concisely.
+  // status — describe the transition concisely.
   if (newValue === "draft") {
     return `${adSetName} · ${liveName} · paused (was ${oldValue})`;
   }

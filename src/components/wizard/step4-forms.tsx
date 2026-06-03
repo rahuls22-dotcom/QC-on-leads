@@ -21,8 +21,8 @@ interface Step4Props {
 
 /* ─── Mock existing forms ─── */
 const existingForms = [
-  { id: "form-1", name: "Godrej Air, High Intent", type: "higher_intent" as const, fieldsCount: 6, createdAt: "2026-03-15" },
-  { id: "form-2", name: "Godrej Reflections, Quick", type: "more_volume" as const, fieldsCount: 3, createdAt: "2026-03-10" },
+  { id: "form-1", name: "Godrej Air — High Intent", type: "higher_intent" as const, fieldsCount: 6, createdAt: "2026-03-15" },
+  { id: "form-2", name: "Godrej Reflections — Quick", type: "more_volume" as const, fieldsCount: 3, createdAt: "2026-03-10" },
 ];
 
 /* ─── Types ─── */
@@ -126,7 +126,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
   const [activeSection, setActiveSection] = useState<ActiveSection>("form_type");
 
   /* Form Type */
-  const [formName, setFormName] = useState("Godrej Air, Lead Form");
+  const [formName, setFormName] = useState("Godrej Air — Lead Form");
   const [formType, setFormType] = useState<FormType>("more_volume");
   const [flexibleDelivery, setFlexibleDelivery] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("optimized");
@@ -339,7 +339,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
             </button>
           </div>
 
-          {/* Existing forms list, only shown when Use Existing is clicked */}
+          {/* Existing forms list — only shown when Use Existing is clicked */}
           {showExistingList && (
           <div className="border-t border-border pt-5">
             <h3 className="text-[13px] font-semibold text-text-tertiary uppercase tracking-[0.4px] mb-3">
@@ -1070,7 +1070,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-[180px_1fr_300px] gap-0 bg-white border border-border rounded-card overflow-hidden min-h-[560px]">
-        {/* Left sidebar, vertical stepper */}
+        {/* Left sidebar — vertical stepper */}
         <div className="bg-white border-r border-border py-3">
           <div className="px-3 mb-3">
             <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.4px]">
@@ -1111,7 +1111,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
           </nav>
         </div>
 
-        {/* Center column, active section content */}
+        {/* Center column — active section content */}
         <div className="p-6 overflow-y-auto">
           <h2 className="text-[16px] font-semibold text-text-primary mb-5 capitalize">
             {visibleSidebarItems.find((s) => s.key === activeSection)?.label}
@@ -1144,7 +1144,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
                         {nextSection.label} →
                       </button>
                     ) : (
-                      <span className="text-[11px] text-text-tertiary">Last section, click Continue below</span>
+                      <span className="text-[11px] text-text-tertiary">Last section — click Continue below</span>
                     )}
                   </>
                 );
@@ -1153,7 +1153,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
           </motion.div>
         </div>
 
-        {/* Right column, phone preview */}
+        {/* Right column — phone preview */}
         <div className="bg-surface-page border-l border-border p-4 flex flex-col items-center">
           {/* FB/IG toggle */}
           <div className="flex items-center gap-0 mb-4 bg-white rounded-[8px] border border-border overflow-hidden">
@@ -1177,7 +1177,7 @@ export function Step4Forms({ onNext, onBack }: Step4Props) {
               <div className="h-[100px] bg-gradient-to-b from-[#1a365d] via-[#2d4a7a] to-[#4a7ab5] flex items-end px-4 pb-3">
                 <div className="text-white">
                   <div className="text-[9px] font-medium opacity-70">GODREJ PROPERTIES</div>
-                  <div className="text-[11px] font-semibold mt-0.5">Godrej Air, Phase 3</div>
+                  <div className="text-[11px] font-semibold mt-0.5">Godrej Air — Phase 3</div>
                 </div>
               </div>
             )}

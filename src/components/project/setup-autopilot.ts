@@ -12,7 +12,7 @@ import type {
 import { mutateRuntimeProject } from "@/lib/project-data";
 
 /**
- * "Let Spot take charge", the auto-pilot that walks the post-creation
+ * "Let Spot take charge" — the auto-pilot that walks the post-creation
  * sequence end to end so a user with zero setup can go from a fresh
  * project to a deploy-ready state in one click.
  *
@@ -24,7 +24,7 @@ import { mutateRuntimeProject } from "@/lib/project-data";
  *      from the project's brief.
  *   3. If no campaigns exist, build a campaign plan: one campaign per
  *      persona, with one ad set per angle and one ad per concept (size
- *      0, the canonical creative). Status=draft so the user can review
+ *      0 — the canonical creative). Status=draft so the user can review
  *      before deploying.
  *
  * The runner is split from the streaming UI so the same logic can be
@@ -76,7 +76,7 @@ export function planAutopilot(project: ProjectDetail): AutopilotPlan {
     });
   }
 
-  // 2. Form, only if there isn't a published one yet.
+  // 2. Form — only if there isn't a published one yet.
   const hasPublished = (project.forms ?? []).some((f) => f.status === "published");
   if (!hasPublished) {
     formCount = 1;
@@ -88,12 +88,12 @@ export function planAutopilot(project: ProjectDetail): AutopilotPlan {
     });
   }
 
-  // 3. Campaigns, only if none exist. We plan one Meta lead-gen
+  // 3. Campaigns — only if none exist. We plan one Meta lead-gen
   // campaign per persona, with an ad set per angle and an ad per
   // concept (one ad per angle for now).
   if (project.mediaPlan.rows.length === 0) {
     // We use the post-step project shape (after angles + form have
-    // been seeded), but since planning is read-only, we anticipate
+    // been seeded) — but since planning is read-only, we anticipate
     // by walking the personas as they'll look after the angle steps.
     const personasForCampaigns = project.personas.length > 0 ? project.personas : [];
     if (personasForCampaigns.length > 0) {
@@ -228,7 +228,7 @@ function addDefaultForm(projectId: string): void {
       status: "published",
       intro: {
         headline: `Get pricing & site visit for ${projectShort}`,
-        body: `${p.typology || "Luxury homes"} in ${p.micromarket || "the project's micromarket"} · ${p.priceBand || "premium"} pricing. Share your details, our team gets back within 24 hours.`,
+        body: `${p.typology || "Luxury homes"} in ${p.micromarket || "the project's micromarket"} · ${p.priceBand || "premium"} pricing. Share your details — our team gets back within 24 hours.`,
       },
       questions: [
         question("q-name", "name", "Full name", true),
@@ -239,7 +239,7 @@ function addDefaultForm(projectId: string): void {
       ],
       privacy: `By submitting, you agree to be contacted by ${p.builder || "Godrej Properties"} about ${projectShort}.`,
       completion: {
-        headline: "Thanks, our team will be in touch shortly.",
+        headline: "Thanks — our team will be in touch shortly.",
         body: "In the meantime, you can preview the project online.",
         ctaLabel: "Open project page",
         ctaUrl: "",
@@ -367,11 +367,11 @@ export function deriveSetupState(p: ProjectDetail): SetupStepState[] {
       key: "creatives",
       label: "Build creatives for each persona",
       description:
-        "At least one angle with a sized creative per persona, Spot can draft 2 angles each.",
+        "At least one angle with a sized creative per persona — Spot can draft 2 angles each.",
       done: allHaveCreatives,
       progress:
         totalPersonas === 0
-          ? "No personas yet, add some on the Personas tab"
+          ? "No personas yet — add some on the Personas tab"
           : `${personasWithAngles} of ${totalPersonas} persona${totalPersonas === 1 ? "" : "s"} drafted`,
     },
     {
@@ -383,7 +383,7 @@ export function deriveSetupState(p: ProjectDetail): SetupStepState[] {
       progress: hasForm
         ? `${publishedForms} published`
         : (p.forms ?? []).length > 0
-          ? `${(p.forms ?? []).length} draft${(p.forms ?? []).length === 1 ? "" : "s"}, publish to unblock`
+          ? `${(p.forms ?? []).length} draft${(p.forms ?? []).length === 1 ? "" : "s"} — publish to unblock`
           : "Not started",
     },
     {

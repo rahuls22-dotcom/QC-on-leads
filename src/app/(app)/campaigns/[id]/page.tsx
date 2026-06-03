@@ -71,7 +71,7 @@ export default function CampaignDetailPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Now safe to short-circuit on guard verdict, every hook above has run.
+  // Now safe to short-circuit on guard verdict — every hook above has run.
   if (guard.access === "forbidden") {
     return (
       <ForbiddenState
@@ -170,7 +170,7 @@ export default function CampaignDetailPage() {
             <button
               type="button"
               onClick={() => router.push("/agents")}
-              title="Qualification metrics need an agent, connect one to enable CPQL and Qualified Leads."
+              title="Qualification metrics need an agent — connect one to enable CPQL and Qualified Leads."
               className="inline-flex items-center gap-1.5 h-9 px-3 text-[12px] font-medium text-[#92400E] bg-[#FEF3C7] border border-[#FDE68A] rounded-button hover:bg-[#FDE68A] transition-colors"
             >
               <Bot size={13} strokeWidth={1.5} /> Connect agent
@@ -191,7 +191,7 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
-      {/* No Agent Connected, slim, dismissable */}
+      {/* No Agent Connected — slim, dismissable */}
       {!campaign.agentConnected && !agentNudgeDismissed && (
         <div className="mb-3 flex items-center gap-2.5 bg-[#FEF3C7] border border-[#FDE68A] rounded-card pl-3 pr-2 py-2">
           <AlertTriangle size={13} strokeWidth={1.75} className="text-[#92400E] shrink-0" />
@@ -216,7 +216,7 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
-      {/* Status strip, compact verdict + headline + primary metric */}
+      {/* Status strip — compact verdict + headline + primary metric */}
       <div className="mb-3">
         <StatusStrip
           data={diagnosis.status_strip}
@@ -224,7 +224,7 @@ export default function CampaignDetailPage() {
         />
       </div>
 
-      {/* Next Best Action, prescriptive card */}
+      {/* Next Best Action — prescriptive card */}
       {!nbaSnoozed && (
         <div className="mb-5">
           <NextBestAction
@@ -334,7 +334,7 @@ export default function CampaignDetailPage() {
         </>
       )}
 
-      {/* Action flow modal, central modal that opens for verb-specific actions */}
+      {/* Action flow modal — central modal that opens for verb-specific actions */}
       <ActionFlowModal
         action={actionFlow.active}
         budgetMode={campaign.budgetMode}

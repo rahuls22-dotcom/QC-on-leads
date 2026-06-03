@@ -104,7 +104,7 @@ export type LeadFormState = {
   /** Custom questions the builder added after the prefill block. */
   customQuestions: LeadFormField[];
 
-  /** Intro page, banner image + headline + supporting body. */
+  /** Intro page — banner image + headline + supporting body. */
   bannerUrl?: string;
   introHeadline: string;
   introBody: string;
@@ -126,7 +126,7 @@ export const DEFAULT_LEAD_FORM_STATE: LeadFormState = {
   introBody:
     "Share your details and a relationship manager will reach out within 24 hours with floor plans, pricing, and a site-visit invite.",
   disclaimer: DEFAULT_DISCLAIMER,
-  completionHeadline: "Thanks, we'll be in touch",
+  completionHeadline: "Thanks — we'll be in touch",
   completionBody:
     "A relationship manager will call you within 24 hours. Meanwhile, take a look at the project website.",
   completionCtaLabel: "Visit website",
@@ -377,7 +377,7 @@ export function CreativeTile({
             onChange={(e) => setRefineText(e.target.value)}
             rows={2}
             autoFocus
-            placeholder='Tell Spot what to change, "sharper hook", "use interior images"…'
+            placeholder='Tell Spot what to change — "sharper hook", "use interior images"…'
             className="w-full text-[11px] outline-none rounded px-1.5 py-1 resize-none"
             style={{ border: "1px solid #C9A86A", background: "#FFFEF8" }}
           />
@@ -908,7 +908,7 @@ export function LeadFormCard({
 
   return (
     <div className="space-y-3">
-      {/* Step navigation, drives both editor and preview */}
+      {/* Step navigation — drives both editor and preview */}
       <div className="flex items-center gap-1.5 flex-wrap">
         {LEAD_FORM_STEPS.map((s, i) => {
           const active = activeStep === s.key;
@@ -1069,7 +1069,7 @@ function QuestionsEditor({
     <div className="card-base p-3.5">
       <div className="text-[12px] font-semibold mb-1">Contact prefill</div>
       <div className="text-[10.5px] text-text-tertiary mb-2 leading-[1.5]">
-        Meta auto-fills these from the user&apos;s profile, fewer taps, higher submit rate.
+        Meta auto-fills these from the user&apos;s profile — fewer taps, higher submit rate.
       </div>
       <div className="space-y-0.5 mb-4">
         {STOCK_LEAD_FIELDS.map((f) => (
@@ -1103,7 +1103,7 @@ function QuestionsEditor({
       <div className="space-y-1.5 mb-2">
         {state.customQuestions.length === 0 && (
           <div className="text-[11px] text-text-tertiary italic px-2 py-2">
-            No custom questions yet. Add one to qualify leads, budget, timeline, unit type.
+            No custom questions yet. Add one to qualify leads — budget, timeline, unit type.
           </div>
         )}
         {state.customQuestions.map((q, i) => (
@@ -1297,7 +1297,7 @@ function MetaFormPreview({
   return (
     <div className="flex flex-col items-center">
       <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary font-semibold mb-2">
-        Preview, Meta lead form
+        Preview — Meta lead form
       </div>
       <div
         className="relative"

@@ -1,7 +1,7 @@
 import { CSSProperties } from "react";
 
 /**
- * Spot brand mark, radial-gradient rounded square with a glowing dot.
+ * Spot brand mark — radial-gradient rounded square with a glowing dot.
  * Use as the assistant identity glyph everywhere. Sizes via inline width/height.
  */
 export function SpotMark({

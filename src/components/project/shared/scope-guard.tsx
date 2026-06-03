@@ -16,12 +16,12 @@ import { useSpotStore } from "@/lib/spot/store";
  * deploy page, campaign).
  *
  * Returns one of three states:
- * - `{ access: "ok" }`, render normally. Scope already matched, or we
+ * - `{ access: "ok" }` — render normally. Scope already matched, or we
  *   silently auto-switched the user's scope to the resource's workspace.
- * - `{ access: "wrong-scope" }`, short-lived; we triggered an
+ * - `{ access: "wrong-scope" }` — short-lived; we triggered an
  *   auto-switch on this render. Caller should render nothing this frame
  *   to avoid leaking stale data.
- * - `{ access: "forbidden" }`, user has no access to the resource's
+ * - `{ access: "forbidden" }` — user has no access to the resource's
  *   workspace. Caller should render the forbidden state.
  *
  * Side effect: when access is auto-switchable, triggers `setScope` and
@@ -54,7 +54,7 @@ export function useScopeGuard(
       if (ws) showToast(`Switched to ${ws.name}`);
     }
     // We deliberately depend on the bound ids, not setScope/showToast
-    // identity, those are stable refs from zustand.
+    // identity — those are stable refs from zustand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceWorkspaceId, currentId]);
 
@@ -70,7 +70,7 @@ export function useScopeGuard(
       resourceLabel,
     };
   }
-  // Has access but we need to switch, render nothing this frame; the
+  // Has access but we need to switch — render nothing this frame; the
   // effect above triggers the scope switch and the next render lands as "ok".
   return {
     access: "wrong-scope",

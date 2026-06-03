@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { USERS, type AppUser, type UserRole, WORKSPACES, getWorkspace } from "./workspace-data";
 
-// Active scope can be a specific workspace, or "all" (admin-only, admin
+// Active scope can be a specific workspace, or "all" (admin-only — admin
 // dashboard view across every workspace).
 export type WorkspaceScope = string; // workspace id, or the literal "all"
 
@@ -79,13 +79,13 @@ export function useCurrentWorkspaceLabel() {
  *   /enquiries, /creatives, /agents-mvp) stay where they are; the pages
  *   themselves refilter against the new scope.
  * - Workspace-specific resources (project detail, deploy page, campaign
- *   detail) fall back to their parent list, the old resource doesn't
+ *   detail) fall back to their parent list — the old resource doesn't
  *   belong to the new scope.
  * - "all" only routes to /admin if the user was already on a workspace-
  *   specific resource that just got abandoned; from a list page, stay
  *   put and let the list aggregate.
  *
- * Note: this is pure routing logic, the page filter wiring is the
+ * Note: this is pure routing logic — the page filter wiring is the
  * caller's responsibility.
  */
 export function redirectAfterScopeSwitch(args: {
@@ -117,7 +117,7 @@ export function redirectAfterScopeSwitch(args: {
     return null;
   }
 
-  // Workspace-specific resources, fall back to parent list.
+  // Workspace-specific resources — fall back to parent list.
   // /projects/<id> and /projects/<id>/anything → /projects
   if (path.startsWith("/projects/")) return "/projects";
   // /campaigns/<id> → /campaigns. /campaigns/create stays.

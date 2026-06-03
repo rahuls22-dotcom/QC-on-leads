@@ -28,37 +28,37 @@ const MOCK_BUSINESS_MANAGERS: BusinessManager[] = [
     id: "bm-1",
     name: "Godrej Properties",
     adAccounts: [
-      { id: "aa-1", name: "Godrej Properties, Primary", accountId: "Act: 1029384756" },
-      { id: "aa-2", name: "Godrej Properties, NRI", accountId: "Act: 8374652910" },
+      { id: "aa-1", name: "Godrej Properties — Primary", accountId: "Act: 1029384756" },
+      { id: "aa-2", name: "Godrej Properties — NRI", accountId: "Act: 8374652910" },
     ],
   },
   {
     id: "bm-2",
     name: "Godrej Residential",
     adAccounts: [
-      { id: "aa-3", name: "Godrej Residential, South", accountId: "Act: 5738291046" },
+      { id: "aa-3", name: "Godrej Residential — South", accountId: "Act: 5738291046" },
     ],
   },
 ];
 
 const MOCK_CAMPAIGNS_BY_ACCOUNT: Record<string, ImportableCampaign[]> = {
   "aa-1": [
-    { id: "imp-1", name: "Godrej Air, Lead Gen (Whitefield)", status: "Active", spend: "₹1.9L", leads: 214 },
-    { id: "imp-2", name: "Godrej Air, Retargeting", status: "Active", spend: "₹85K", leads: 98 },
-    { id: "imp-3", name: "Godrej Reflections, NRI", status: "Paused", spend: "₹1.4L", leads: 156 },
-    { id: "imp-4", name: "Godrej Habitat, Brand Awareness", status: "Active", spend: "₹48K", leads: 64 },
-    { id: "imp-5", name: "Godrej Eternity, Lead Gen", status: "Completed", spend: "₹2.1L", leads: 312 },
+    { id: "imp-1", name: "Godrej Air — Lead Gen (Whitefield)", status: "Active", spend: "₹1.9L", leads: 214 },
+    { id: "imp-2", name: "Godrej Air — Retargeting", status: "Active", spend: "₹85K", leads: 98 },
+    { id: "imp-3", name: "Godrej Reflections — NRI", status: "Paused", spend: "₹1.4L", leads: 156 },
+    { id: "imp-4", name: "Godrej Habitat — Brand Awareness", status: "Active", spend: "₹48K", leads: 64 },
+    { id: "imp-5", name: "Godrej Eternity — Lead Gen", status: "Completed", spend: "₹2.1L", leads: 312 },
   ],
   "aa-2": [
-    { id: "imp-6", name: "Godrej Air, NRI Dubai", status: "Active", spend: "₹3.2L", leads: 89 },
-    { id: "imp-7", name: "Godrej Reflections, NRI Singapore", status: "Active", spend: "₹2.8L", leads: 72 },
-    { id: "imp-8", name: "Godrej Properties, NRI UK", status: "Paused", spend: "₹1.1L", leads: 45 },
+    { id: "imp-6", name: "Godrej Air — NRI Dubai", status: "Active", spend: "₹3.2L", leads: 89 },
+    { id: "imp-7", name: "Godrej Reflections — NRI Singapore", status: "Active", spend: "₹2.8L", leads: 72 },
+    { id: "imp-8", name: "Godrej Properties — NRI UK", status: "Paused", spend: "₹1.1L", leads: 45 },
   ],
   "aa-3": [
-    { id: "imp-9", name: "Godrej Ananda, Lead Gen (Bangalore)", status: "Active", spend: "₹2.4L", leads: 187 },
-    { id: "imp-10", name: "Godrej Eternity, South Region", status: "Active", spend: "₹1.6L", leads: 134 },
-    { id: "imp-11", name: "Godrej Reserve, Premium Launch", status: "Completed", spend: "₹4.1L", leads: 256 },
-    { id: "imp-12", name: "Godrej Woodland, Brand Awareness", status: "Active", spend: "₹72K", leads: 41 },
+    { id: "imp-9", name: "Godrej Ananda — Lead Gen (Bangalore)", status: "Active", spend: "₹2.4L", leads: 187 },
+    { id: "imp-10", name: "Godrej Eternity — South Region", status: "Active", spend: "₹1.6L", leads: 134 },
+    { id: "imp-11", name: "Godrej Reserve — Premium Launch", status: "Completed", spend: "₹4.1L", leads: 256 },
+    { id: "imp-12", name: "Godrej Woodland — Brand Awareness", status: "Active", spend: "₹72K", leads: 41 },
   ],
 };
 
@@ -280,7 +280,7 @@ export function StepAdAccount({ onNext, onBack }: StepAdAccountProps) {
               </div>
             </div>
 
-            {/* Ad Accounts, checkbox list */}
+            {/* Ad Accounts — checkbox list */}
             <div>
               <label className="block text-[12px] font-medium text-text-secondary mb-1.5">
                 Ad Accounts

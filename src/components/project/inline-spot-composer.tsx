@@ -5,10 +5,10 @@ import { Sparkles, X, Check, Loader2 } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
 
 /**
- * Inline Spot composer, sits in-context on the project page (no portal,
+ * Inline Spot composer — sits in-context on the project page (no portal,
  * no scrim). The user types an optional prompt and clicks either:
- *   · "Just draft N for me", Spot generates on the canonical defaults
- *   · "Draft from my prompt", Spot uses the prompt verbatim
+ *   · "Just draft N for me" — Spot generates on the canonical defaults
+ *   · "Draft from my prompt" — Spot uses the prompt verbatim
  *
  * Once kicked off, the composer hands rendering to a streaming log that
  * shows hierarchical progress (e.g., Persona → Angle → done) and calls

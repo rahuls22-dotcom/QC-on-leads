@@ -1,7 +1,7 @@
 import type { Angle, Creative } from "@/lib/project-data";
 
 /**
- * Derived "concept", a creative idea inside an angle. The schema today
+ * Derived "concept" — a creative idea inside an angle. The schema today
  * stores `angle.concept.creatives` as a flat list of sized creatives; we
  * group them here so the UI can present the Persona → Angle → Concept →
  * Sizes hierarchy the product asks for without a destructive schema
@@ -13,7 +13,7 @@ import type { Angle, Creative } from "@/lib/project-data";
 export type DerivedConcept = {
   /** Stable id derived from the angle + concept kind. */
   id: string;
-  /** Display name, defaults to angle name with a kind suffix. */
+  /** Display name — defaults to angle name with a kind suffix. */
   name: string;
   /** "static" covers image + carousel; "video" is its own track. */
   kind: "static" | "video";
@@ -108,7 +108,7 @@ export function conceptTotalVerified(concept: DerivedConcept): number {
   return concept.sizes.reduce((s, c) => s + (c.verified || 0), 0);
 }
 
-/** Aggregate CPVL across sizes, null when nothing's verified yet. */
+/** Aggregate CPVL across sizes — null when nothing's verified yet. */
 export function conceptAggregateCpvl(concept: DerivedConcept): number | null {
   const spend = conceptTotalSpend(concept);
   const verified = conceptTotalVerified(concept);
@@ -122,7 +122,7 @@ import type { Persona, ProjectDetail } from "@/lib/project-data";
 /**
  * How many distinct campaigns reference any of this concept's sizes
  * (via MediaAd.creativeId). Returns 0 when the concept isn't in any
- * campaign yet, used to surface the "Not in a campaign" badge.
+ * campaign yet — used to surface the "Not in a campaign" badge.
  */
 export function conceptCampaignAttachments(
   concept: DerivedConcept,
@@ -162,7 +162,7 @@ export function conceptShortLabel(concept: DerivedConcept): string {
  * Ties are broken by CVR. Returns `null` when no concept has any TOFU
  * data yet.
  *
- * Per the product brief, winners are TOFU-defined, downstream metrics
+ * Per the product brief, winners are TOFU-defined — downstream metrics
  * (CPVL, CPQL) are *outcomes*, not the cause; the audience-attention
  * signal at the top of the funnel is what we let identify a winner.
  */
@@ -175,7 +175,7 @@ export type WinningConcept = {
     /** Percent value, e.g. 1.45 for 1.45%. */
     value: number;
   };
-  /** Conversion rate, secondary signal, surfaced alongside the TOFU number. */
+  /** Conversion rate — secondary signal, surfaced alongside the TOFU number. */
   cvr: number | null;
 };
 

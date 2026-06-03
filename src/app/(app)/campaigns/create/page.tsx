@@ -35,7 +35,7 @@ const steps = [
   { key: "structure", label: "Structure", icon: Sparkles },
 ] as const;
 
-// Result is a STATE, not a step, rendered after structure completes.
+// Result is a STATE, not a step — rendered after structure completes.
 const RESULT_INDEX = steps.length;
 
 export default function CreateCampaignPage() {
@@ -44,7 +44,7 @@ export default function CreateCampaignPage() {
   const askSpot = useSpotStore((s) => s.askSpot);
   const openGuided = useSpotStore((s) => s.openGuided);
 
-  // Debug helper, ?start=N jumps to that step index (N = RESULT_INDEX previews the result state)
+  // Debug helper — ?start=N jumps to that step index (N = RESULT_INDEX previews the result state)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
@@ -76,7 +76,7 @@ export default function CreateCampaignPage() {
         <button
           type="button"
           onClick={() =>
-            askSpot("Help me set up this campaign, what should I optimize for?")
+            askSpot("Help me set up this campaign — what should I optimize for?")
           }
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white hover:border-border-hover hover:bg-surface-page text-[11.5px]"
         >
@@ -84,7 +84,7 @@ export default function CreateCampaignPage() {
         </button>
       </div>
 
-      {/* Spot ambient strip, only on step 0 */}
+      {/* Spot ambient strip — only on step 0 */}
       {currentStep === 0 && (
         <div className="spot-reply mb-6 p-3.5 flex items-start gap-3">
           <SpotMark size={18} />
@@ -92,7 +92,7 @@ export default function CreateCampaignPage() {
             <div className="uplabel mb-0.5">Spot</div>
             <div className="text-[13px] leading-[1.5]">
               You can walk the wizard yourself, or skip ahead and let me draft a starting
-              campaign, type, name, objective, and budget. You'll confirm every step.
+              campaign — type, name, objective, and budget. You'll confirm every step.
             </div>
           </div>
           <button
@@ -124,7 +124,7 @@ export default function CreateCampaignPage() {
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
                       isComplete
-                        ? "bg-accent text-white"
+                        ? "bg-status-success text-white"
                         : isCurrent
                         ? "bg-accent text-white ring-4 ring-accent/10"
                         : "bg-surface-secondary text-text-tertiary"
@@ -152,7 +152,7 @@ export default function CreateCampaignPage() {
                 {i < steps.length - 1 && (
                   <div
                     className={`w-10 h-[2px] mx-1 mt-[-18px] transition-colors duration-200 ${
-                      i < currentStep ? "bg-accent" : "bg-border"
+                      i < currentStep ? "bg-status-success" : "bg-border"
                     }`}
                   />
                 )}

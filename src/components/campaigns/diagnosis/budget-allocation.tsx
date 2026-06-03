@@ -13,7 +13,7 @@ export function BudgetAllocation({ data }: BudgetAllocationProps) {
       <div className="px-5 py-3 border-b border-border-subtle">
         <h3 className="text-section-header text-text-primary">Budget allocation</h3>
         <p className="text-[11px] text-text-tertiary mt-0.5">
-          Each adset's share of spend vs share of leads, shows where money is working
+          Each adset's share of spend vs share of leads — shows where money is working
           harder than its budget weight.
         </p>
       </div>

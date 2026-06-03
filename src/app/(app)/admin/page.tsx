@@ -171,7 +171,7 @@ export default function AdminDashboardPage() {
   const invites = useInviteStore((s) => s.invites);
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  // Members shouldn't see this page, redirect to /projects.
+  // Members shouldn't see this page — redirect to /projects.
   useEffect(() => {
     if (user.role !== "admin") router.replace("/projects");
   }, [user.role, router]);
@@ -223,7 +223,7 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() =>
-              askSpot("Compare all three workspaces, who's pulling weight, who's behind?", {
+              askSpot("Compare all three workspaces — who's pulling weight, who's behind?", {
                 kind: "workspace",
                 label: "All workspaces",
               })
@@ -276,8 +276,8 @@ export default function AdminDashboardPage() {
           <div className="uplabel mb-1">Spot · cross-workspace read</div>
           <div className="text-[13.5px] leading-[1.55]">
             <strong>NCR</strong> is pulling weight (+2% pace, CPVL holding under ₹5K).
-            <strong> South</strong> is the drag, Banerghatta is 21% behind and Kukatpally is 56%
-            behind. <strong>MMR</strong> is mixed, Reserve is steady, Varanya is 18% behind. The
+            <strong> South</strong> is the drag — Banerghatta is 21% behind and Kukatpally is 56%
+            behind. <strong>MMR</strong> is mixed — Reserve is steady, Varanya is 18% behind. The
             single biggest unlock right now is fixing Kukatpally&apos;s positioning.
           </div>
           <div className="flex flex-wrap gap-1.5 mt-3">

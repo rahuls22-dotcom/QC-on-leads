@@ -4,7 +4,7 @@ import type { ProjectDetail } from "@/lib/project-data";
 import { DashboardSection } from "../dashboard-section";
 
 /**
- * Dashboard deep-dive, renders the regular Dashboard tab content at
+ * Dashboard deep-dive — renders the regular Dashboard tab content at
  * deep-dive width. PR C's Dashboard already has charts + click-to-
  * visualize, so the deep-dive view just gets a roomier shell.
  */
@@ -22,7 +22,7 @@ export function DashboardDeepDive({ project }: { project: ProjectDetail }) {
           Dashboard deep dive
         </div>
         <div className="text-[11.5px] text-text-secondary leading-[1.55]">
-          Project pulse at full width, click any metric tile to expand a
+          Project pulse at full width — click any metric tile to expand a
           14-day chart with per-persona breakdown. The Spot panel on the
           right answers free-text questions about any of these numbers.
         </div>

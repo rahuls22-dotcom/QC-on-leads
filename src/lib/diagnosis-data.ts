@@ -13,7 +13,7 @@ import type { DiagnosisPayload } from "./types/diagnosis-payload";
 export const campaignDiagnosisPayload: DiagnosisPayload = {
   status_strip: {
     verdict: "OFF_TARGET",
-    headline: "Off Target, projecting 215 of 300 leads",
+    headline: "Off Target — projecting 215 of 300 leads",
     days_live: 14,
     days_total: 30,
     primary_metric_summary: "143 / 300 leads · projecting 215 (-28%)",
@@ -23,14 +23,14 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
     id: "nba-1",
     verb: "INTERVENE",
     color: "amber",
-    headline: "Pause Broad Bangalore, 25-55, redeploy ₹25K to Whitefield HNI",
+    headline: "Pause Broad Bangalore — 25-55, redeploy ₹25K to Whitefield HNI",
     reason:
-      "Broad Bangalore burned ₹63K for 0 qualified leads (CTR 0.9%, verify 11%). Whitefield HNI is delivering at ₹6,786 CPQL, half the campaign average.",
+      "Broad Bangalore burned ₹63K for 0 qualified leads (CTR 0.9%, verify 11%). Whitefield HNI is delivering at ₹6,786 CPQL — half the campaign average.",
     expected_impact:
       "Recovers ~22 qualified leads · closes 88% of the qualified-lead gap (22 of 25)",
     cta_label: "Apply reallocation",
-    target_entity: "Broad Bangalore, 25-55",
-    redeploy_to: "Whitefield HNI, 30-45",
+    target_entity: "Broad Bangalore — 25-55",
+    redeploy_to: "Whitefield HNI — 30-45",
     why_action_ids: ["diag-1", "diag-2"],
   },
 
@@ -75,7 +75,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
   budget_allocation: {
     adsets: [
       {
-        name: "Whitefield HNI, 30-45",
+        name: "Whitefield HNI — 30-45",
         spend_share_pct: 43.2,
         lead_share_pct: 50.3,
         qualified_share_pct: 87.5,
@@ -91,7 +91,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
         stance: "hold",
       },
       {
-        name: "Broad Bangalore, 25-55",
+        name: "Broad Bangalore — 25-55",
         spend_share_pct: 28.6,
         lead_share_pct: 9.1,
         qualified_share_pct: 0,
@@ -100,8 +100,8 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
       },
     ],
     top_move: {
-      from_adset: "Broad Bangalore, 25-55",
-      to_adset: "Whitefield HNI, 30-45",
+      from_adset: "Broad Bangalore — 25-55",
+      to_adset: "Whitefield HNI — 30-45",
       amount: 25000,
       recoverable_leads: 22,
       gap_close_pct: 88,
@@ -127,7 +127,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
       reason: "Frequency climbed to 3.18 over 7 days; CTR drifting from 2.8% → 2.4%.",
       expected: "Restores CTR to ~2.8%, lowers CPL by ~₹150 across the adset.",
       cta_label: "Add creative",
-      target_entity: "Whitefield HNI, 30-45",
+      target_entity: "Whitefield HNI — 30-45",
     },
     {
       id: "act-4",
@@ -145,7 +145,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
     {
       id: "diag-1",
       bullet:
-        "Broad Bangalore is the project's biggest leak, 28.6% of spend produces 0 qualified leads.",
+        "Broad Bangalore is the project's biggest leak — 28.6% of spend produces 0 qualified leads.",
       tof: "CTR 0.9% vs 2.4% top adset",
       mof: "Verify rate 11% vs 31%",
       bof: "0 qualified · 0 site visits",
@@ -154,7 +154,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
     {
       id: "diag-2",
       bullet:
-        "Whitefield HNI is your growth lever, 87.5% of qualified leads from 43% of spend.",
+        "Whitefield HNI is your growth lever — 87.5% of qualified leads from 43% of spend.",
       tof: "CTR 2.4% (project leader)",
       mof: "Verify rate 31%",
       bof: "14 qualified · 4 site visits",
@@ -163,7 +163,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
     {
       id: "diag-3",
       bullet:
-        "Pacing index 1.31, at this burn rate, budget exhausts on day 25 of 30.",
+        "Pacing index 1.31 — at this burn rate, budget exhausts on day 25 of 30.",
       tof: "Daily spend ₹15.7K vs ₹12K planned",
       mof: null,
       bof: null,
@@ -182,7 +182,7 @@ export const campaignDiagnosisPayload: DiagnosisPayload = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  UI helpers, keep verdict/color logic colocated with the data so   */
+/*  UI helpers — keep verdict/color logic colocated with the data so   */
 /*  components can stay presentation-only.                             */
 /* ------------------------------------------------------------------ */
 

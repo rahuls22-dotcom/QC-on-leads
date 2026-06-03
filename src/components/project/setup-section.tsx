@@ -61,7 +61,7 @@ export function SetupSection({
   project: ProjectDetail;
   onAsk: (q: string) => void;
   /**
-   * Called when the user clicks "Manage in Library", lets the project page
+   * Called when the user clicks "Manage in Library" — lets the project page
    * switch the active tab without forcing a route change.
    */
   onOpenLibrary?: () => void;
@@ -76,7 +76,7 @@ export function SetupSection({
         icon={FileText}
         title="Brief"
         subtitle={`Updated ${project.brief.updated}`}
-        onAsk={() => onAsk("Rewrite the brief, sharpen the positioning")}
+        onAsk={() => onAsk("Rewrite the brief — sharpen the positioning")}
       />
       <div className="grid gap-3" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
         <div className="card-base p-5">
@@ -125,13 +125,13 @@ export function SetupSection({
         title="Voice & proof"
         subtitle={`Updated ${project.strategy.updated} · Inherits from Godrej Properties brand`}
         onAsk={() =>
-          onAsk("Audit voice & proof, is anything drifting from the brand?")
+          onAsk("Audit voice & proof — is anything drifting from the brand?")
         }
       />
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <div className="card-base p-5">
           <div className="uplabel mb-3" style={{ fontSize: 10 }}>
-            Tone, project sharpened
+            Tone — project sharpened
           </div>
           <div className="mb-3">
             <div className="text-[10.5px] uppercase tracking-[0.4px] text-text-tertiary mb-1.5">We are</div>
@@ -191,7 +191,7 @@ export function SetupSection({
         </div>
       </div>
 
-      {/* IMAGES, read-only mirror; primary editing happens in Library tab */}
+      {/* IMAGES — read-only mirror; primary editing happens in Library tab */}
       <SectionHeader
         icon={ImageIcon}
         title="Image library"

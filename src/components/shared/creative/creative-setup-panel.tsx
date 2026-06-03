@@ -40,8 +40,8 @@ interface CreativeSetupPanelProps {
 
 const EXAMPLE_PROMPTS = [
   "Premium 3BHK in Whitefield with zen-garden lifestyle",
-  "Family-friendly luxury, emphasize amenities & community",
-  "Investment angle for NRI buyers, highlight RERA + rental yield",
+  "Family-friendly luxury — emphasize amenities & community",
+  "Investment angle for NRI buyers — highlight RERA + rental yield",
 ];
 
 export function CreativeSetupPanel({
@@ -73,13 +73,13 @@ export function CreativeSetupPanel({
           </div>
           <h2 className="text-[22px] font-semibold text-text-primary">Create your ad</h2>
           <p className="text-[12px] text-text-tertiary">
-            Describe what you want, attach context as you go.
+            Describe what you want — attach context as you go.
           </p>
         </div>
 
-        {/* Chatbox, overflow-visible so attachment popovers can pop out */}
+        {/* Chatbox — overflow-visible so attachment popovers can pop out */}
         <div className="bg-white rounded-[16px] border border-violet-200/60 shadow-[0_8px_30px_-12px_rgba(124,58,237,0.18)] overflow-hidden">
-          {/* Creative Strategy banner, sits above the prompt for prominence */}
+          {/* Creative Strategy banner — sits above the prompt for prominence */}
           <StrategyPill
             asBanner
             active={workspace.creative_strategy_attached}
@@ -178,7 +178,7 @@ export function CreativeSetupPanel({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Popover root, shared placement helper                             */
+/*  Popover root — shared placement helper                             */
 /* ------------------------------------------------------------------ */
 
 function usePopover() {
@@ -189,9 +189,9 @@ function usePopover() {
     const handler = (e: MouseEvent) => {
       const target = e.target as Element | null;
       if (!target) return;
-      // Click on the trigger, handled by its own onClick, leave open state alone.
+      // Click on the trigger — handled by its own onClick, leave open state alone.
       if (ref.current?.contains(target)) return;
-      // Click inside any portaled popover, keep open so the click can land on
+      // Click inside any portaled popover — keep open so the click can land on
       // the intended interactive element (e.g., a sample tile inside the popover).
       if (target.closest('[data-popover-content="true"]')) return;
       setOpen(false);
@@ -210,7 +210,7 @@ function usePopover() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Portal popover, opens upward from the anchor pill,                */
+/*  Portal popover — opens upward from the anchor pill,                */
 /*  rendered to document.body so it escapes any clipping ancestor.     */
 /* ------------------------------------------------------------------ */
 
@@ -270,7 +270,7 @@ function PopoverPortal({ open, anchorRef, width, children }: PopoverPortalProps)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Image picker pill, popover with a small gallery of samples        */
+/*  Image picker pill — popover with a small gallery of samples        */
 /* ------------------------------------------------------------------ */
 
 interface ImagePickerPillProps {
@@ -282,7 +282,7 @@ interface ImagePickerPillProps {
   /** Filename used when the user picks "Upload your own". */
   uploadLabel: string;
   uploadedName: string;
-  /** Label for the bottom action, "View more" or "Browse Library". */
+  /** Label for the bottom action — "View more" or "Browse Library". */
   moreLabel: string;
 }
 
@@ -357,7 +357,7 @@ function ImagePickerPill({
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {/* Upload row, always first */}
+              {/* Upload row — always first */}
               <button
                 type="button"
                 onClick={() => {
@@ -404,7 +404,7 @@ function ImagePickerPill({
                 </div>
               </div>
             </div>
-            {/* Footer, View more / Browse Library */}
+            {/* Footer — View more / Browse Library */}
             <div className="border-t border-border-subtle bg-surface-page px-3 py-2 flex items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
@@ -433,7 +433,7 @@ function ImagePickerPill({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Single-upload pill, no popover, just toggles a single attachment  */
+/*  Single-upload pill — no popover, just toggles a single attachment  */
 /* ------------------------------------------------------------------ */
 
 interface SimpleUploadPillProps {
@@ -474,7 +474,7 @@ function SimpleUploadPill({ icon, label, uploadedName, attached, onAttach }: Sim
 }
 
 /* ------------------------------------------------------------------ */
-/*  Brand Guidelines pill, popover with a sample brand sheet          */
+/*  Brand Guidelines pill — popover with a sample brand sheet          */
 /* ------------------------------------------------------------------ */
 
 interface BrandGuidelinesPillProps {
@@ -595,7 +595,7 @@ function BrandGuidelinesPill({ active, onToggle }: BrandGuidelinesPillProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Creative Strategy pill, editable inline                           */
+/*  Creative Strategy pill — editable inline                           */
 /* ------------------------------------------------------------------ */
 
 interface StrategyPillProps {
@@ -610,7 +610,7 @@ interface StrategyPillProps {
 function StrategyPill({ active, onToggle, strategy, onUpdate, asBanner = false }: StrategyPillProps) {
   const { open, setOpen, ref } = usePopover();
   const anchorRef = useRef<HTMLButtonElement>(null);
-  // Local buffer, only used while in edit mode.
+  // Local buffer — only used while in edit mode.
   const [draft, setDraft] = useState(strategy);
   const [editing, setEditing] = useState(false);
   // Re-seed and exit edit mode whenever the popover (re)opens.

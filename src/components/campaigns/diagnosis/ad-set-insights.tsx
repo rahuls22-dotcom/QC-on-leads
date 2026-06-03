@@ -50,7 +50,7 @@ export function AdSetInsights({ adsets, creatives }: AdSetInsightsProps) {
       <div className="px-5 py-3 border-b border-border-subtle">
         <h3 className="text-section-header text-text-primary">Ad set insights</h3>
         <p className="text-[11px] text-text-tertiary mt-0.5">
-          How each audience is responding, synthesized from per-adset CTR, qualifier rates, and
+          How each audience is responding — synthesized from per-adset CTR, qualifier rates, and
           creative fatigue.
         </p>
       </div>
@@ -100,7 +100,7 @@ function AdSetCard({ adset, creatives }: { adset: AdSetRow; creatives: CreativeM
           <span>
             <span className="text-text-tertiary">Top: </span>
             <span className="font-medium text-text-primary">{insight.bestCreative.format}</span>
-            {", "}
+            {" — "}
             <span className="tabular-nums">CTR {insight.bestCreative.ctr}%</span>
           </span>
         </div>
@@ -144,7 +144,7 @@ function MetricChip({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Insight synthesis, deterministic rules from adset + creative data */
+/*  Insight synthesis — deterministic rules from adset + creative data */
 /* ------------------------------------------------------------------ */
 
 interface AdSetInsight {
@@ -177,14 +177,14 @@ function computeAdSetInsight(adset: AdSetRow, creatives: CreativeMetric[]): AdSe
   let headline: string;
   if (verdict === "pause") {
     headline = adset.qualifiedLeads === 0
-      ? `Audience signal weak, ${adset.leads} leads, 0 qualified. Verify rate ${verifyRate.toFixed(0)}%.`
-      : `Audience underperforming, CTR ${adset.ctr}%, ${adset.qualifiedLeads} qualified at ₹${adset.cpql.toLocaleString("en-IN")} CPQL.`;
+      ? `Audience signal weak — ${adset.leads} leads, 0 qualified. Verify rate ${verifyRate.toFixed(0)}%.`
+      : `Audience underperforming — CTR ${adset.ctr}%, ${adset.qualifiedLeads} qualified at ₹${adset.cpql.toLocaleString("en-IN")} CPQL.`;
   } else if (verdict === "refresh" && fatigued && top) {
-    headline = `${top.format} still resonates (CTR ${top.ctr}%), but ${fatigued.format} fatiguing, frequency ${fatigued.frequency.toFixed(2)}, CTR ${fatigued.ctrDelta7d}% in 7d.`;
+    headline = `${top.format} still resonates (CTR ${top.ctr}%), but ${fatigued.format} fatiguing — frequency ${fatigued.frequency.toFixed(2)}, CTR ${fatigued.ctrDelta7d}% in 7d.`;
   } else if (verdict === "scale" && top) {
-    headline = `${top.format} drives this audience, CTR ${top.ctr}%, ${adset.qualifiedLeads} qualified at ₹${adset.cpql.toLocaleString("en-IN")} CPQL.`;
+    headline = `${top.format} drives this audience — CTR ${top.ctr}%, ${adset.qualifiedLeads} qualified at ₹${adset.cpql.toLocaleString("en-IN")} CPQL.`;
   } else if (verdict === "hold" && top) {
-    headline = `Steady, verifies at ${verifyRate.toFixed(0)}%, qualifies at ${qualRate.toFixed(0)}%. Watch ${top.format} for fatigue.`;
+    headline = `Steady — verifies at ${verifyRate.toFixed(0)}%, qualifies at ${qualRate.toFixed(0)}%. Watch ${top.format} for fatigue.`;
   } else {
     headline = `CTR ${adset.ctr}%, ${adset.qualifiedLeads} qualified · ${verifyRate.toFixed(0)}% verify.`;
   }

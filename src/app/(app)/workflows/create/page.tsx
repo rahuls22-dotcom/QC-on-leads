@@ -105,12 +105,12 @@ export default function CreateWorkflowPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
 
-  // Step 1, Trigger
+  // Step 1 — Trigger
   const [triggerType, setTriggerType] = useState<TriggerType | "">("");
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("");
 
-  // Step 2, Routing
+  // Step 2 — Routing
   const [routingEnabled, setRoutingEnabled] = useState(false);
   const [routingMode, setRoutingMode] = useState<"rules" | "ai">("rules");
   const [aiRoutingPrompt, setAiRoutingPrompt] = useState("");
@@ -118,10 +118,10 @@ export default function CreateWorkflowPage() {
     { id: "br-1", label: "Branch 1", agentId: "", rules: [{ field: "", operator: "equals", value: "" }] },
   ]);
 
-  // Step 3, Agent Selection (single, when no routing)
+  // Step 3 — Agent Selection (single, when no routing)
   const [singleAgentId, setSingleAgentId] = useState("");
 
-  // Step 4, Cadence & Schedule (single-agent / default_step)
+  // Step 4 — Cadence & Schedule (single-agent / default_step)
   const [dailyLimit, setDailyLimit] = useState("200");
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("19:00");
@@ -131,7 +131,7 @@ export default function CreateWorkflowPage() {
   const [retryInterval, setRetryInterval] = useState("4");
   const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>(DEFAULT_FOLLOW_UP_RULES);
 
-  // Step 4, Per-branch cadence (when routing is enabled)
+  // Step 4 — Per-branch cadence (when routing is enabled)
   const [branchCadences, setBranchCadences] = useState<Record<string, CadenceState>>({
     "br-1": { ...DEFAULT_CADENCE, followUpRules: DEFAULT_FOLLOW_UP_RULES.map((r) => ({ ...r })) },
   });
@@ -435,11 +435,11 @@ export default function CreateWorkflowPage() {
                   style={selectStyle}
                 >
                   <option value="">Choose a campaign...</option>
-                  <option value="camp-1">Godrej Reflections Habitat, Lead Gen</option>
-                  <option value="camp-2">Godrej Eternity, Retargeting</option>
-                  <option value="camp-3">Godrej Nurture, Lookalike</option>
-                  <option value="camp-4">Godrej Platinum, Lead Gen</option>
-                  <option value="camp-7">Godrej Air Phase 3, Lead Gen</option>
+                  <option value="camp-1">Godrej Reflections Habitat — Lead Gen</option>
+                  <option value="camp-2">Godrej Eternity — Retargeting</option>
+                  <option value="camp-3">Godrej Nurture — Lookalike</option>
+                  <option value="camp-4">Godrej Platinum — Lead Gen</option>
+                  <option value="camp-7">Godrej Air Phase 3 — Lead Gen</option>
                 </select>
                 <p className="text-[11px] text-text-tertiary mt-1.5">New leads from this campaign will automatically enter the sequence.</p>
               </div>
@@ -536,7 +536,7 @@ export default function CreateWorkflowPage() {
                     <textarea
                       value={aiRoutingPrompt}
                       onChange={(e) => setAiRoutingPrompt(e.target.value)}
-                      placeholder="Describe how leads should be routed. E.g., 'Route leads with budget > 1Cr to Priya, others to Arjun.'"
+                      placeholder="Describe how leads should be routed. E.g., 'Route leads with budget > 1Cr to Vox, others to Atlas.'"
                       rows={3}
                       className="w-full px-3 py-2 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary resize-none"
                     />

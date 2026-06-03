@@ -25,7 +25,7 @@ import { useSpotStore } from "@/lib/spot/store";
  * to the relevant tab. A prominent "Let Spot take charge" button at the
  * top runs all three steps end-to-end via the autopilot.
  *
- * The whole strip auto-hides once every step is done, no manual dismiss
+ * The whole strip auto-hides once every step is done — no manual dismiss
  * needed; the checklist's job is the setup window only.
  */
 export function SetupChecklist({
@@ -255,7 +255,7 @@ function AutopilotModal({
   });
   const showToast = useSpotStore((s) => s.showToast);
 
-  // Streaming runner, advances one step per tick until all are done.
+  // Streaming runner — advances one step per tick until all are done.
   useEffect(() => {
     if (state.stage !== "running") return;
     if (state.cursor >= plan.steps.length) {
@@ -268,8 +268,8 @@ function AutopilotModal({
         counts.push(`${plan.summary.campaignCount} campaign${plan.summary.campaignCount === 1 ? "" : "s"}`);
       showToast(
         counts.length > 0
-          ? `Spot drafted ${counts.join(" · ")}, review before deploying`
-          : "Spot ran, nothing left to draft",
+          ? `Spot drafted ${counts.join(" · ")} — review before deploying`
+          : "Spot ran — nothing left to draft",
       );
       // Brief pause on the done state so the user reads it, then close.
       window.setTimeout(onClose, 900);
@@ -299,7 +299,7 @@ function AutopilotModal({
         padding: "5vh 16px",
       }}
       onClick={(e) => {
-        // Only allow scrim-dismiss in the preview/done stage, never
+        // Only allow scrim-dismiss in the preview/done stage — never
         // mid-run, since the mutations are landing live.
         if (e.target === e.currentTarget && state.stage !== "running") {
           onClose();
@@ -339,7 +339,7 @@ function AutopilotModal({
             </div>
             <div className="text-[11.5px] text-text-tertiary mt-0.5">
               {noWork
-                ? "Nothing left to draft, your project is already deploy-ready."
+                ? "Nothing left to draft — your project is already deploy-ready."
                 : state.stage === "running"
                   ? `Step ${Math.min(state.cursor + 1, plan.steps.length)} of ${plan.steps.length}…`
                   : state.stage === "done"

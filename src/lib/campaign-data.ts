@@ -1,4 +1,4 @@
-// Campaign mock data, realistic Bangalore luxury real estate
+// Campaign mock data — realistic Bangalore luxury real estate
 
 // ── Campaign List ───────────────────────────────────────────
 
@@ -10,7 +10,7 @@ export interface CampaignListItem {
   id: string;
   name: string;
   type: CampaignType;
-  client: string; // internal, maps to project name in UI
+  client: string; // internal — maps to project name in UI
   projectId: string | null; // null = unassigned
   status: CampaignStatus;
   spend: number;
@@ -40,7 +40,7 @@ export interface CampaignListItem {
 
 export const campaignsList: CampaignListItem[] = [
   {
-    id: "camp-1", name: "Godrej Reflections Habitat, Lead Gen", type: "Performance",
+    id: "camp-1", name: "Godrej Reflections Habitat — Lead Gen", type: "Performance",
     client: "Whitefield Luxury Villas", projectId: "proj-1",
     status: "enabled", spend: 185000, leads: 214, verifiedLeads: 38, qualifiedLeads: 18, cpl: 864, health: "on-track", createdAt: "2025-12-15",
     cpm: 245, ctr: 2.1, cpc: 18,
@@ -48,7 +48,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 15, costPerVerifiedLead: 4868, costPerQualifiedLead: 10278, verificationRate: 18, qualificationRate: 8, agentConnected: true,
   },
   {
-    id: "camp-2", name: "Godrej Eternity, Retargeting", type: "Performance",
+    id: "camp-2", name: "Godrej Eternity — Retargeting", type: "Performance",
     client: "Godrej Eternity Pre-launch", projectId: "proj-3",
     status: "enabled", spend: 142000, leads: 156, verifiedLeads: 22, qualifiedLeads: 11, cpl: 910, health: "needs-attention", createdAt: "2026-01-08",
     cpm: 310, ctr: 1.4, cpc: 32,
@@ -56,7 +56,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 28, costPerVerifiedLead: 6455, costPerQualifiedLead: 12909, verificationRate: 14, qualificationRate: 7, agentConnected: true,
   },
   {
-    id: "camp-3", name: "Godrej Nurture, Lookalike", type: "Performance",
+    id: "camp-3", name: "Godrej Nurture — Lookalike", type: "Performance",
     client: "Godrej Nurture", projectId: null,
     status: "enabled", spend: 95000, leads: 128, verifiedLeads: 24, qualifiedLeads: 14, cpl: 742, health: "on-track", createdAt: "2026-01-22",
     cpm: 198, ctr: 2.8, cpc: 12,
@@ -64,7 +64,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 10, costPerVerifiedLead: 3958, costPerQualifiedLead: 6786, verificationRate: 19, qualificationRate: 11, agentConnected: true,
   },
   {
-    id: "camp-4", name: "Godrej Platinum, Lead Gen", type: "Performance",
+    id: "camp-4", name: "Godrej Platinum — Lead Gen", type: "Performance",
     client: "Godrej Platinum", projectId: null,
     status: "enabled", spend: 110000, leads: 142, verifiedLeads: 18, qualifiedLeads: 8, cpl: 775, health: "underperforming", createdAt: "2026-02-03",
     cpm: 380, ctr: 0.9, cpc: 45,
@@ -72,7 +72,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 42, costPerVerifiedLead: 6111, costPerQualifiedLead: 13750, verificationRate: 13, qualificationRate: 6, agentConnected: true,
   },
   {
-    id: "camp-5", name: "Godrej Reserve, HNI", type: "Performance",
+    id: "camp-5", name: "Godrej Reserve — HNI", type: "Performance",
     client: "Godrej Reserve", projectId: null,
     status: "enabled", spend: 88000, leads: 98, verifiedLeads: 16, qualifiedLeads: 10, cpl: 898, health: "on-track", createdAt: "2026-02-14",
     cpm: 265, ctr: 1.9, cpc: 22,
@@ -80,7 +80,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 20, costPerVerifiedLead: 5500, costPerQualifiedLead: 8800, verificationRate: 16, qualificationRate: 10, agentConnected: true,
   },
   {
-    id: "camp-6", name: "Godrej Ananda, Carousel", type: "Brand",
+    id: "camp-6", name: "Godrej Ananda — Carousel", type: "Brand",
     client: "Godrej Ananda", projectId: null,
     status: "paused", spend: 60000, leads: 107, verifiedLeads: 9, qualifiedLeads: 7, cpl: 561, health: "on-track", createdAt: "2026-01-05",
     cpm: 150, ctr: 3.2, cpc: 8,
@@ -88,7 +88,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 7, costPerVerifiedLead: 6667, costPerQualifiedLead: 8571, verificationRate: 8, qualificationRate: 7, agentConnected: true,
   },
   {
-    id: "camp-7", name: "Godrej Air Phase 3, Lead Gen", type: "Performance",
+    id: "camp-7", name: "Godrej Air Phase 3 — Lead Gen", type: "Performance",
     client: "Godrej Air Phase 3", projectId: "proj-2",
     status: "enabled", spend: 220000, leads: 186, verifiedLeads: 42, qualifiedLeads: 22, cpl: 1183, health: "on-track", createdAt: "2025-11-20",
     cpm: 280, ctr: 2.4, cpc: 19,
@@ -96,7 +96,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 16, costPerVerifiedLead: 5238, costPerQualifiedLead: 10000, verificationRate: 23, qualificationRate: 12, agentConnected: false,
   },
   {
-    id: "camp-8", name: "Godrej Woodland, Brand Awareness", type: "Brand",
+    id: "camp-8", name: "Godrej Woodland — Brand Awareness", type: "Brand",
     client: "Godrej Woodland", projectId: null,
     status: "enabled", spend: 75000, leads: 92, verifiedLeads: 11, qualifiedLeads: 5, cpl: 815, health: "needs-attention", createdAt: "2026-02-28",
     cpm: 175, ctr: 2.6, cpc: 11,
@@ -104,7 +104,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 9, costPerVerifiedLead: 6818, costPerQualifiedLead: 15000, verificationRate: 12, qualificationRate: 5, agentConnected: true,
   },
   {
-    id: "camp-9", name: "Godrej Summit, Lead Gen", type: "Performance",
+    id: "camp-9", name: "Godrej Summit — Lead Gen", type: "Performance",
     client: "Godrej Summit Full Funnel", projectId: "proj-4",
     status: "paused", spend: 310000, leads: 340, verifiedLeads: 58, qualifiedLeads: 29, cpl: 912, health: "on-track", createdAt: "2025-09-10",
     cpm: 220, ctr: 2.3, cpc: 15,
@@ -112,7 +112,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 12, costPerVerifiedLead: 5345, costPerQualifiedLead: 10690, verificationRate: 17, qualificationRate: 9, agentConnected: true,
   },
   {
-    id: "camp-10", name: "Godrej Horizon, Retargeting", type: "Performance",
+    id: "camp-10", name: "Godrej Horizon — Retargeting", type: "Performance",
     client: "Whitefield Luxury Villas", projectId: "proj-1",
     status: "paused", spend: 48000, leads: 64, verifiedLeads: 8, qualifiedLeads: 4, cpl: 750, health: "needs-attention", createdAt: "2026-01-30",
     cpm: 340, ctr: 1.1, cpc: 38,
@@ -120,7 +120,7 @@ export const campaignsList: CampaignListItem[] = [
     costPerLinkClick: 35, costPerVerifiedLead: 6000, costPerQualifiedLead: 12000, verificationRate: 13, qualificationRate: 6, agentConnected: true,
   },
   {
-    id: "camp-11", name: "Godrej Reserve, HNI Launch", type: "Performance",
+    id: "camp-11", name: "Godrej Reserve — HNI Launch", type: "Performance",
     client: "Godrej Reserve", projectId: "proj-3",
     status: "draft", spend: 0, leads: 0, verifiedLeads: 0, qualifiedLeads: 0, cpl: 0, health: "on-track", createdAt: "2026-04-02",
     cpm: 0, ctr: 0, cpc: 0,
@@ -236,7 +236,7 @@ export const campaignLeads: CampaignLead[] = [
         { date: "Mar 20, 3:12 PM", action: "Pushed to CRM (auto-sync)" },
         { date: "Mar 21, 10:34 AM", action: "Stage updated: Contacted → Site Visit Done (synced from CRM)" },
       ] },
-    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI, 30-45", adName: "Godrej Air 3BHK Carousel v2",
+    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI — 30-45", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "₹1.5Cr - ₹2Cr" },
       { question: "Configuration preference?", answer: "3 BHK" },
@@ -269,7 +269,7 @@ export const campaignLeads: CampaignLead[] = [
         { date: "Mar 19, 6:30 PM", action: "Pushed to CRM (auto-sync)" },
         { date: "Mar 20, 9:30 AM", action: "Stage updated: New → Site Visit Scheduled (synced from CRM)" },
       ] },
-    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI, 30-45", adName: "Godrej Air Floor Plan Static",
+    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI — 30-45", adName: "Godrej Air Floor Plan Static",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr - ₹2.5Cr" },
       { question: "Configuration preference?", answer: "3 BHK Premium" },
@@ -284,7 +284,7 @@ export const campaignLeads: CampaignLead[] = [
     temperature: "cold", leadStatus: "not_qualified", leadStage: "new",
     verified: false, sql: false,
     crmSync: { status: "not_synced" },
-    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore, 25-55", adName: "Godrej Air 3BHK Carousel v2",
+    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore — 25-55", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "Below ₹80L" },
       { question: "Configuration preference?", answer: "2 BHK" },
@@ -314,7 +314,7 @@ export const campaignLeads: CampaignLead[] = [
     temperature: "lukewarm", leadStatus: "not_qualified", leadStage: "contacted",
     verified: false, sql: false,
     crmSync: { status: "not_synced" },
-    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI, 30-45", adName: "Godrej Air Amenities Carousel",
+    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI — 30-45", adName: "Godrej Air Amenities Carousel",
     formResponses: [
       { question: "Budget range?", answer: "₹1Cr - ₹1.5Cr" },
       { question: "Configuration preference?", answer: "2 BHK" },
@@ -332,7 +332,7 @@ export const campaignLeads: CampaignLead[] = [
         { date: "Mar 18, 3:20 PM", action: "Pushed to CRM (auto-sync)" },
         { date: "Mar 19, 4:40 PM", action: "Stage updated: Contacted → Negotiation (synced from CRM)" },
       ] },
-    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI, 30-45", adName: "Godrej Air 3BHK Carousel v2",
+    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI — 30-45", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr+" },
       { question: "Configuration preference?", answer: "4 BHK" },
@@ -347,7 +347,7 @@ export const campaignLeads: CampaignLead[] = [
     temperature: "lukewarm", leadStatus: "interested_not_ready", leadStage: "new",
     verified: false, sql: false,
     crmSync: { status: "pending" },
-    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore, 25-55", adName: "Godrej Air Floor Plan Static",
+    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore — 25-55", adName: "Godrej Air Floor Plan Static",
     formResponses: [
       { question: "Budget range?", answer: "₹1Cr - ₹1.5Cr" },
       { question: "Configuration preference?", answer: "3 BHK" },
@@ -379,7 +379,7 @@ export const campaignLeads: CampaignLead[] = [
     temperature: "cold", leadStatus: "duplicate", leadStage: "new",
     verified: false, sql: false,
     crmSync: { status: "failed", failReason: "Duplicate phone number found in CRM" },
-    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore, 25-55", adName: "Godrej Air Lifestyle Video",
+    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore — 25-55", adName: "Godrej Air Lifestyle Video",
     formResponses: [
       { question: "Budget range?", answer: "Not specified" },
       { question: "Configuration preference?", answer: "Any" },
@@ -396,7 +396,7 @@ export const campaignLeads: CampaignLead[] = [
         { date: "Mar 17, 11:35 AM", action: "Pushed to CRM (auto-sync)" },
         { date: "Mar 18, 10:00 AM", action: "Stage updated: Negotiation → Won (synced from CRM)" },
       ] },
-    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI, 30-45", adName: "Godrej Air 3BHK Carousel v2",
+    campaign: "Godrej Air Phase 3", adset: "Whitefield HNI — 30-45", adName: "Godrej Air 3BHK Carousel v2",
     formResponses: [
       { question: "Budget range?", answer: "₹2Cr - ₹3Cr" },
       { question: "Configuration preference?", answer: "4 BHK Penthouse" },
@@ -411,7 +411,7 @@ export const campaignLeads: CampaignLead[] = [
     temperature: "cold", leadStatus: "invalid", leadStage: "lost",
     verified: false, sql: false,
     crmSync: { status: "not_synced" },
-    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore, 25-55", adName: "Godrej Air Floor Plan Static",
+    campaign: "Godrej Air Phase 3", adset: "Broad Bangalore — 25-55", adName: "Godrej Air Floor Plan Static",
     formResponses: [
       { question: "Budget range?", answer: "Below ₹70L" },
       { question: "Timeline to purchase?", answer: ">12 months" },
@@ -490,19 +490,19 @@ export const campaignDiagnosis = {
   status: "near-target" as "on-target" | "near-target" | "off-target",
   headline_action: {
     verb: "Pause" as DiagnosisVerb,
-    target: "Broad Bangalore, 25-55 adset",
+    target: "Broad Bangalore — 25-55 adset",
     outcome:
-      "Stop ₹3K/day burning on traffic that isn't qualifying, 0 qualified leads from this audience after ₹63K spent.",
+      "Stop ₹3K/day burning on traffic that isn't qualifying — 0 qualified leads from this audience after ₹63K spent.",
     expected_impact:
       "Frees ~₹25K over the remaining 8 days; CPQL drops ~22% if reallocated to Whitefield HNI.",
     cta_label: "Review in Settings",
     cta_href: "/campaigns/camp-7?tab=settings",
   },
   summary:
-    "Campaign is NEAR TARGET, CPL ₹1,183 is 1.4% below target ₹1,200. Improving trend visible in second half of the flight.",
+    "Campaign is NEAR TARGET — CPL ₹1,183 is 1.4% below target ₹1,200. Improving trend visible in second half of the flight.",
   reasons: [
     {
-      text: "Broad Bangalore is dragging the campaign, CTR 0.9% leads to verification rate of just 11% and 0 qualified leads.",
+      text: "Broad Bangalore is dragging the campaign — CTR 0.9% leads to verification rate of just 11% and 0 qualified leads.",
       evidence: [
         { stage: "TOF" as const, fact: "CTR 0.9% vs 2.4% top adset" },
         { stage: "MOF" as const, fact: "Verify 11% vs 31% top adset" },
@@ -510,7 +510,7 @@ export const campaignDiagnosis = {
       ],
     },
     {
-      text: "Whitefield HNI is the project's growth engine, converts 19% of leads to qualified and produces 4 of 7 site visits.",
+      text: "Whitefield HNI is the project's growth engine — converts 19% of leads to qualified and produces 4 of 7 site visits.",
       evidence: [
         { stage: "TOF" as const, fact: "CTR 2.4%" },
         { stage: "MOF" as const, fact: "Verify 31%" },
@@ -518,14 +518,14 @@ export const campaignDiagnosis = {
       ],
     },
     {
-      text: "Form bracket 'Below ₹1Cr' generates 27% of leads but 0% qualify, audience too broad for a ₹2.5Cr property.",
+      text: "Form bracket 'Below ₹1Cr' generates 27% of leads but 0% qualify — audience too broad for a ₹2.5Cr property.",
       evidence: [
         { stage: "MOF" as const, fact: "50 leads from this bracket" },
         { stage: "BOF" as const, fact: "0 qualified, 0 site visits" },
       ],
     },
     {
-      text: "Lifestyle Video creative shows fatigue, CTR dropped from 3.4% to 2.6% over 7 days as frequency rose to 3.18.",
+      text: "Lifestyle Video creative shows fatigue — CTR dropped from 3.4% to 2.6% over 7 days as frequency rose to 3.18.",
       evidence: [
         { stage: "TOF" as const, fact: "CTR -22% in 7 days" },
         { stage: "TOF" as const, fact: "Frequency 3.18 (saturating)" },
@@ -534,9 +534,9 @@ export const campaignDiagnosis = {
   ],
   recommendations: [
     "Shift 20% budget from Broad Bangalore to Whitefield HNI adset",
-    "Refresh Lifestyle Video creative, try testimonial format",
+    "Refresh Lifestyle Video creative — try testimonial format",
     "Add Sarjapur Road as a separate adset (12% of qualified leads from there)",
-    "Consider pausing Floor Plan Static ad, lowest CTR at 0.8%",
+    "Consider pausing Floor Plan Static ad — lowest CTR at 0.8%",
   ],
 };
 
@@ -561,7 +561,7 @@ export interface AdSetRow {
 export const adSetsData: AdSetRow[] = [
   {
     id: "adset-1",
-    name: "Whitefield HNI, 30-45",
+    name: "Whitefield HNI — 30-45",
     spend: 95000,
     leads: 72,
     verifiedLeads: 22,
@@ -595,7 +595,7 @@ export const adSetsData: AdSetRow[] = [
   },
   {
     id: "adset-3",
-    name: "Broad Bangalore, 25-55",
+    name: "Broad Bangalore — 25-55",
     spend: 63000,
     leads: 56,
     verifiedLeads: 6,
@@ -666,7 +666,7 @@ export interface ConnectedAdset {
 export const connectedAdsets: ConnectedAdset[] = [
   {
     id: "cas-1",
-    name: "Whitefield HNI, 30-45",
+    name: "Whitefield HNI — 30-45",
     adsetId: "23851029384711",
     status: "active",
   },
@@ -678,7 +678,7 @@ export const connectedAdsets: ConnectedAdset[] = [
   },
   {
     id: "cas-3",
-    name: "Broad Bangalore, 25-55",
+    name: "Broad Bangalore — 25-55",
     adsetId: "23851029384713",
     status: "active",
   },
@@ -764,7 +764,7 @@ export const projectsList: ProjectItem[] = [
   },
   {
     id: "proj-2",
-    name: "Godrej Air, Phase 3 Launch",
+    name: "Godrej Air — Phase 3 Launch",
     client: "Godrej Properties",
     category: "Real Estate",
     status: "active",
@@ -786,7 +786,7 @@ export const projectsList: ProjectItem[] = [
   },
   {
     id: "proj-3",
-    name: "Godrej Eternity, Pre-launch",
+    name: "Godrej Eternity — Pre-launch",
     client: "Godrej Properties",
     category: "Real Estate",
     status: "active",
@@ -808,7 +808,7 @@ export const projectsList: ProjectItem[] = [
   },
   {
     id: "proj-4",
-    name: "Godrej Summit, Full Funnel",
+    name: "Godrej Summit — Full Funnel",
     client: "Godrej Properties",
     category: "Real Estate",
     status: "completed",
@@ -884,21 +884,21 @@ export const projectInsights: ProjectInsights = {
     verb: "Reallocate",
     target: "20% of budget from Retargeting → Whitefield HNI",
     outcome:
-      "Concentrate spend on the audience converting to site visits, Retargeting's CPQL is 1.8× project average and the audience is saturating.",
+      "Concentrate spend on the audience converting to site visits — Retargeting's CPQL is 1.8× project average and the audience is saturating.",
     expected_impact:
       "Project CPQL drops ~30% (₹10.6K → ~₹7.4K); +3 site visits/month at current funnel rates.",
     cta_label: "Open Retargeting campaign",
     cta_href: "/campaigns/camp-10?tab=settings",
   },
   summary:
-    "Across 2 campaigns spending ₹2.33L, qualification is at 7.9% (vs ~10% benchmark) with 22% of spend producing zero qualified leads. Whitefield HNI is your clear lever, 41% of qualified leads from 28% of spend.",
+    "Across 2 campaigns spending ₹2.33L, qualification is at 7.9% (vs ~10% benchmark) with 22% of spend producing zero qualified leads. Whitefield HNI is your clear lever — 41% of qualified leads from 28% of spend.",
   findings: [
     {
       id: "pf-1",
       icon: "📈",
       title: "Whitefield HNI is your project's growth lever",
       narrative:
-        "Across both campaigns, Whitefield HNI accounts for 41% of qualified leads from just 28% of spend, and 4 of 6 site visits trace back to it.",
+        "Across both campaigns, Whitefield HNI accounts for 41% of qualified leads from just 28% of spend — and 4 of 6 site visits trace back to it.",
       funnel_evidence: [
         { stage: "TOF", fact: "CTR 2.4% vs 1.6% project avg" },
         { stage: "MOF", fact: "Verify 31% vs 16% project avg" },
@@ -912,7 +912,7 @@ export const projectInsights: ProjectInsights = {
       icon: "🔻",
       title: "'Below ₹1Cr' budget bracket is leaking spend",
       narrative:
-        "102 leads (37% of total) come from the 'Below ₹1Cr' budget bracket, but 0 of them qualify and 0 reach site visit. The audience is too broad for a ₹2.5Cr property.",
+        "102 leads (37% of total) come from the 'Below ₹1Cr' budget bracket — but 0 of them qualify and 0 reach site visit. The audience is too broad for a ₹2.5Cr property.",
       funnel_evidence: [
         { stage: "MOF", fact: "Verify 6% vs 16% avg" },
         { stage: "BOF", fact: "0 qualified, 0 site visits" },
@@ -954,7 +954,7 @@ export const projectInsights: ProjectInsights = {
       icon: "📞",
       title: "Half of disqualifications cite 'Budget below threshold'",
       narrative:
-        "32 of 62 voice agent disqualifications cite the same reason, your TOF audience is bringing in too many sub-budget leads. Tighten interest/lookalike targeting.",
+        "32 of 62 voice agent disqualifications cite the same reason — your TOF audience is bringing in too many sub-budget leads. Tighten interest/lookalike targeting.",
       funnel_evidence: [
         { stage: "MOF", fact: "124 leads in '₹1Cr-₹2Cr' bracket" },
         { stage: "BOF", fact: "32 budget-based DQs (52%)" },
@@ -967,7 +967,7 @@ export const projectInsights: ProjectInsights = {
       icon: "✅",
       title: "'Past site visitors' retargeting converts 100%",
       narrative:
-        "Both qualified leads from this audience visited the site, small pool but a strong signal. Worth scaling cautiously with tight frequency cap.",
+        "Both qualified leads from this audience visited the site — small pool but a strong signal. Worth scaling cautiously with tight frequency cap.",
       funnel_evidence: [
         { stage: "MOF", fact: "Verify 3% (small pool)" },
         { stage: "BOF", fact: "2 of 2 qualified → site visit" },

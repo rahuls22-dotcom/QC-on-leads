@@ -141,7 +141,7 @@ export function InviteUserModal({
                 ) : emailsText.trim() ? (
                   <>
                     <AlertTriangle size={11} className="text-[var(--warn-fg)]" />
-                    <span>No valid emails yet, check formatting.</span>
+                    <span>No valid emails yet — check formatting.</span>
                   </>
                 ) : (
                   <span>0 emails</span>
@@ -174,7 +174,7 @@ export function InviteUserModal({
               hint={
                 role === "admin"
                   ? "Admins automatically get access to every workspace."
-                  : "Pick one or more, invitees will see only what you select."
+                  : "Pick one or more — invitees will see only what you select."
               }
             >
               {role === "admin" ? (

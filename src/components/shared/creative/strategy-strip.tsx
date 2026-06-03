@@ -16,7 +16,7 @@ interface StrategyStripProps {
 
 /**
  * A compact, collapsible strip that surfaces the creative strategy
- * (pain point / USP / hook / CTA) inside the generator modal, so the
+ * (pain point / USP / hook / CTA) inside the generator modal — so the
  * user can refer back to the strategy while iterating in Phase B or C.
  */
 export function StrategyStrip({

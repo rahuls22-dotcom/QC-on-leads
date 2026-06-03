@@ -59,7 +59,7 @@ const templatePresets: Record<AgentTemplate, TemplatePreset> = {
     ],
     objectives: [
       { id: "obj-f1", name: "Re-confirm Interest", description: "Check if the lead is still interested", priority: "critical" as const, required: true, extract_field: { name: "still_interested", type: "boolean" as const }, prompt_hint: "Ask if they are still looking or if their situation has changed" },
-      { id: "obj-f2", name: "Identify Blocker", description: "Understand what prevented them from moving forward", priority: "high" as const, required: true, extract_field: { name: "blocker", type: "string" as const }, prompt_hint: "Gently ask what held them back, budget, timing, other options?" },
+      { id: "obj-f2", name: "Identify Blocker", description: "Understand what prevented them from moving forward", priority: "high" as const, required: true, extract_field: { name: "blocker", type: "string" as const }, prompt_hint: "Gently ask what held them back — budget, timing, other options?" },
       { id: "obj-f3", name: "Address Concerns", description: "Resolve any objections or concerns", priority: "high" as const, required: false, extract_field: { name: "concerns_resolved", type: "boolean" as const }, prompt_hint: "Address their concerns with relevant information" },
       { id: "obj-f4", name: "Schedule Next Step", description: "Book a site visit or callback", priority: "medium" as const, required: false, extract_field: { name: "next_step", type: "string" as const }, prompt_hint: "If interested, offer to schedule a site visit or send updated info" },
     ],
@@ -304,7 +304,7 @@ export default function CreateAgentPage() {
           <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: "easeOut" }}>
 
             {/* ════════════════════════════════════════════════════
-                STEP 1, Identity
+                STEP 1 — Identity
             ════════════════════════════════════════════════════ */}
             {step === 0 && (
               <div className="space-y-5">
@@ -343,7 +343,7 @@ export default function CreateAgentPage() {
                   {/* Persona name */}
                   <div>
                     <label className={labelCls}>Persona name</label>
-                    <input type="text" value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="e.g., Priya"
+                    <input type="text" value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="e.g., Vox"
                       className={inputCls} />
                     <div className="text-[11px] text-text-tertiary mt-1">The name the agent uses when speaking to leads.</div>
                   </div>
@@ -415,7 +415,7 @@ export default function CreateAgentPage() {
             )}
 
             {/* ════════════════════════════════════════════════════
-                STEP 2, Channels
+                STEP 2 — Channels
             ════════════════════════════════════════════════════ */}
             {step === 1 && (
               <div className="space-y-5">
@@ -543,7 +543,7 @@ export default function CreateAgentPage() {
             )}
 
             {/* ════════════════════════════════════════════════════
-                STEP 3, Knowledge
+                STEP 3 — Knowledge
             ════════════════════════════════════════════════════ */}
             {step === 2 && (
               <div className="space-y-5">
@@ -630,7 +630,7 @@ export default function CreateAgentPage() {
             )}
 
             {/* ════════════════════════════════════════════════════
-                STEP 4, Conversation Flow
+                STEP 4 — Conversation Flow
             ════════════════════════════════════════════════════ */}
             {step === 3 && (
               <div className="space-y-5">
@@ -713,7 +713,7 @@ export default function CreateAgentPage() {
             )}
 
             {/* ════════════════════════════════════════════════════
-                STEP 5, Objectives
+                STEP 5 — Objectives
             ════════════════════════════════════════════════════ */}
             {step === 4 && (
               <div className="space-y-5">
@@ -722,7 +722,7 @@ export default function CreateAgentPage() {
                   <p className="text-meta text-text-secondary mt-1">What should the agent accomplish in each conversation? Add, edit, and reorder objectives below.</p>
                 </div>
 
-                {/* Qualification Criteria, only for qualifying template */}
+                {/* Qualification Criteria — only for qualifying template */}
                 {template === "qualifying" && (
                   <div className="bg-white border border-border rounded-card p-6">
                     <h3 className="text-card-title text-text-primary mb-1">Qualification Criteria</h3>
@@ -905,7 +905,7 @@ export default function CreateAgentPage() {
             )}
 
             {/* ════════════════════════════════════════════════════
-                STEP 6, Review
+                STEP 6 — Review
             ════════════════════════════════════════════════════ */}
             {step === 5 && (
               <div className="space-y-5">

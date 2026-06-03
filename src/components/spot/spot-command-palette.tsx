@@ -43,7 +43,7 @@ function buildNavSections(args: {
         { id: "ask-1", kind: "ask", text: "Why are we behind on the goal?", scope: "Project" },
         { id: "ask-2", kind: "ask", text: "Which campaigns should I pause?", scope: "Workspace" },
         { id: "ask-3", kind: "ask", text: "Compare CPVL across projects", scope: "Workspace" },
-        { id: "ask-4", kind: "ask", text: "Audit personas, who's converting?", scope: "Project" },
+        { id: "ask-4", kind: "ask", text: "Audit personas — who's converting?", scope: "Project" },
       ],
     },
   ];

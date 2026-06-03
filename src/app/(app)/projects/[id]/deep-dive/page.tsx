@@ -104,7 +104,7 @@ export default function ProjectDeepDivePage() {
         </div>
       </div>
 
-      {/* Body attribute CSS hook, hide global sidebar + Ask Spot dock when in deep dive */}
+      {/* Body attribute CSS hook — hide global sidebar + Ask Spot dock when in deep dive */}
       <style jsx global>{`
         body[data-deep-dive="true"] aside,
         body[data-deep-dive="true"] [aria-label="Ask Spot"] {
@@ -152,7 +152,7 @@ function SpotPanel({
   const projectShort = project?.name.split(" · ")[0] || "this project";
   const intro = useMemo(
     () =>
-      `Hey, I've got every metric on every ad in ${projectShort} loaded. Ask me anything about CPL, hook rates, verif rates, or what to do next.`,
+      `Hey — I've got every metric on every ad in ${projectShort} loaded. Ask me anything about CPL, hook rates, verif rates, or what to do next.`,
     [projectShort],
   );
 
@@ -169,7 +169,7 @@ function SpotPanel({
           id: `s-${Date.now()}`,
           who: "spot",
           text:
-            "Looking now, give me a sec. (Prototype: full analysis isn't wired up yet, but in the real build I'd cite specific ad sets and metrics here.)",
+            "Looking now — give me a sec. (Prototype: full analysis isn't wired up yet, but in the real build I'd cite specific ad sets and metrics here.)",
         },
       ]);
     }, 600);
