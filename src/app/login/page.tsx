@@ -57,9 +57,9 @@ export default function LoginPage() {
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [resent, setResent] = useState(false);
 
-  // Brand-panel background variant. Default is the new PixelBlast field;
-  // ?bg=ferro brings back the ferrofluid for side-by-side comparison.
-  const [bg, setBg] = useState<BrandBg>("pixel");
+  // Brand-panel background variant. Default is GradientBlinds; ?bg=pixel and
+  // ?bg=ferro switch to the other fields for side-by-side comparison.
+  const [bg, setBg] = useState<BrandBg>("blinds");
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("bg");
     if (p && (BRAND_BGS as string[]).includes(p)) setBg(p as BrandBg);
