@@ -1,56 +1,79 @@
 "use client";
 
-// Memory · product-centric.
+// Memory · the persistent, cross-conversation product knowledge hub.
 //
-// Layout:
+// With Projects now a separate top-level surface (per-launch operational
+// artifacts) and execution plans being per-conversation + consumed, Memory's
+// job is the *durable* layer: what Spot has learned about a product over time,
+// the ground truth every new conversation and project pulls from.
 //
-//   ┌──────────────┬────────────────────────────────────────────┐
-//   │ Products     │ [ Brief | Plan | Performance | Assets ]    │
-//   │ (sidebar)    │                                            │
-//   │  • JEE Crack │  (tab content fills the rest of the area)  │
-//   │  • NEET Pro  │                                            │
-//   │  • Foundation│                                            │
-//   └──────────────┴────────────────────────────────────────────┘
+// Six tabs, mapping 1:1 to the storage architecture:
 //
-// Each product behaves like a project inside memory. Inside that
-// project sit four "files":
+//   Overview   → memory.md ground truth          (markdown · editable source)
+//   Personas   → persona scorecard + angle board (DB records · the hero)
+//   Creatives  → reusable asset library          (DB + blob)
+//   Brand      → voice / tone / palette guide     (markdown · editable source)
+//   Knowledge  → uploaded files Spot learned from (blob + metadata)
+//   History    → execution history + change log   (DB · append-only)
 //
-//   product-info.md   → Brief tab (rendered markdown)
-//   plan.md           → Plan tab (rendered markdown)
-//   performance.html  → Performance tab (interactive dashboard)
-//   assets/           → Assets tab (creatives + landing pages + forms)
+// Performance moved to /dashboard; per-launch personas/creatives/plan live
+// in /projects. Memory holds only what survives across both.
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Brain,
   Package,
   FileText,
-  Target,
-  TrendingUp,
-  Boxes,
-  CheckCircle2,
+  Users,
   Image as ImageIcon,
   Film,
   Layout,
   Smartphone,
   ArrowUpRight,
-  History,
+  History as HistoryIcon,
   Search,
+  Sparkles,
+  Palette,
+  FolderOpen,
+  Download,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Rocket,
+  FileBox,
 } from "lucide-react";
 import { PRODUCTS } from "@/lib/products-data";
-import { MEMORY_FILES, memoryFilesFor, type ProductMemoryFiles } from "@/lib/spot/memory-files";
-import { PRODUCT_PLANS, PLAN_STATUS_TONE, PLAN_STATUS_LABEL } from "@/lib/spot/extended-flows";
+import { memoryFilesFor, type ProductMemoryFiles } from "@/lib/spot/memory-files";
+import {
+  PRODUCT_PLANS,
+  PLAN_STATUS_TONE,
+  PLAN_STATUS_LABEL,
+} from "@/lib/spot/extended-flows";
+import {
+  scorecardsForProduct,
+  buildPersonasMd,
+  PERSONA_SAMPLE_GATE,
+  PERSONA_PERF_STATUS_LABEL,
+  PERSONA_PERF_STATUS_TONE,
+  ANGLE_STATUS_LABEL,
+  ANGLE_STATUS_TONE,
+  type PersonaScorecard,
+  type PersonaAngle,
+  type AngleStatus,
+} from "@/lib/spot/persona-scorecard";
 import { Markdown } from "@/components/memory/md-render";
+import { SpotMark } from "@/components/spot/spot-mark";
 
-type TabKey = "brief" | "plan" | "performance" | "assets" | "history";
+type TabKey = "overview" | "personas" | "creatives" | "brand" | "knowledge" | "history";
 
 const TABS: { key: TabKey; label: string; icon: typeof FileText; file: string }[] = [
-  { key: "brief", label: "Product brief", icon: FileText, file: "product-info.md" },
-  { key: "plan", label: "Execution plan", icon: Target, file: "execution-plan.md" },
-  { key: "performance", label: "Performance", icon: TrendingUp, file: "performance.html" },
-  { key: "assets", label: "Assets", icon: Boxes, file: "assets/" },
-  { key: "history", label: "Change history", icon: History, file: "change-history.md" },
+  { key: "overview", label: "Overview", icon: FileText, file: "memory.md" },
+  { key: "personas", label: "Personas", icon: Users, file: "personas.json" },
+  { key: "creatives", label: "Creatives", icon: ImageIcon, file: "creatives/" },
+  { key: "brand", label: "Brand", icon: Palette, file: "brand.md" },
+  { key: "knowledge", label: "Knowledge", icon: FolderOpen, file: "knowledge/" },
+  { key: "history", label: "History", icon: HistoryIcon, file: "history/" },
 ];
 
 export default function MemoryPage() {
@@ -63,19 +86,15 @@ export default function MemoryPage() {
 
 function MemoryPageInner() {
   const searchParams = useSearchParams();
-  // `?focus=<productId>` lets callers (eg. View Project Memory from the
-  // launch flow) open this page already scoped to a specific product.
-  // Demo: always lands on Spoken English for new product flows.
   const initialId = (() => {
     const focus = searchParams.get("focus");
     if (focus && PRODUCTS.some((p) => p.id === focus)) return focus;
     return PRODUCTS[0]?.id ?? "";
   })();
   const [productId, setProductId] = useState(initialId);
-  const [tab, setTab] = useState<TabKey>("brief");
+  const [tab, setTab] = useState<TabKey>("overview");
   const files = memoryFilesFor(productId);
 
-  // Keep URL → state in sync if the param changes (eg. back/forward nav).
   useEffect(() => {
     const focus = searchParams.get("focus");
     if (focus && PRODUCTS.some((p) => p.id === focus) && focus !== productId) {
@@ -92,33 +111,29 @@ function MemoryPageInner() {
           <Brain size={18} strokeWidth={1.5} className="text-text-secondary" />
         </div>
         <div>
-          <div className="text-meta text-text-secondary mb-0.5">Spot's brain</div>
+          <div className="text-meta text-text-secondary mb-0.5">Spot&apos;s brain</div>
           <h1 className="text-page-title text-text-primary">Memory</h1>
           <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
-            Every product is a project here. Each project carries four files Spot reads
-            from before it acts — product brief, current plan, performance, and assets.
+            What Spot knows about each product — the durable layer every new
+            conversation and project reads from. Personas track which angles are
+            actually working; the rest is the ground truth Spot acts on.
           </p>
         </div>
       </div>
 
-      {/* Two-pane layout · products column + tabbed content */}
       <div className="grid grid-cols-[240px_1fr] gap-4">
-        {/* Left · products list */}
         <ProductsList active={productId} onSelect={setProductId} />
 
-        {/* Right · tabs + content for the active product */}
         {files && (
           <div className="bg-white border border-border rounded-card overflow-hidden">
-            {/* Product header inside the detail pane */}
             <ProductHeader files={files} />
-            {/* Tab navigation */}
             <TabNav tab={tab} onChange={setTab} files={files} />
-            {/* Tab content */}
             <div className="px-6 py-5">
-              {tab === "brief" && <BriefTab files={files} />}
-              {tab === "plan" && <PlanTab files={files} />}
-              {tab === "performance" && <PerformanceTab files={files} />}
-              {tab === "assets" && <AssetsTab files={files} />}
+              {tab === "overview" && <OverviewTab files={files} />}
+              {tab === "personas" && <PersonasTab files={files} />}
+              {tab === "creatives" && <CreativesTab files={files} />}
+              {tab === "brand" && <BrandTab files={files} />}
+              {tab === "knowledge" && <KnowledgeTab files={files} />}
               {tab === "history" && <HistoryTab files={files} />}
             </div>
           </div>
@@ -142,7 +157,7 @@ function ProductsList({
       <div className="px-3 py-2.5 border-b border-border-subtle flex items-center gap-1.5">
         <Package size={11} strokeWidth={1.8} className="text-text-tertiary" />
         <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
-          Projects · {PRODUCTS.length}
+          Products · {PRODUCTS.length}
         </span>
       </div>
       <ul>
@@ -184,23 +199,50 @@ function ProductsList({
 
 function ProductHeader({ files }: { files: ProductMemoryFiles }) {
   const product = PRODUCTS.find((p) => p.id === files.productId);
+  const personaCount = scorecardsForProduct(files.productId).length;
+  const creativeCount = files.assets.creatives.length;
+  const angleCount = scorecardsForProduct(files.productId).reduce(
+    (s, c) => s + (c.perf?.angles.length ?? 0),
+    0,
+  );
   return (
-    <div className="px-6 py-4 border-b border-border-subtle flex items-start gap-3">
-      <div className="w-9 h-9 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
-        <Package size={14} strokeWidth={1.6} className="text-text-secondary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary mb-0.5">
-          {product?.client} · {product?.category}
+    <div className="px-6 py-4 border-b border-border-subtle">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
+          <Package size={14} strokeWidth={1.6} className="text-text-secondary" />
         </div>
-        <h2 className="text-[18px] font-semibold text-text-primary leading-tight">
-          {files.productName}
-        </h2>
-        {product && (
-          <div className="text-[12px] text-text-secondary mt-1 leading-snug">
-            {product.tagline}
+        <div className="flex-1 min-w-0">
+          <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary mb-0.5">
+            {product?.client} · {product?.category}
           </div>
-        )}
+          <h2 className="text-[18px] font-semibold text-text-primary leading-tight">
+            {files.productName}
+          </h2>
+          {product && (
+            <div className="text-[12px] text-text-secondary mt-1 leading-snug">
+              {product.tagline}
+            </div>
+          )}
+        </div>
+        {/* At-a-glance counts */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <GlanceStat label="Personas" value={personaCount} />
+          <GlanceStat label="Angles" value={angleCount} />
+          <GlanceStat label="Creatives" value={creativeCount} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GlanceStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="text-right">
+      <div className="text-[16px] font-semibold text-text-primary tabular leading-none">
+        {value}
+      </div>
+      <div className="text-[9.5px] uppercase tracking-wider text-text-tertiary mt-1">
+        {label}
       </div>
     </div>
   );
@@ -217,16 +259,19 @@ function TabNav({
   onChange: (k: TabKey) => void;
   files: ProductMemoryFiles;
 }) {
+  const product = PRODUCTS.find((p) => p.id === files.productId);
   const tabCounts: Partial<Record<TabKey, string>> = {
-    assets: `${
+    personas: `${scorecardsForProduct(files.productId).length}`,
+    creatives: `${
       files.assets.creatives.length +
       files.assets.searchAds.length +
       files.assets.landingPages.length +
       files.assets.forms.length
     }`,
+    knowledge: `${product?.collateral.length ?? 0}`,
   };
   return (
-    <div className="flex items-end px-6 border-b border-border-subtle bg-surface-page">
+    <div className="flex items-end px-6 border-b border-border-subtle bg-surface-page overflow-x-auto">
       {TABS.map((t) => {
         const Icon = t.icon;
         const active = t.key === tab;
@@ -259,38 +304,8 @@ function TabNav({
   );
 }
 
-/**
- * Tiny breadcrumb-style file-path line that sits below the heading
- * inside each tab. Reads like `memory / jee-crack / product-info.md`
- * so the user knows which "file" they're looking at without it
- * cluttering the tab navigation chrome.
- */
-function FilePathBreadcrumb({
-  productId,
-  file,
-}: {
-  productId: string;
-  file: string;
-}) {
-  const slug = productId.replace(/^prod-/, "");
-  return (
-    <div className="font-mono text-[10.5px] text-text-tertiary mb-4 inline-flex items-center gap-1">
-      <span>memory</span>
-      <span className="text-text-tertiary/60">/</span>
-      <span>{slug}</span>
-      <span className="text-text-tertiary/60">/</span>
-      <span className="text-text-secondary">{file}</span>
-    </div>
-  );
-}
+/* ─── Shared markdown helpers ──────────────────────────────────── */
 
-/* ─── Brief tab · markdown content ─────────────────────────────── */
-
-/**
- * Split a markdown source into its first H1 (the heading) and the rest
- * of the body. Lets us render the file path breadcrumb between the
- * heading and the body — visually right under the heading.
- */
 function splitHeading(src: string): { heading: string | null; rest: string } {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
   let h: string | null = null;
@@ -305,6 +320,19 @@ function splitHeading(src: string): { heading: string | null; rest: string } {
     restLines.push(line);
   }
   return { heading: h, rest: restLines.join("\n").trimStart() };
+}
+
+function FilePathBreadcrumb({ productId, file }: { productId: string; file: string }) {
+  const slug = productId.replace(/^prod-/, "");
+  return (
+    <div className="font-mono text-[10.5px] text-text-tertiary mb-4 inline-flex items-center gap-1">
+      <span>memory</span>
+      <span className="text-text-tertiary/60">/</span>
+      <span>{slug}</span>
+      <span className="text-text-tertiary/60">/</span>
+      <span className="text-text-secondary">{file}</span>
+    </div>
+  );
 }
 
 function MdFileBody({
@@ -324,244 +352,323 @@ function MdFileBody({
           {heading}
         </h1>
       )}
-      {/* File path lives right under the heading, in monospace, muted —
-          present enough to orient, quiet enough not to obstruct. */}
       <FilePathBreadcrumb productId={productId} file={file} />
       <Markdown source={rest} />
     </div>
   );
 }
 
-function BriefTab({ files }: { files: ProductMemoryFiles }) {
+/* ─── Overview tab ─────────────────────────────────────────────── */
+
+function OverviewTab({ files }: { files: ProductMemoryFiles }) {
   return (
-    <MdFileBody
-      source={files.productInfoMd}
-      productId={files.productId}
-      file="product-info.md"
-    />
+    <MdFileBody source={files.productInfoMd} productId={files.productId} file="memory.md" />
   );
 }
 
-function PlanTab({ files }: { files: ProductMemoryFiles }) {
-  return (
-    <MdFileBody source={files.planMd} productId={files.productId} file="execution-plan.md" />
-  );
-}
+/* ════════════════════════════════════════════════════════════════
+ * PERSONAS TAB · the hero. Scorecard + angle leaderboard.
+ * ═══════════════════════════════════════════════════════════════ */
 
-function HistoryTab({ files }: { files: ProductMemoryFiles }) {
-  return (
-    <MdFileBody
-      source={files.changeHistoryMd}
-      productId={files.productId}
-      file="change-history.md"
-    />
-  );
-}
+const inr = (n: number) =>
+  n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/* ─── Performance tab · interactive dashboard ──────────────────── */
+// Sort order for angles within a leaderboard — winners up top, losers last.
+const ANGLE_RANK: Record<AngleStatus, number> = {
+  winner: 0,
+  scaling: 1,
+  testing: 2,
+  fatigued: 3,
+  loser: 4,
+};
 
-function PerformanceTab({ files }: { files: ProductMemoryFiles }) {
-  const perf = files.performance;
+function PersonasTab({ files }: { files: ProductMemoryFiles }) {
+  const cards = scorecardsForProduct(files.productId);
+  const product = PRODUCTS.find((p) => p.id === files.productId);
+
+  const onExport = () => {
+    const md = buildPersonasMd(files.productId, files.productName);
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `personas-${files.productId.replace(/^prod-/, "")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
-          Performance
+    <div className="max-w-[860px]">
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0">
+          Personas
         </h1>
-        <FilePathBreadcrumb productId={files.productId} file="performance.html" />
-        <div className="text-[12px] text-text-secondary leading-relaxed">
-          Snapshot · {perf.headline}
-        </div>
+        <button
+          type="button"
+          onClick={onExport}
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-button border border-border bg-white text-[11.5px] font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors flex-shrink-0"
+        >
+          <Download size={11} strokeWidth={1.8} />
+          Export personas.md
+        </button>
       </div>
+      <FilePathBreadcrumb productId={files.productId} file="personas.json" />
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mb-5 max-w-[680px]">
+        The persona library for {product?.name}. Each card carries Spot&apos;s
+        live verdict and an angle leaderboard — which hooks are winning, which
+        are fatiguing, and which to cut. Numbers roll up from every execution;
+        anything under {PERSONA_SAMPLE_GATE} leads is held as &ldquo;Testing&rdquo;
+        until there&apos;s enough signal to judge.
+      </p>
 
-      {/* Metric grid */}
-      <div className="grid grid-cols-4 gap-2.5 mb-5">
-        {perf.metrics.map((m) => (
-          <PerfMetricCard key={m.key} metric={m} />
+      <div className="space-y-4">
+        {cards.map((c) => (
+          <PersonaScorecardCard key={c.id} card={c} />
         ))}
       </div>
+    </div>
+  );
+}
 
-      {/* Side-by-side · spend curve + leads curve */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <ChartCard
-          title="Daily spend"
-          subtitle="Last 14 days · ₹"
-          values={perf.spendCurve}
-          color="#1D4ED8"
-        />
-        <ChartCard
-          title="Daily leads"
-          subtitle="Last 14 days"
-          values={perf.leadsCurve}
-          color="#15803D"
-        />
-      </div>
+function trendGlyph(trend: number) {
+  if (trend === 0) return { Icon: Minus, color: "#6B6B63", label: "flat" };
+  // Negative CPL trend = cheaper = good (green).
+  if (trend < 0) return { Icon: TrendingDown, color: "#15803D", label: `${trend}% CPL` };
+  return { Icon: TrendingUp, color: "#B91C1C", label: `+${trend}% CPL` };
+}
 
-      {/* Channel mix */}
-      <div className="bg-white border border-border rounded-card p-4">
-        <div className="flex items-center gap-1.5 mb-3">
-          <TrendingUp size={11} strokeWidth={1.7} className="text-text-secondary" />
-          <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
-            Channel mix · 30d
+function PersonaScorecardCard({ card }: { card: PersonaScorecard }) {
+  const perf = card.perf;
+  const tone = perf ? PERSONA_PERF_STATUS_TONE[perf.status] : null;
+  const ageAttr = card.attributes.find((a) => /age/i.test(a.label));
+  const geoAttr = card.attributes.find((a) => /geo|geography|cities|region/i.test(a.label));
+  const sortedAngles = perf
+    ? [...perf.angles].sort(
+        (a, b) => ANGLE_RANK[a.status] - ANGLE_RANK[b.status] || a.cpl - b.cpl,
+      )
+    : [];
+  const bestCpl = sortedAngles.length ? Math.min(...sortedAngles.map((a) => a.cpl)) : 0;
+
+  return (
+    <div className="bg-white border border-border rounded-card overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border-subtle flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-[14px] font-semibold text-text-primary">
+              {card.shortLabel}
+            </span>
+            {perf && tone && (
+              <span
+                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                style={{ background: tone.bg, color: tone.text }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
+                {PERSONA_PERF_STATUS_LABEL[perf.status]}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-text-tertiary leading-snug">
+            {[ageAttr?.value, geoAttr?.value, card.preferredChannels.join(" · ")]
+              .filter(Boolean)
+              .join(" · ")}
           </div>
         </div>
-        <div className="flex h-2 rounded-full overflow-hidden mb-3">
-          {perf.channelMix.map((c) => (
-            <div
-              key={c.name}
-              style={{ width: `${c.share}%`, background: c.color }}
-              title={`${c.name} · ${c.share}%`}
-            />
-          ))}
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {perf.channelMix.map((c) => (
-            <div key={c.name} className="flex items-center gap-1.5">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: c.color }}
-              />
-              <div className="min-w-0">
-                <div className="text-[11px] text-text-secondary truncate">{c.name}</div>
-                <div className="text-[12.5px] font-semibold text-text-primary tabular">
-                  {c.share}%
-                </div>
-              </div>
+      </div>
+
+      {perf ? (
+        <>
+          {/* KPI strip */}
+          <div className="grid grid-cols-4 divide-x divide-border-subtle border-b border-border-subtle">
+            <KpiCell label="Blended CPL" value={inr(perf.cpl)} />
+            <KpiCell label="Qual rate" value={pct(perf.qualRate)} />
+            <KpiCell label="Leads" value={perf.leads.toLocaleString("en-IN")} sub={`${inr(perf.spend)} spend`} />
+            <KpiTrendCell trend={perf.trend} />
+          </div>
+
+          {/* Spot's verdict */}
+          <div className="px-4 py-2.5 bg-[#FAFAF8] border-b border-border-subtle flex items-start gap-2">
+            <SpotMark size={13} />
+            <div className="text-[12px] text-text-secondary leading-relaxed">
+              <span className="font-medium text-text-primary">Spot&apos;s take · </span>
+              {perf.verdict}
             </div>
-          ))}
+          </div>
+
+          {/* Angle leaderboard */}
+          <div className="px-4 py-3">
+            <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-2">
+              Angle leaderboard · {sortedAngles.length}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11.5px]">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wider text-text-tertiary">
+                    <th className="text-left font-semibold pb-1.5 pr-2">Angle</th>
+                    <th className="text-left font-semibold pb-1.5 px-2">Status</th>
+                    <th className="text-right font-semibold pb-1.5 px-2">CPL</th>
+                    <th className="text-right font-semibold pb-1.5 px-2">Qual</th>
+                    <th className="text-right font-semibold pb-1.5 px-2">CTR</th>
+                    <th className="text-right font-semibold pb-1.5 px-2">Freq</th>
+                    <th className="text-right font-semibold pb-1.5 px-2">Leads</th>
+                    <th className="text-left font-semibold pb-1.5 pl-2">Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedAngles.map((a) => (
+                    <AngleRow key={a.id} a={a} isBestCpl={a.cpl === bestCpl} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="px-4 py-6 text-center text-[12.5px] text-text-tertiary italic">
+          No performance data yet — Spot writes results here after the first
+          execution that uses this persona.
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function PerfMetricCard({
-  metric,
-}: {
-  metric: import("@/lib/spot/memory-files").ProductPerformanceMetric;
-}) {
-  const isZero = Math.abs(metric.delta) < 0.5;
-  const good = metric.invertDelta ? metric.delta < 0 : metric.delta > 0;
-  const color = isZero
-    ? "text-text-tertiary"
-    : good
-      ? "text-[#15803D]"
-      : "text-[#B91C1C]";
-  const arrow = isZero ? "→" : metric.delta > 0 ? "↑" : "↓";
+function KpiCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-white border border-border rounded-card p-3">
-      <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
-        {metric.label}
+    <div className="px-3 py-2.5">
+      <div className="text-[9.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+        {label}
       </div>
-      <div className="text-[18px] font-semibold text-text-primary tabular leading-none">
-        {metric.value}
+      <div className="text-[15px] font-semibold text-text-primary tabular leading-none">
+        {value}
       </div>
-      <div className={`text-[11px] tabular mt-1.5 ${color}`}>
-        {arrow} {Math.abs(metric.delta).toFixed(1)}%
-        <span className="text-text-tertiary"> vs prior</span>
-      </div>
+      {sub && <div className="text-[10px] text-text-tertiary mt-1">{sub}</div>}
     </div>
   );
 }
 
-function ChartCard({
-  title,
-  subtitle,
-  values,
-  color,
-}: {
-  title: string;
-  subtitle: string;
-  values: number[];
-  color: string;
-}) {
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
-  const w = 320;
-  const h = 64;
-  const stepX = w / (values.length - 1);
-  // Path for the line.
-  const pts = values.map((v, i) => {
-    const x = i * stepX;
-    const y = h - ((v - min) / range) * (h - 8) - 4;
-    return [x, y];
-  });
-  const linePath = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
-  // Area fill — line + close path along bottom.
-  const areaPath = `${linePath} L ${w} ${h} L 0 ${h} Z`;
+function KpiTrendCell({ trend }: { trend: number }) {
+  const { Icon, color, label } = trendGlyph(trend);
   return (
-    <div className="bg-white border border-border rounded-card p-4">
-      <div className="flex items-baseline justify-between mb-2">
-        <div>
-          <div className="text-[12.5px] font-semibold text-text-primary">{title}</div>
-          <div className="text-[10.5px] text-text-tertiary">{subtitle}</div>
-        </div>
-        <div className="text-[11px] text-text-tertiary tabular">
-          Latest · {values[values.length - 1].toLocaleString("en-IN")}
-        </div>
+    <div className="px-3 py-2.5">
+      <div className="text-[9.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+        Trend
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: 64 }} aria-hidden>
-        <defs>
-          <linearGradient id={`g-${title.replace(/\s/g, "")}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill={`url(#g-${title.replace(/\s/g, "")})`} />
-        <path
-          d={linePath}
-          fill="none"
-          stroke={color}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <div className="flex items-center gap-1" style={{ color }}>
+        <Icon size={14} strokeWidth={2} />
+        <span className="text-[13px] font-semibold tabular leading-none">{label}</span>
+      </div>
+      <div className="text-[10px] text-text-tertiary mt-1">vs prior window</div>
     </div>
   );
 }
 
-/* ─── Assets tab ──────────────────────────────────────────────── */
+function AngleRow({ a, isBestCpl }: { a: PersonaAngle; isBestCpl: boolean }) {
+  const tone = ANGLE_STATUS_TONE[a.status];
+  return (
+    <tr className="border-t border-border-subtle align-top">
+      <td className="py-2 pr-2">
+        <div className="text-[12px] font-medium text-text-primary leading-snug">{a.name}</div>
+        {a.note && (
+          <div className="text-[10.5px] text-text-tertiary leading-snug mt-0.5">{a.note}</div>
+        )}
+      </td>
+      <td className="py-2 px-2 whitespace-nowrap">
+        <span
+          className="inline-flex items-center gap-1 h-[17px] px-1.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider"
+          style={{ background: tone.bg, color: tone.text }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
+          {ANGLE_STATUS_LABEL[a.status]}
+        </span>
+      </td>
+      <td className="py-2 px-2 text-right tabular whitespace-nowrap">
+        <span
+          className={isBestCpl ? "font-semibold text-[#15803D]" : "text-text-primary"}
+        >
+          {inr(a.cpl)}
+        </span>
+      </td>
+      <td className="py-2 px-2 text-right tabular text-text-secondary">{pct(a.qualRate)}</td>
+      <td className="py-2 px-2 text-right tabular text-text-secondary">{a.ctr}%</td>
+      <td className="py-2 px-2 text-right tabular text-text-secondary">
+        <span className={a.frequency >= 3 ? "text-[#B91C1C] font-medium" : ""}>
+          {a.frequency}
+        </span>
+      </td>
+      <td className="py-2 px-2 text-right tabular text-text-secondary">{a.leads}</td>
+      <td className="py-2 pl-2 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 text-[10.5px] text-text-tertiary hover:text-text-primary cursor-pointer">
+          {a.source.label}
+          <ArrowUpRight size={9} strokeWidth={1.8} />
+        </span>
+      </td>
+    </tr>
+  );
+}
 
-function AssetsTab({ files }: { files: ProductMemoryFiles }) {
+/* ════════════════════════════════════════════════════════════════
+ * CREATIVES TAB · reusable asset library with persona filter.
+ * ═══════════════════════════════════════════════════════════════ */
+
+function CreativesTab({ files }: { files: ProductMemoryFiles }) {
   const { creatives, searchAds, landingPages, forms } = files.assets;
+  const personaNames = useMemo(
+    () => Array.from(new Set(creatives.map((c) => c.personaName))),
+    [creatives],
+  );
+  const [filter, setFilter] = useState<string>("all");
+  const shown = filter === "all" ? creatives : creatives.filter((c) => c.personaName === filter);
+
   return (
     <div>
       <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
-        Assets
+        Creatives
       </h1>
-      <FilePathBreadcrumb productId={files.productId} file="assets/" />
+      <FilePathBreadcrumb productId={files.productId} file="creatives/" />
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mb-4 max-w-[680px]">
+        Every asset Spot has built for this product — reusable into any new
+        project. Filter by persona to pull a winning angle back into play.
+      </p>
+
+      {/* Persona filter */}
+      {personaNames.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-4">
+          <FilterChip label="All" active={filter === "all"} onClick={() => setFilter("all")} />
+          {personaNames.map((n) => (
+            <FilterChip key={n} label={n} active={filter === n} onClick={() => setFilter(n)} />
+          ))}
+        </div>
+      )}
 
       <div className="space-y-5">
-        {/* Creatives */}
         <section>
           <AssetSectionHeader
             icon={ImageIcon}
             title="Visual creatives"
-            count={creatives.length}
-            subtitle="Every angle Spot has built · each with the sizes Resize Agent has produced."
+            count={shown.length}
+            subtitle="Each angle with the sizes Resize Agent has produced."
           />
-          {creatives.length === 0 ? (
+          {shown.length === 0 ? (
             <div className="text-[12.5px] text-text-tertiary italic px-1">
-              No creatives yet — Spot writes them here as it builds.
+              No creatives for this filter.
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-2.5">
-              {creatives.map((c) => (
+              {shown.map((c) => (
                 <CreativeCard key={c.id} c={c} />
               ))}
             </div>
           )}
         </section>
 
-        {/* Search ads */}
         <section>
           <AssetSectionHeader
             icon={Search}
             title="Search ads"
             count={searchAds.length}
-            subtitle="Google search ad copies · brand, category, competitor buckets."
+            subtitle="Google search copies · brand, category, competitor buckets."
           />
           <div className="space-y-2">
             {searchAds.map((sa) => (
@@ -570,7 +677,6 @@ function AssetsTab({ files }: { files: ProductMemoryFiles }) {
           </div>
         </section>
 
-        {/* Landing pages */}
         <section>
           <AssetSectionHeader
             icon={Smartphone}
@@ -585,7 +691,6 @@ function AssetsTab({ files }: { files: ProductMemoryFiles }) {
           </div>
         </section>
 
-        {/* Forms */}
         <section>
           <AssetSectionHeader
             icon={Layout}
@@ -603,6 +708,270 @@ function AssetsTab({ files }: { files: ProductMemoryFiles }) {
     </div>
   );
 }
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-7 px-2.5 rounded-full text-[11.5px] font-medium transition-colors border ${
+        active
+          ? "bg-text-primary text-white border-text-primary"
+          : "bg-white text-text-secondary border-border hover:border-border-hover hover:text-text-primary"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * BRAND TAB · voice / tone / palette (markdown source).
+ * ═══════════════════════════════════════════════════════════════ */
+
+const GUYJUS_BRAND_MD = `# Brand · Guyju's
+
+_Voice and visual guidelines every creative pulls from. Editable source._
+
+## Voice
+
+Guyju's sounds like a **sharp, credible mentor** — never a hype-machine. Talk to ambitious parents and students as equals. Lead with proof, not promises.
+
+**We are:** Credible · Specific · Outcome-led · Calm under pressure
+**We are not:** Loud · Vague-aspirational · Fear-mongering · Discount-led
+
+## Rules
+
+- Lead with the outcome (rank, fluency, confidence), then the mechanism (mentors, mocks, replays).
+- Use real numbers — batch sizes, hours saved, mock cadence. Never round-up claims.
+- Never promise a rank or a guaranteed result. Show the system, not a guarantee.
+- Parents are the buyer for school-age products; students are the buyer for self-study. Match the second-person voice to whoever pays.
+- No countdown-timer urgency. Scarcity is real (capped batches) or it isn't said.
+
+## Palette
+
+- **Ink** \`#1A1A1A\` — primary text, logo
+- **Gold** \`#C9A86A\` — accent, premium cues
+- **Trust blue** \`#1D4ED8\` — links, proof points
+- **Success green** \`#15803D\` — outcomes, verified results
+- **Surface** \`#FAF8F2\` — warm off-white backgrounds
+
+## Logo
+
+- Primary: stacked wordmark on light surface.
+- Reverse: white wordmark on ink for dark creatives.
+- Never place the mark on a busy photo without the scrim.
+`;
+
+function BrandTab({ files }: { files: ProductMemoryFiles }) {
+  return (
+    <MdFileBody source={GUYJUS_BRAND_MD} productId={files.productId} file="brand.md" />
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * KNOWLEDGE TAB · uploaded files + what Spot extracted.
+ * ═══════════════════════════════════════════════════════════════ */
+
+function KnowledgeTab({ files }: { files: ProductMemoryFiles }) {
+  const product = PRODUCTS.find((p) => p.id === files.productId);
+  const collateral = product?.collateral ?? [];
+  const learnings = product?.learnings ?? [];
+
+  return (
+    <div className="max-w-[760px]">
+      <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
+        Knowledge
+      </h1>
+      <FilePathBreadcrumb productId={files.productId} file="knowledge/" />
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mb-5 max-w-[680px]">
+        Source material Spot has read — brochures, decks, demo videos — plus the
+        facts it extracted. New conversations are grounded in this.
+      </p>
+
+      {/* Uploaded files */}
+      <section className="mb-6">
+        <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-2">
+          Uploaded files · {collateral.length}
+        </div>
+        {collateral.length === 0 ? (
+          <div className="text-[12.5px] text-text-tertiary italic">
+            No files uploaded for this product yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {collateral.map((c, i) => {
+              const Icon = c.kind === "video" ? Film : c.kind === "deck" ? FileBox : FileText;
+              return (
+                <div
+                  key={i}
+                  className="bg-white border border-border rounded-card px-3.5 py-3 flex items-center gap-3"
+                >
+                  <div className="w-9 h-9 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
+                    <Icon size={15} strokeWidth={1.6} className="text-text-secondary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-medium text-text-primary truncate">
+                      {c.name}
+                    </div>
+                    <div className="text-[10.5px] text-text-tertiary uppercase tracking-wider mt-0.5">
+                      {c.kind} · {c.size}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-[10.5px] text-text-tertiary hover:text-text-primary flex-shrink-0"
+                  >
+                    <ArrowUpRight size={10} strokeWidth={1.8} />
+                    Open
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* What Spot learned */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Sparkles size={12} strokeWidth={1.7} className="text-text-secondary" />
+          <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+            What Spot extracted · {learnings.length}
+          </span>
+        </div>
+        {learnings.length === 0 ? (
+          <div className="text-[12.5px] text-text-tertiary italic">
+            Nothing extracted yet.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {learnings.map((l) => (
+              <div
+                key={l.id}
+                className="bg-white border border-border rounded-card px-3.5 py-2.5 flex items-start gap-2.5"
+              >
+                <span
+                  className="inline-flex items-center h-[17px] px-1.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-surface-page text-text-tertiary flex-shrink-0 mt-0.5"
+                >
+                  {l.kind}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] text-text-primary leading-snug">{l.summary}</div>
+                  {l.evidence && (
+                    <div className="text-[10.5px] text-text-tertiary mt-0.5">{l.evidence}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * HISTORY TAB · execution history + append-only change log.
+ * ═══════════════════════════════════════════════════════════════ */
+
+function HistoryTab({ files }: { files: ProductMemoryFiles }) {
+  const product = PRODUCTS.find((p) => p.id === files.productId);
+  const plan = PRODUCT_PLANS.find((pl) => pl.productId === files.productId);
+  const execEntries = plan?.history ?? [];
+  const changeEntries = product?.memory ?? [];
+
+  return (
+    <div className="max-w-[760px]">
+      <h1 className="text-[22px] font-semibold text-text-primary tracking-tight mt-0 mb-1">
+        History
+      </h1>
+      <FilePathBreadcrumb productId={files.productId} file="history/" />
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mb-5 max-w-[680px]">
+        Every execution plan deployed against this product, and the running log
+        of every change to its memory.
+      </p>
+
+      {/* Execution history */}
+      <section className="mb-6">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Rocket size={12} strokeWidth={1.7} className="text-text-secondary" />
+          <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+            Execution history · {execEntries.length}
+          </span>
+        </div>
+        {execEntries.length === 0 ? (
+          <div className="text-[12.5px] text-text-tertiary italic">
+            No execution plans deployed yet.
+          </div>
+        ) : (
+          <ol className="relative border-l border-border-subtle ml-1.5 space-y-3 pl-4">
+            {execEntries
+              .slice()
+              .reverse()
+              .map((h, i) => (
+                <li key={i} className="relative">
+                  <span
+                    className="absolute -left-[21px] top-1 w-2 h-2 rounded-full bg-text-primary"
+                    aria-hidden
+                  />
+                  <div className="text-[12.5px] text-text-primary leading-snug">{h.entry}</div>
+                  <div className="text-[10.5px] text-text-tertiary mt-0.5">
+                    {h.at} · {h.who}
+                  </div>
+                </li>
+              ))}
+          </ol>
+        )}
+      </section>
+
+      {/* Change log */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <HistoryIcon size={12} strokeWidth={1.7} className="text-text-secondary" />
+          <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+            Change log · {changeEntries.length}
+          </span>
+        </div>
+        {changeEntries.length === 0 ? (
+          <div className="text-[12.5px] text-text-tertiary italic">No changes logged yet.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {changeEntries
+              .slice()
+              .sort((a, b) => (a.at < b.at ? 1 : -1))
+              .map((m) => (
+                <div
+                  key={m.id}
+                  className="bg-white border border-border rounded-card px-3.5 py-2.5 flex items-start gap-2.5"
+                >
+                  <span className="inline-flex items-center h-[17px] px-1.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-surface-page text-text-tertiary flex-shrink-0 mt-0.5">
+                    {m.kind}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] text-text-primary leading-snug">{m.summary}</div>
+                    <div className="text-[10.5px] text-text-tertiary mt-0.5">
+                      {m.at} · {m.who}
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ─── Shared asset cards (reused by Creatives tab) ─────────────── */
 
 function AssetSectionHeader({
   icon: Icon,
@@ -627,29 +996,17 @@ function AssetSectionHeader({
   );
 }
 
-function CreativeCard({
-  c,
-}: {
-  c: import("@/lib/spot/memory-files").MemoryCreative;
-}) {
+function CreativeCard({ c }: { c: import("@/lib/spot/memory-files").MemoryCreative }) {
   const Icon = c.kind === "video" ? Film : c.kind === "carousel" ? Layout : ImageIcon;
   const stateColor =
     c.state === "live" ? "bg-[#22C55E]" : c.state === "ready" ? "bg-[#F5A623]" : "bg-[#D4D4D4]";
-  // Canonical size order — keep chips reading left-to-right consistently.
-  const SIZE_ORDER: import("@/lib/spot/memory-files").CreativeSize[] = [
-    "1:1",
-    "4:5",
-    "9:16",
-    "16:9",
-  ];
+  const SIZE_ORDER: import("@/lib/spot/memory-files").CreativeSize[] = ["1:1", "4:5", "9:16", "16:9"];
   const sortedSizes = SIZE_ORDER.filter((s) => c.sizes.includes(s));
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
       <div
         className="relative aspect-[4/3] w-full"
-        style={{
-          background: `linear-gradient(135deg, hsl(${c.hue} 60% 90%), hsl(${c.hue} 50% 70%))`,
-        }}
+        style={{ background: `linear-gradient(135deg, hsl(${c.hue} 60% 90%), hsl(${c.hue} 50% 70%))` }}
       >
         <div className="absolute top-2 left-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/85 backdrop-blur-sm">
           <Icon size={10} strokeWidth={1.7} />
@@ -667,11 +1024,8 @@ function CreativeCard({
           {c.label}
         </div>
         <div className="text-[10.5px] text-text-tertiary mt-1 mb-1.5">{c.personaName}</div>
-        {/* Available sizes — Resize Agent output. Tiny chips per ratio. */}
         <div className="flex items-center gap-1 flex-wrap pt-1.5 border-t border-border-subtle">
-          <span className="text-[9.5px] uppercase tracking-wider text-text-tertiary mr-0.5">
-            Sizes
-          </span>
+          <span className="text-[9.5px] uppercase tracking-wider text-text-tertiary mr-0.5">Sizes</span>
           {sortedSizes.map((s) => (
             <span
               key={s}
@@ -681,9 +1035,7 @@ function CreativeCard({
             </span>
           ))}
           {c.sizes.length < 4 && (
-            <span className="text-[9.5px] text-text-tertiary italic">
-              · {4 - c.sizes.length} pending
-            </span>
+            <span className="text-[9.5px] text-text-tertiary italic">· {4 - c.sizes.length} pending</span>
           )}
         </div>
       </div>
@@ -691,17 +1043,9 @@ function CreativeCard({
   );
 }
 
-function SearchAdCard({
-  sa,
-}: {
-  sa: import("@/lib/spot/memory-files").MemorySearchAd;
-}) {
+function SearchAdCard({ sa }: { sa: import("@/lib/spot/memory-files").MemorySearchAd }) {
   const strengthTone =
-    sa.adStrength === "excellent"
-      ? "pill-ok"
-      : sa.adStrength === "good"
-        ? "pill-info"
-        : "pill-warn";
+    sa.adStrength === "excellent" ? "pill-ok" : sa.adStrength === "good" ? "pill-info" : "pill-warn";
   const campaignBg =
     sa.campaign === "Brand"
       ? "bg-[#EFF6FF] text-[#1D4ED8]"
@@ -711,7 +1055,6 @@ function SearchAdCard({
   return (
     <div className="bg-white border border-border rounded-card p-4">
       <div className="flex items-start gap-3">
-        {/* Tiny Google search-result mock */}
         <div className="w-9 h-9 rounded-card bg-white border border-border-subtle flex items-center justify-center flex-shrink-0">
           <Search size={14} strokeWidth={1.7} className="text-text-secondary" />
         </div>
@@ -725,18 +1068,13 @@ function SearchAdCard({
             <span className={`pill ${strengthTone}`} style={{ fontSize: 10 }}>
               Ad strength · {sa.adStrength}
             </span>
-            <span
-              className={`pill ${sa.status === "live" ? "pill-ok" : "pill"}`}
-              style={{ fontSize: 10 }}
-            >
+            <span className={`pill ${sa.status === "live" ? "pill-ok" : "pill"}`} style={{ fontSize: 10 }}>
               {sa.status}
             </span>
             <span className="text-[10.5px] text-text-tertiary ml-auto">
               {sa.headlineVariants.length + 1} headlines
             </span>
           </div>
-
-          {/* Primary ad copy — rendered like a Google SERP result */}
           <div className="bg-surface-page border border-border-subtle rounded-input p-3 mb-2">
             <div className="text-[10px] text-text-tertiary mb-0.5 inline-flex items-center gap-1">
               <span className="font-mono">Ad ·</span>
@@ -749,8 +1087,6 @@ function SearchAdCard({
               {sa.primaryDescription}
             </div>
           </div>
-
-          {/* Headline variants */}
           {sa.headlineVariants.length > 0 && (
             <div className="mb-2">
               <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
@@ -758,25 +1094,16 @@ function SearchAdCard({
               </div>
               <ul className="space-y-0.5">
                 {sa.headlineVariants.map((h, i) => (
-                  <li
-                    key={i}
-                    className="text-[11.5px] text-text-secondary leading-snug flex gap-1.5"
-                  >
-                    <span className="text-text-tertiary tabular">
-                      {String(i + 2).padStart(2, "0")}
-                    </span>
+                  <li key={i} className="text-[11.5px] text-text-secondary leading-snug flex gap-1.5">
+                    <span className="text-text-tertiary tabular">{String(i + 2).padStart(2, "0")}</span>
                     <span>{h}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
-          {/* Keywords */}
           <div className="text-[11px] text-text-tertiary leading-snug pt-2 border-t border-border-subtle">
-            <span className="uppercase tracking-wider text-[10px] font-semibold">
-              Keywords ·{" "}
-            </span>
+            <span className="uppercase tracking-wider text-[10px] font-semibold">Keywords · </span>
             {sa.keywords}
           </div>
         </div>
@@ -785,11 +1112,7 @@ function SearchAdCard({
   );
 }
 
-function LandingPageCard({
-  lp,
-}: {
-  lp: import("@/lib/spot/memory-files").MemoryLandingPage;
-}) {
+function LandingPageCard({ lp }: { lp: import("@/lib/spot/memory-files").MemoryLandingPage }) {
   return (
     <div className="bg-white border border-border rounded-card p-3 flex items-start gap-3">
       <div className="w-14 h-24 rounded-[6px] bg-gradient-to-b from-[#FAF8F2] to-white border border-border-subtle flex-shrink-0 relative overflow-hidden">
@@ -803,13 +1126,8 @@ function LandingPageCard({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-0.5">
-          <span className="text-[12px] font-semibold text-text-primary truncate flex-1">
-            {lp.title}
-          </span>
-          <span
-            className={`pill ${lp.status === "live" ? "pill-ok" : "pill"}`}
-            style={{ fontSize: 9 }}
-          >
+          <span className="text-[12px] font-semibold text-text-primary truncate flex-1">{lp.title}</span>
+          <span className={`pill ${lp.status === "live" ? "pill-ok" : "pill"}`} style={{ fontSize: 9 }}>
             {lp.status}
           </span>
         </div>
@@ -841,12 +1159,12 @@ function FormCard({ f }: { f: import("@/lib/spot/memory-files").MemoryForm }) {
   return (
     <div className="bg-white border border-border rounded-card p-3">
       <div className="flex items-start gap-2.5">
-        <CheckCircle2 size={13} strokeWidth={1.7} className="text-[#15803D] mt-0.5 flex-shrink-0" />
+        <span className="w-3.5 h-3.5 rounded-full bg-[#15803D]/10 flex items-center justify-center mt-0.5 flex-shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]" />
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[12.5px] font-semibold text-text-primary truncate flex-1">
-              {f.title}
-            </span>
+            <span className="text-[12.5px] font-semibold text-text-primary truncate flex-1">{f.title}</span>
             <span className="pill pill-ok" style={{ fontSize: 9 }}>
               {f.status}
             </span>
