@@ -4,9 +4,27 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Check, Loader2, Mail, RotateCw } from "lucide-react";
+import Image from "next/image";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { OtpInput } from "@/components/auth/otp-input";
 import { DEMO_OTP, maskEmail, orgsForEmail, type Org } from "@/lib/auth-mock";
+import Ferrofluid from "./ferrofluid";
+import PixelBlast from "./pixel-blast";
+import GradientBlinds from "./gradient-blinds";
+
+type BrandBg = "pixel" | "ferro" | "blinds";
+const BRAND_BGS: BrandBg[] = ["pixel", "ferro", "blinds"];
+
+const Logo = ({ className }: { className?: string }) => (
+  <Image
+    src="/revspot-logo.png"
+    alt="Revspot.ai"
+    width={754}
+    height={168}
+    priority
+    className={className}
+  />
+);
 
 // Passwordless sign-in on a single surface. Email and code share one card —
 // the code block is revealed inline once we "send" it (progressive
@@ -38,6 +56,14 @@ export default function LoginPage() {
 
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [resent, setResent] = useState(false);
+
+  // Brand-panel background variant. Default is the new PixelBlast field;
+  // ?bg=ferro brings back the ferrofluid for side-by-side comparison.
+  const [bg, setBg] = useState<BrandBg>("pixel");
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("bg");
+    if (p && (BRAND_BGS as string[]).includes(p)) setBg(p as BrandBg);
+  }, []);
 
   useEffect(() => {
     if (!codeSent || resendIn <= 0) return;
@@ -101,53 +127,118 @@ export default function LoginPage() {
   const chooseOrg = () => router.push(LAUNCHPAD);
 
   return (
-    <div className="min-h-screen bg-surface-page relative overflow-hidden">
-      <Mesh />
+    <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_1fr] xl:grid-cols-2">
+      {/* Left — dark brand panel. The launchpad's product truth: leads land
+          enriched, called, and ready. Carries the only color in the layout
+          (a single radial whisper). Hidden on small screens; a slim brand
+          header on the form side covers mobile. */}
+      <BrandPanel bg={bg} />
 
-      <header className="absolute top-0 left-0 px-6 py-5 flex items-center gap-2 z-10">
-        <SpotMark size={20} />
-        <span className="text-[14px] font-semibold text-text-primary">Revspot</span>
-      </header>
+      {/* Right — light auth surface. */}
+      <div className="relative flex min-h-screen flex-col bg-surface-page px-6 py-7 sm:px-10">
+        <header className="flex items-center gap-2 lg:hidden">
+          <SpotMark size={20} />
+          <span className="text-[14px] font-semibold text-text-primary">Revspot</span>
+        </header>
 
-      <main className="relative flex items-center justify-center px-4 py-12 min-h-screen">
-        <div className="w-full max-w-[440px] -translate-y-[6vh]">
-          <AnimatePresence mode="wait">
-            {step === "auth" ? (
-              <StepShell key="auth">
-                <AuthStep
-                  email={email}
-                  setEmail={setEmail}
-                  emailValid={emailValid}
-                  codeSent={codeSent}
-                  otp={otp}
-                  setOtp={setOtp}
-                  loading={loading}
-                  error={error}
-                  resendIn={resendIn}
-                  resent={resent}
-                  onSendCode={sendCode}
-                  onVerify={verify}
-                  onResend={resend}
-                  onChangeEmail={changeEmail}
-                />
-              </StepShell>
-            ) : (
-              <StepShell key="org">
-                <OrgStep email={email} orgs={orgs} onChoose={chooseOrg} />
-              </StepShell>
-            )}
-          </AnimatePresence>
-        </div>
-      </main>
+        <main className="flex flex-1 items-center justify-center py-12">
+          <div className="w-full max-w-[400px]">
+            <AnimatePresence mode="wait">
+              {step === "auth" ? (
+                <StepShell key="auth">
+                  <AuthStep
+                    email={email}
+                    setEmail={setEmail}
+                    emailValid={emailValid}
+                    codeSent={codeSent}
+                    otp={otp}
+                    setOtp={setOtp}
+                    loading={loading}
+                    error={error}
+                    resendIn={resendIn}
+                    resent={resent}
+                    onSendCode={sendCode}
+                    onVerify={verify}
+                    onResend={resend}
+                    onChangeEmail={changeEmail}
+                  />
+                </StepShell>
+              ) : (
+                <StepShell key="org">
+                  <OrgStep email={email} orgs={orgs} onChoose={chooseOrg} />
+                </StepShell>
+              )}
+            </AnimatePresence>
+          </div>
+        </main>
 
-      <footer className="absolute bottom-4 right-6 flex items-center gap-3 text-[11px] text-text-tertiary">
-        <a href="#" className="hover:text-text-secondary transition-colors">Privacy</a>
-        <span className="text-border">·</span>
-        <a href="#" className="hover:text-text-secondary transition-colors">Terms</a>
-        <span className="text-border">·</span>
-        <a href="#" className="hover:text-text-secondary transition-colors">Support</a>
-      </footer>
+        <footer className="flex items-center gap-3 text-[11px] text-text-tertiary">
+          <a href="#" className="hover:text-text-secondary transition-colors">Privacy</a>
+          <span className="text-border">·</span>
+          <a href="#" className="hover:text-text-secondary transition-colors">Terms</a>
+          <span className="text-border">·</span>
+          <a href="#" className="hover:text-text-secondary transition-colors">Support</a>
+        </footer>
+      </div>
     </div>
+  );
+}
+
+// ── Brand panel (dark) ──────────────────────────────────────────
+// Side-by-side dark half, modeled on the Revspot poster: two-tone
+// statement headline, muted sub, and a monochrome dotted halftone that
+// glows up from the bottom-right corner. Grayscale only — no gradient
+// text (the two-tone is two solid colors), no decorative color.
+function BrandPanel({ bg }: { bg: BrandBg }) {
+  return (
+    <aside className="relative hidden flex-col justify-between overflow-hidden bg-[#0A0A0A] p-12 xl:p-16 lg:flex">
+      {bg === "pixel" ? (
+        <PixelField />
+      ) : bg === "blinds" ? (
+        <BlindsField />
+      ) : (
+        // Liquid-chrome ferrofluid — reacts to the cursor (reactbits shader).
+        <div className="absolute inset-0 z-0">
+          <Ferrofluid
+            colors={["#ffffff", "#d6d9df", "#6b7078"]}
+            turbulence={0}
+            scale={3}
+            speed={0.3}
+            rimWidth={0.22}
+            sharpness={3.2}
+            shimmer={1.25}
+            glow={2.3}
+            mouseStrength={1.5}
+            mouseRadius={0.2}
+          />
+        </div>
+      )}
+
+      {/* Legibility veils — keep the type crisp over the metal. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(10,10,10,0.55) 0%, transparent 22%, transparent 55%, rgba(10,10,10,0.78) 100%)",
+        }}
+      />
+
+      <div className="pointer-events-none relative z-10">
+        <Logo className="h-8 w-auto" />
+      </div>
+
+      <div className="pointer-events-none relative z-10 max-w-[34rem]">
+        <h2 className="text-[46px] font-semibold leading-[1.0] tracking-[-0.035em] xl:text-[58px]">
+          <span className="block text-white">Most leads look interested.</span>
+          <span className="block text-white/40">Very few are ready.</span>
+        </h2>
+        <p className="mt-7 max-w-[30rem] text-[15px] leading-relaxed text-white/50 xl:text-[16px]">
+          Verified data, behavioral signals, and profile intelligence, combined
+          to surface the buyers who are actually ready to move.
+        </p>
+      </div>
+    </aside>
   );
 }
 
@@ -371,7 +462,7 @@ function StepShell({ children }: { children: React.ReactNode }) {
 
 function Heading({ title, subtitle }: { title: string; subtitle: React.ReactNode }) {
   return (
-    <div className="mb-7 text-center">
+    <div className="mb-7">
       <h1 className="text-[26px] font-semibold text-text-primary leading-tight tracking-[-0.01em]">{title}</h1>
       <p className="text-[14px] text-text-secondary mt-1.5 leading-relaxed">{subtitle}</p>
     </div>
@@ -395,24 +486,73 @@ function DemoHint({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Mesh() {
+// ── PixelBlast field (constrained) ──────────────────────────────
+// reactbits PixelBlast, used deliberately: a radial mask pins the pixel
+// field to the upper-right quadrant and fades it out well before the
+// bottom-left headline, so the type sits on clean black. edgeFade softens
+// the panel borders; the color is a cool slate that reads as texture, not
+// decoration. Cursor ripples keep it alive without pulling focus.
+function PixelField() {
   return (
-    <div aria-hidden>
-      <div
-        className="pointer-events-none absolute -top-40 -left-40 w-[640px] h-[640px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(245, 194, 107, 0.30) 0%, transparent 65%)" }}
+    <div
+      aria-hidden
+      className="absolute inset-0 z-0"
+      style={{
+        WebkitMaskImage:
+          "radial-gradient(125% 95% at 82% 16%, #000 0%, #000 34%, rgba(0,0,0,0.35) 58%, transparent 74%)",
+        maskImage:
+          "radial-gradient(125% 95% at 82% 16%, #000 0%, #000 34%, rgba(0,0,0,0.35) 58%, transparent 74%)",
+      }}
+    >
+      <PixelBlast
+        variant="circle"
+        pixelSize={5}
+        color="#7c8696"
+        patternScale={2.6}
+        patternDensity={1.05}
+        pixelSizeJitter={0.4}
+        speed={0.42}
+        edgeFade={0.35}
+        enableRipples
+        rippleSpeed={0.3}
+        rippleThickness={0.1}
+        rippleIntensityScale={1.4}
+        liquid={false}
+        transparent
       />
-      <div
-        className="pointer-events-none absolute -top-32 -right-40 w-[640px] h-[640px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(251, 207, 232, 0.35) 0%, transparent 65%)" }}
-      />
-      <div
-        className="pointer-events-none absolute -bottom-40 -left-32 w-[640px] h-[640px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(167, 243, 208, 0.28) 0%, transparent 65%)" }}
-      />
-      <div
-        className="pointer-events-none absolute -bottom-44 -right-32 w-[640px] h-[640px] rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(186, 230, 253, 0.32) 0%, transparent 65%)" }}
+    </div>
+  );
+}
+
+// ── GradientBlinds field (black) ────────────────────────────────
+// reactbits GradientBlinds, kept black: the gradient runs through near-black
+// slates so the blinds read as a faint corduroy of light, not color. A
+// mouse spotlight lifts the texture where the cursor lands. Masked to the
+// right half and floored by the bottom veil so the headline stays on black.
+function BlindsField() {
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0 z-0"
+      style={{
+        WebkitMaskImage:
+          "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.35) 30%, #000 60%, #000 100%)",
+        maskImage:
+          "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.35) 30%, #000 60%, #000 100%)",
+      }}
+    >
+      <GradientBlinds
+        gradientColors={["#23272f", "#6b7280", "#2a2e37"]}
+        angle={20}
+        noise={0.18}
+        blindCount={16}
+        blindMinWidth={44}
+        mouseDampening={0.15}
+        spotlightRadius={0.6}
+        spotlightSoftness={1.1}
+        spotlightOpacity={0.55}
+        distortAmount={12}
+        mixBlendMode="screen"
       />
     </div>
   );
