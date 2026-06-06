@@ -22,7 +22,8 @@
 //   · Product filter   · Channel filter   · Metrics picker   · Search
 // And on the right edge: Global date range (conventional placement).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -40,6 +41,7 @@ import {
   Sliders,
 } from "lucide-react";
 import { SpotMark } from "@/components/spot/spot-mark";
+import { useSpotStore } from "@/lib/spot/store";
 import {
   edTechCampaigns,
   productOptions,
@@ -55,6 +57,8 @@ import {
   computeSpotTake,
   VERDICT_LABEL,
   VERDICT_TONE,
+  type HealthVerdict,
+  type SignalLevel,
 } from "@/lib/spot/campaign-health";
 
 /* ─── Status + health styling ──────────────────────────────────── */
@@ -95,6 +99,19 @@ function num(n: number) {
 function pct(n: number) {
   if (n === 0) return "—";
   return `${n.toFixed(1)}%`;
+}
+
+// Freeze the lead column (campaign name + Spot's take) so it stays put while
+// the metric columns scroll horizontally. `bg` must be opaque to occlude the
+// scrolling cells; the right shadow marks the freeze line.
+function freezeStyle(bg: string) {
+  return {
+    position: "sticky" as const,
+    left: 0,
+    zIndex: 5,
+    background: bg,
+    boxShadow: "6px 0 8px -6px rgba(0,0,0,0.10)",
+  };
 }
 
 /* ─── Metric catalog — the configurable column set ──────────────── */
@@ -383,8 +400,8 @@ export default function CampaignsPage() {
   // metrics. Status dot · name(flex) · ...metrics · health(120).
   const colTemplate = useMemo(() => {
     const metricCols = selectedMetrics.map((k) => `${METRIC_DEFS[k].width}px`).join(" ");
-    // Spot's take now rides inline in the name cell — no trailing column.
-    return `14px minmax(300px,1.4fr) ${metricCols}`;
+    // Single frozen lead column (status + name + Spot's take); metrics scroll.
+    return `minmax(330px,1.4fr) ${metricCols}`;
   }, [selectedMetrics]);
 
   return (
@@ -814,8 +831,10 @@ function TableHeader({
       className="grid gap-2 px-3 py-2.5 border-b border-border bg-surface-page text-[10.5px] font-medium uppercase tracking-wider text-text-tertiary items-center"
       style={{ gridTemplateColumns: colTemplate }}
     >
-      <div></div>
-      <div className="inline-flex items-center gap-1">
+      <div
+        className="flex items-center gap-1 pr-2"
+        style={freezeStyle("var(--bg-page)")}
+      >
         Campaign
         <span className="text-text-tertiary/70 normal-case font-normal tracking-normal">
           · Spot&apos;s take
@@ -859,17 +878,24 @@ function CampaignRow({
         className="grid gap-2 px-3 py-2.5 border-b border-border-subtle items-center hover-row"
         style={{ gridTemplateColumns: colTemplate }}
       >
-        <StatusDot status={c.status} />
-        <NameCell
-          name={c.name}
-          channel={c.channel}
-          sub={`${c.objective} · ${c.productName} · ${c.adsets.length} ad set${c.adsets.length === 1 ? "" : "s"}`}
-          metaUrl={c.metaUrl}
-          expanded={expanded}
-          onToggle={onToggle}
-          onOpen={onOpen}
-          take={{ c, revealed: takeRevealed }}
-        />
+        <div
+          className="flex items-center gap-1.5 min-w-0 pr-2"
+          style={freezeStyle("#FFFFFF")}
+        >
+          <StatusDot status={c.status} />
+          <div className="flex-1 min-w-0">
+            <NameCell
+              name={c.name}
+              channel={c.channel}
+              sub={`${c.objective} · ${c.productName} · ${c.adsets.length} ad set${c.adsets.length === 1 ? "" : "s"}`}
+              metaUrl={c.metaUrl}
+              expanded={expanded}
+              onToggle={onToggle}
+              onOpen={onOpen}
+              take={{ c, revealed: takeRevealed }}
+            />
+          </div>
+        </div>
         {metrics.map((k) => {
           const def = METRIC_DEFS[k];
           return (
@@ -919,17 +945,24 @@ function AdSetRow({
         className="grid gap-2 px-3 py-2 border-b border-border-subtle items-center hover-row bg-[#FAFAFA]"
         style={{ gridTemplateColumns: colTemplate }}
       >
-        <StatusDot status={a.status} />
-        <NameCell
-          name={a.name}
-          channel={parent.channel}
-          sub={`Ad set · ${a.ads.length} ad${a.ads.length === 1 ? "" : "s"}`}
-          metaUrl={a.metaUrl}
-          expanded={expanded}
-          onToggle={onToggle}
-          indent={1}
-          dense
-        />
+        <div
+          className="flex items-center gap-1.5 min-w-0 pr-2"
+          style={freezeStyle("#FAFAFA")}
+        >
+          <StatusDot status={a.status} />
+          <div className="flex-1 min-w-0">
+            <NameCell
+              name={a.name}
+              channel={parent.channel}
+              sub={`Ad set · ${a.ads.length} ad${a.ads.length === 1 ? "" : "s"}`}
+              metaUrl={a.metaUrl}
+              expanded={expanded}
+              onToggle={onToggle}
+              indent={1}
+              dense
+            />
+          </div>
+        </div>
         {metrics.map((k) => {
           const def = METRIC_DEFS[k];
           return (
@@ -973,21 +1006,26 @@ function AdRow({
       className="grid gap-2 px-3 py-1.5 border-b border-border-subtle items-center hover-row bg-white"
       style={{ gridTemplateColumns: colTemplate }}
     >
-      <StatusDot status={ad.status} />
-      <div className="flex items-center gap-2 min-w-0 pl-9">
-        <KIcon size={11} strokeWidth={1.6} className="text-text-tertiary flex-shrink-0" />
-        <div className="min-w-0 flex-1 flex items-center gap-1.5">
-          <span className="text-[11.5px] text-text-primary truncate">{ad.name}</span>
-          <span className="text-[10px] text-text-tertiary flex-shrink-0">· {ad.format}</span>
-          <a
-            href={ad.metaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center text-text-tertiary hover:text-text-primary flex-shrink-0"
-            title="Open in Meta"
-          >
-            <ArrowUpRight size={11} strokeWidth={1.8} />
-          </a>
+      <div
+        className="flex items-center gap-2 min-w-0 pr-2"
+        style={freezeStyle("#FFFFFF")}
+      >
+        <StatusDot status={ad.status} />
+        <div className="flex items-center gap-2 min-w-0 pl-7 flex-1">
+          <KIcon size={11} strokeWidth={1.6} className="text-text-tertiary flex-shrink-0" />
+          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+            <span className="text-[11.5px] text-text-primary truncate">{ad.name}</span>
+            <span className="text-[10px] text-text-tertiary flex-shrink-0">· {ad.format}</span>
+            <a
+              href={ad.metaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-text-tertiary hover:text-text-primary flex-shrink-0"
+              title="Open in Meta"
+            >
+              <ArrowUpRight size={11} strokeWidth={1.8} />
+            </a>
+          </div>
         </div>
       </div>
       {metrics.map((k) => {
@@ -1019,13 +1057,58 @@ function StatusDot({ status }: { status: EdTechCampaignStatus }) {
   );
 }
 
+// Each verdict offers one next move with Spot.
+const VERDICT_CTA: Record<HealthVerdict, string> = {
+  healthy: "Scale up",
+  watch: "Dive deeper",
+  "at-risk": "Optimise",
+  stabilizing: "What's working?",
+};
+
+const SIGNAL_DOT: Record<SignalLevel, string> = {
+  green: "#22C55E",
+  amber: "#CA8A04",
+  red: "#EF4444",
+};
+
 /**
  * Spot's take — the health verdict, inline next to the campaign name (where
  * "Spot it" used to sit). Filled in by Spot on the first load of the day
  * (row-by-row reveal): a pulsing "reviewing…" state → a colored verdict
- * badge. The driving reason rides as a hover tooltip so the row stays tight.
+ * badge. On hover, a portal card opens with Spot's full reasoning and a
+ * verdict-specific button to start acting (Scale up / Dive deeper /
+ * Optimise / What's working?).
  */
 function InlineSpotTake({ c, revealed }: { c: EdTechCampaign; revealed: boolean }) {
+  const router = useRouter();
+  const startScaleFlow = useSpotStore((s) => s.startScaleFlow);
+  const startOptimizeFlow = useSpotStore((s) => s.startOptimizeFlow);
+  const startCampaignDive = useSpotStore((s) => s.startCampaignDive);
+
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  const show = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({
+        top: r.bottom + 6,
+        left: Math.min(r.left, window.innerWidth - 332),
+      });
+    }
+    setOpen(true);
+  };
+  const scheduleHide = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setOpen(false), 140);
+  };
+
   if (!revealed) {
     return (
       <span className="inline-flex items-center gap-1 text-text-tertiary flex-shrink-0">
@@ -1036,17 +1119,113 @@ function InlineSpotTake({ c, revealed }: { c: EdTechCampaign; revealed: boolean 
       </span>
     );
   }
+
   const take = computeSpotTake(c);
   const tone = VERDICT_TONE[take.verdict];
+
+  const act = () => {
+    const product = { id: c.productId, name: c.productName };
+    if (take.verdict === "healthy") startScaleFlow(product);
+    else if (take.verdict === "at-risk") startOptimizeFlow(product);
+    else
+      startCampaignDive({
+        id: c.id,
+        name: c.name,
+        tier: "campaign",
+        productId: c.productId,
+        productName: c.productName,
+        channel: c.channel,
+        metaUrl: c.metaUrl,
+      });
+    router.push("/spot");
+  };
+
   return (
-    <span
-      className="inline-flex items-center gap-1 h-[17px] px-1.5 rounded-full text-[10px] font-semibold flex-shrink-0"
-      style={{ background: tone.bg, color: tone.text }}
-      title={`Spot's take — ${take.driver}`}
-    >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
-      {VERDICT_LABEL[take.verdict]}
-    </span>
+    <>
+      <span
+        ref={triggerRef}
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+        className="inline-flex items-center gap-1 h-[17px] px-1.5 rounded-full text-[10px] font-semibold flex-shrink-0 cursor-default"
+        style={{ background: tone.bg, color: tone.text }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
+        {VERDICT_LABEL[take.verdict]}
+      </span>
+
+      {mounted &&
+        open &&
+        pos &&
+        createPortal(
+          <div
+            onMouseEnter={show}
+            onMouseLeave={scheduleHide}
+            className="fadeUp"
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: 320,
+              zIndex: 200,
+              background: "#FFFFFF",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.14)",
+              padding: 12,
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-1.5 mb-2">
+              <SpotMark size={13} />
+              <span className="text-[11px] font-semibold text-text-primary">
+                Spot&apos;s take
+              </span>
+              <span
+                className="ml-auto inline-flex items-center gap-1 h-[17px] px-1.5 rounded-full text-[10px] font-semibold"
+                style={{ background: tone.bg, color: tone.text }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot }} />
+                {VERDICT_LABEL[take.verdict]}
+              </span>
+            </div>
+
+            {/* Reasoning */}
+            <div className="text-[12px] text-text-secondary leading-relaxed mb-2">
+              {take.driver}
+            </div>
+
+            {/* Signal breakdown */}
+            {take.signals.length > 0 && (
+              <div className="space-y-1 mb-3 pt-2 border-t border-border-subtle">
+                {take.signals.map((s) => (
+                  <div key={s.key} className="flex items-start gap-1.5">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
+                      style={{ background: SIGNAL_DOT[s.level] }}
+                    />
+                    <span className="text-[11px] text-text-secondary leading-snug">
+                      <span className="font-medium text-text-primary">{s.label}</span>
+                      {" · "}
+                      {s.detail}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* CTA — start acting with Spot */}
+            <button
+              type="button"
+              onClick={act}
+              className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12px] font-medium transition-colors"
+            >
+              <SpotMark size={12} />
+              {VERDICT_CTA[take.verdict]}
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

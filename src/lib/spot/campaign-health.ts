@@ -41,16 +41,17 @@ export type SpotTake = {
 /* ── Targets & benchmarks ──────────────────────────────────────── */
 
 // Per-product benchmark — the fallback target when a campaign isn't tied
-// to an execution-plan target. targetCpl = what "good" costs; qualBenchmark
-// = the qualification rate we expect a healthy campaign to clear.
+// to an execution-plan target. targetCpl = what "good" costs (₹/lead);
+// qualBenchmark = the qualification rate (in PERCENT, matching the campaign
+// data) we expect a healthy campaign to clear.
 export const PRODUCT_BENCHMARK: Record<string, { targetCpl: number; qualBenchmark: number }> = {
-  "prod-guyjus-jee": { targetCpl: 320, qualBenchmark: 0.38 },
-  "prod-guyjus-neet": { targetCpl: 300, qualBenchmark: 0.4 },
-  "prod-guyjus-foundation": { targetCpl: 280, qualBenchmark: 0.34 },
-  "prod-guyjus-spoken-english": { targetCpl: 300, qualBenchmark: 0.36 },
+  "prod-guyjus-jee": { targetCpl: 320, qualBenchmark: 11 },
+  "prod-guyjus-neet": { targetCpl: 300, qualBenchmark: 12 },
+  "prod-guyjus-foundation": { targetCpl: 280, qualBenchmark: 9 },
+  "prod-guyjus-spoken-english": { targetCpl: 300, qualBenchmark: 10 },
 };
 
-const DEFAULT_BENCHMARK = { targetCpl: 320, qualBenchmark: 0.36 };
+const DEFAULT_BENCHMARK = { targetCpl: 320, qualBenchmark: 10 };
 
 export function benchmarkFor(productId: string) {
   return PRODUCT_BENCHMARK[productId] ?? DEFAULT_BENCHMARK;
@@ -77,21 +78,21 @@ function efficiencySignal(m: EdTechMetrics, targetCpl: number): HealthSignal {
   };
 }
 
+// qualificationRate is stored in percent units (e.g. 9.5 = 9.5%), as is the
+// benchmark — compare them directly.
 function qualitySignal(m: EdTechMetrics, qualBenchmark: number): HealthSignal {
   const ratio = m.qualificationRate / qualBenchmark;
   let level: SignalLevel = "green";
   if (ratio < 0.7) level = "red";
   else if (ratio < 1.0) level = "amber";
-  const pct = Math.round(m.qualificationRate * 100);
-  const benchPct = Math.round(qualBenchmark * 100);
   return {
     key: "quality",
     label: "Quality",
     level,
     detail:
       level === "green"
-        ? `Qual rate ${pct}% at or above benchmark ${benchPct}%`
-        : `Qual rate ${pct}% vs benchmark ${benchPct}%`,
+        ? `Qual rate ${m.qualificationRate.toFixed(1)}% at or above benchmark ${qualBenchmark}%`
+        : `Qual rate ${m.qualificationRate.toFixed(1)}% vs benchmark ${qualBenchmark}%`,
   };
 }
 
