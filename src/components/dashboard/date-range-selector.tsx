@@ -9,6 +9,8 @@ const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 interface DateRangeSelectorProps {
   compact?: boolean;
   onChange?: (preset: string) => void;
+  /** Initial preset value (e.g. "7", "30"). Defaults to "30". */
+  defaultPreset?: string;
 }
 
 const presets = [
@@ -105,8 +107,8 @@ function CalendarGrid({ month, year, onNav, onDateClick, onHover, isInRange, isS
 }
 
 // ── Main Component ──────────────────────────────────────────
-export function DateRangeSelector({ compact, onChange }: DateRangeSelectorProps) {
-  const [selected, setSelected] = useState("30");
+export function DateRangeSelector({ compact, onChange, defaultPreset }: DateRangeSelectorProps) {
+  const [selected, setSelected] = useState(defaultPreset ?? "30");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

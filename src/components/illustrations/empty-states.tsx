@@ -224,3 +224,27 @@ export function IllustrationPhone() {
     </svg>
   );
 }
+
+export function IllustrationEnrichment() {
+  return (
+    <svg width="120" height="100" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Profile card background */}
+      <rect x="22" y="22" width="62" height="56" rx="6" fill="#F5F5F5" stroke="#D4D4D4" strokeWidth="1.5" />
+      {/* Avatar circle inside card */}
+      <circle cx="38" cy="40" r="7" fill="white" stroke="#9B9B9B" strokeWidth="1.5" />
+      <path d="M30 56 Q30 50, 38 49 Q46 50, 46 56" stroke="#9B9B9B" strokeWidth="1.5" fill="white" strokeLinecap="round" />
+      {/* Data rows */}
+      <path d="M52 38 L78 38" stroke="#D4D4D4" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M52 44 L72 44" stroke="#E5E5E5" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M30 66 L76 66" stroke="#E5E5E5" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M30 72 L62 72" stroke="#E5E5E5" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Magnifying glass overlapping card (bottom-right) */}
+      <circle cx="82" cy="64" r="14" fill="white" stroke="#9B9B9B" strokeWidth="1.5" />
+      <circle cx="82" cy="64" r="9" fill="#F5F5F5" stroke="#D4D4D4" strokeWidth="1" />
+      <path d="M92 74 L102 84" stroke="#9B9B9B" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Sparkle accents (enrichment) */}
+      <path d="M100 22 L100 30 M96 26 L104 26" stroke="#9B9B9B" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M108 38 L108 44 M105 41 L111 41" stroke="#D4D4D4" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}

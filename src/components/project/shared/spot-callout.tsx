@@ -56,3 +56,23 @@ export function SpotInlineCallout({
     </div>
   );
 }
+
+export function TipCallout({
+  label = "Tip",
+  body,
+  actions,
+}: {
+  label?: string;
+  body: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="spot-reply p-3.5">
+      <div className="uplabel mb-1">{label}</div>
+      <div className="text-[13.5px] leading-[1.5]">
+        <RichText text={body} />
+      </div>
+      {actions && <div className="flex flex-wrap gap-1.5 mt-2">{actions}</div>}
+    </div>
+  );
+}
