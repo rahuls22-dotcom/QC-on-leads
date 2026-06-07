@@ -1,241 +1,274 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+// Project detail = the operational command center for one product. A "Project"
+// IS a Product (id = product id). Aggregates: a metric grid, persona scorecards
+// (what's working), the campaigns table (filtered to this product), and an
+// enrichment placeholder — and links out to Memory, Campaigns, and Leads.
+
+import { useParams, useRouter, notFound } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Users, Settings, Radio, Layers, BarChart3 } from "lucide-react";
-import { getProject } from "@/lib/project-data";
-import { ProjectHero } from "@/components/project/project-hero";
-import { GoalPanel } from "@/components/project/goal-panel";
-import { DashboardSection } from "@/components/project/dashboard-section";
-import { PersonasSection } from "@/components/project/personas-section";
-import { CampaignsTab } from "@/components/project/campaigns-tab";
+import type { Variants } from "framer-motion";
 import {
-  LibrarySection,
-  type LibrarySubTab,
-} from "@/components/project/library-section";
-import { SetupSection } from "@/components/project/setup-section";
-import { SetupChecklist } from "@/components/project/setup-checklist";
-import { ProjectAskBar } from "@/components/project/project-ask-bar";
-import { useSpotStore } from "@/lib/spot/store";
-import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
-import { hasAnyProjectActivity } from "@/lib/project-data";
+  ArrowLeft,
+  ArrowRight,
+  Brain,
+  Monitor,
+  FileText,
+  Sparkles,
+  Package,
+} from "lucide-react";
+import { PRODUCTS, diagnoseProduct } from "@/lib/products-data";
+import {
+  planForProduct,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_TONE,
+} from "@/lib/spot/extended-flows";
+import { rollupCampaigns, campaignsForProduct } from "@/lib/campaigns-edtech-rollup";
+import { scorecardsForProduct } from "@/lib/spot/persona-scorecard";
+import { CampaignsTable, inr, num } from "@/components/campaigns/campaigns-table";
+import { PersonaScorecardCard } from "@/components/personas/persona-scorecard-card";
+import { MetricCard } from "@/components/dashboard/metric-card";
+import { SpotMark } from "@/components/spot/spot-mark";
 
-type Tab = "dashboard" | "personas" | "campaigns" | "library" | "settings";
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 4 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
+};
 
-type TabDef = { key: Tab; label: string; icon: typeof Users; sub: string };
-
-const ALL_TABS: TabDef[] = [
-  { key: "dashboard", label: "Dashboard", icon: BarChart3, sub: "how we're doing" },
-  { key: "personas", label: "Personas", icon: Users, sub: "angles · concepts · winners" },
-  { key: "campaigns", label: "Campaigns", icon: Radio, sub: "draft · live · optimize" },
-  { key: "library", label: "Library", icon: Layers, sub: "creatives · images · forms" },
-  { key: "settings", label: "Settings", icon: Settings, sub: "context · goal · agents" },
-];
+// Rollup delta -> MetricCard trend (cost metrics invert "good").
+function toTrend(pctValue: number, invert = false) {
+  return {
+    value: Math.abs(pctValue),
+    direction: (pctValue >= 0 ? "up" : "down") as "up" | "down",
+    positive: invert ? pctValue < 0 : pctValue > 0,
+  };
+}
 
 export default function ProjectDetailPage() {
-  const params = useParams<{ id: string }>();
   const router = useRouter();
+  const params = useParams<{ id: string }>();
   const id = (params?.id || "").toString();
-  const project = getProject(id);
+  const product = PRODUCTS.find((p) => p.id === id);
+  if (!product) notFound();
 
-  // Dashboard is only meaningful when the project has actual activity
-  // (live campaigns or recorded spend / leads). New projects land on
-  // Personas instead so the user starts where they can take action.
-  const hasActivity = project ? hasAnyProjectActivity(project) : false;
-  const visibleTabs: TabDef[] = ALL_TABS.filter(
-    (t) => t.key !== "dashboard" || hasActivity,
-  );
-  const defaultTab: Tab = hasActivity ? "dashboard" : "personas";
-  const [tab, setTab] = useState<Tab>(defaultTab);
-
-  // Library sub-tab — used by the Forms-readiness banner to deeplink
-  // straight into the Forms sub-section without forcing the user to
-  // click through Creatives / Images first.
-  const [librarySub, setLibrarySub] = useState<LibrarySubTab | undefined>(
-    undefined,
-  );
-
-  // If the project transitions from no-activity → activity (e.g. user
-  // launches the first ad set), the tab list grows. Keep the current
-  // selection valid; nothing to do here unless the user was on Dashboard
-  // when activity disappeared, which the data model doesn't support.
-
-  // Listen for child-component tab-switch requests (e.g. the Campaigns
-  // tab's "Go to Forms →" banner). Strongly-typed via the Tab union so
-  // unknown tabs are ignored.
-  useEffect(() => {
-    const onSwitch = (e: Event) => {
-      const detail = (e as CustomEvent<{ tab: string; sub?: string }>).detail;
-      const allowed: Tab[] = [
-        "dashboard",
-        "personas",
-        "campaigns",
-        "library",
-        "settings",
-      ];
-      if (!detail) return;
-      // Legacy "forms" target → re-route to library/forms.
-      if (detail.tab === "forms") {
-        setLibrarySub("forms");
-        setTab("library");
-        return;
-      }
-      if (!allowed.includes(detail.tab as Tab)) return;
-      if (detail.tab === "library" && detail.sub === "forms") {
-        setLibrarySub("forms");
-      }
-      // Block Dashboard switch when it's hidden — fall back to Personas.
-      if (detail.tab === "dashboard" && !hasActivity) {
-        setTab("personas");
-        return;
-      }
-      setTab(detail.tab as Tab);
-    };
-    window.addEventListener("revspot:tab-switch", onSwitch);
-    return () => window.removeEventListener("revspot:tab-switch", onSwitch);
-  }, [hasActivity]);
-  const askSpot = useSpotStore((s) => s.askSpot);
-
-  // Scope guard: auto-switch if user has access; show forbidden state if not.
-  const guard = useScopeGuard(
-    project?.workspaceId,
-    project?.name.split(" · ")[0] || "This project",
-  );
-
-  const askProject = (q: string) =>
-    askSpot(q, {
-      kind: "project",
-      label: project?.name.split(" · ")[0] || "Project",
-      target: id,
-    });
-
-  if (guard.access === "forbidden") {
-    return (
-      <ForbiddenState
-        workspaceName={guard.workspaceName}
-        resourceLabel={guard.resourceLabel}
-      />
-    );
-  }
-  // Mid-switch: scope is being updated; render nothing to avoid a flash
-  // of stale (wrong-workspace) content.
-  if (guard.access === "wrong-scope") return null;
-
-  if (!project) {
-    return (
-      <div>
-        <button
-          type="button"
-          onClick={() => router.push("/projects")}
-          className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary text-[12px] mb-4"
-        >
-          <ArrowLeft size={14} /> Back to projects
-        </button>
-        <div className="card-base p-10 text-center">
-          <div className="text-[14px] font-medium mb-1">Project not found</div>
-          <div className="text-[12px] text-text-tertiary">
-            We don&apos;t have a knowledge base for &quot;{id}&quot; yet.
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const campaigns = campaignsForProduct(id);
+  const r = rollupCampaigns(campaigns);
+  const scorecards = scorecardsForProduct(id);
+  const plan = planForProduct(id);
+  const dx = diagnoseProduct(product!);
+  const hasCampaigns = campaigns.length > 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      style={{ paddingBottom: 40 }}
-    >
+    <motion.div initial="hidden" animate="show" variants={fadeUp}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 mb-4 text-[12px] text-text-secondary">
+      <div className="flex items-center gap-2 mb-3">
         <button
-          type="button"
           onClick={() => router.push("/projects")}
-          className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-surface-secondary"
+          className="p-1 rounded-button text-text-secondary hover:bg-surface-secondary hover:text-text-primary transition-colors"
         >
-          <ArrowLeft size={13} />
+          <ArrowLeft size={16} strokeWidth={1.5} />
         </button>
-        <span>Lead Generation</span>
-        <span className="text-text-tertiary">›</span>
-        <span>Projects</span>
-        <span className="text-text-tertiary">›</span>
-        <span className="text-text-primary">{project.name.split(" · ")[0]}</span>
+        <span className="text-meta text-text-secondary">Projects &rsaquo; {product!.name}</span>
       </div>
 
-      <ProjectHero project={project} onAsk={askProject} />
-      <GoalPanel project={project} onAsk={askProject} />
-      <SetupChecklist
-        project={project}
-        onGoTo={(target, sub) => {
-          if (target === "library" && sub) setLibrarySub(sub);
-          setTab(target);
-        }}
-      />
-
-      {/* Tabs */}
-      <div className="flex gap-1 mt-2 border-b border-border">
-        {visibleTabs.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className="relative px-4 pt-3 pb-3 flex items-start gap-2 text-left transition-colors"
-              style={{ color: active ? "var(--text-1)" : "var(--text-2)" }}
-            >
-              <Icon size={15} />
-              <div>
-                <div className="text-[13.5px]" style={{ fontWeight: active ? 600 : 500 }}>
-                  {t.label}
-                </div>
-                <div className="text-[10.5px] text-text-tertiary">{t.sub}</div>
-              </div>
-              {active && (
+      {/* Header */}
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-card bg-[#FAF8F2] border border-[#E8E3D5] flex items-center justify-center flex-shrink-0">
+            <Package size={18} strokeWidth={1.5} className="text-text-secondary" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <h1 className="text-[24px] font-semibold tracking-[-0.01em] text-text-primary leading-tight">
+                {product!.name}
+              </h1>
+              {plan ? (
+                <span className={`pill ${PLAN_STATUS_TONE[plan.status]}`} style={{ fontSize: 10.5 }}>
+                  {PLAN_STATUS_LABEL[plan.status]}
+                </span>
+              ) : (
                 <span
-                  className="absolute left-0 right-0 h-[2px] bg-text-primary"
-                  style={{ bottom: -1 }}
-                />
+                  className={`pill pill-${dx.tone === "err" ? "err" : dx.tone === "warn" ? "warn" : "info"}`}
+                  style={{ fontSize: 10.5 }}
+                >
+                  {dx.chip}
+                </span>
               )}
+            </div>
+            <div className="text-[12.5px] text-text-secondary">
+              {product!.client} &middot; {product!.category}
+            </div>
+          </div>
+        </div>
+
+        {/* Link-outs */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <LinkOut icon={Brain} label="Memory" onClick={() => router.push(`/memory?focus=${id}`)} />
+          <LinkOut icon={Monitor} label="Campaigns" onClick={() => router.push(`/campaigns?product=${id}`)} />
+          <LinkOut icon={FileText} label="Leads" onClick={() => router.push(`/enquiries?product=${id}`)} />
+          <button
+            type="button"
+            onClick={() => router.push("/spot")}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12px] font-medium"
+            title={`Ask Spot about ${product!.name}`}
+          >
+            <SpotMark size={12} />
+            Ask Spot
+          </button>
+        </div>
+      </div>
+
+      {/* Metric grid */}
+      <Section title="Performance" sub="Rolled up across this product's live campaigns.">
+        {hasCampaigns ? (
+          <div className="grid grid-cols-3 gap-2.5">
+            <MetricCard label="Spend" value={inr(r.spend)} trend={toTrend(r.spendDelta)} previousLabel="vs prior" />
+            <MetricCard
+              label="Leads"
+              value={num(r.leads)}
+              subMetric={`${inr(r.blendedCpl)} CPL`}
+              trend={toTrend(r.leadsDelta)}
+              previousLabel="vs prior"
+            />
+            <MetricCard
+              label="Verified leads"
+              value={num(r.verified)}
+              subMetric={`${r.verificationRate}% rate · ${inr(r.blendedCpvl)} CPVL`}
+              trend={toTrend(r.verifiedDelta)}
+              previousLabel="vs prior"
+            />
+            <MetricCard
+              label="Qualified leads"
+              value={num(r.qualified)}
+              subMetric={`${r.qualificationRate}% rate · ${inr(r.blendedCpql)} CPQL`}
+              trend={toTrend(r.qualifiedDelta)}
+              previousLabel="vs prior"
+            />
+            <MetricCard
+              label="Blended CPL"
+              value={inr(r.blendedCpl)}
+              trend={toTrend(r.blendedCplDelta, true)}
+              previousLabel="vs prior"
+            />
+            <MetricCard
+              label="Blended CPQL"
+              value={inr(r.blendedCpql)}
+              trend={toTrend(r.blendedCpqlDelta, true)}
+              previousLabel="vs prior"
+            />
+          </div>
+        ) : (
+          <EmptyNote text="No active campaigns yet — metrics fill in once this product goes live." />
+        )}
+      </Section>
+
+      {/* Personas */}
+      <Section title="Personas · what's working" sub="Live verdict + angle leaderboard per persona.">
+        {scorecards.length > 0 ? (
+          <div className="space-y-4">
+            {scorecards.map((card) => (
+              <PersonaScorecardCard key={card.id} card={card} />
+            ))}
+          </div>
+        ) : (
+          <EmptyNote text="No personas linked to this product yet." />
+        )}
+      </Section>
+
+      {/* Campaigns */}
+      <Section
+        title="Campaigns"
+        sub="The same view as the Campaigns page, scoped to this product."
+        action={
+          hasCampaigns ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/campaigns?product=${id}`)}
+              className="inline-flex items-center gap-1 text-[11.5px] text-text-tertiary hover:text-text-primary"
+            >
+              View all in Campaigns
+              <ArrowRight size={11} strokeWidth={1.8} />
             </button>
-          );
-        })}
-      </div>
-
-      {/* Tab body */}
-      <div className="mt-2">
-        {tab === "dashboard" && (
-          <DashboardSection project={project} onAsk={askProject} />
-        )}
-        {tab === "personas" && (
-          <PersonasSection project={project} onAsk={askProject} />
-        )}
-        {tab === "campaigns" && (
-          <CampaignsTab project={project} onAsk={askProject} />
-        )}
-        {tab === "library" && (
-          <LibrarySection
-            project={project}
-            onAsk={askProject}
-            onGoToPersonas={() => setTab("personas")}
-            initialSub={librarySub}
+          ) : undefined
+        }
+      >
+        {hasCampaigns ? (
+          <CampaignsTable
+            campaigns={campaigns}
+            onOpenCampaign={(cid) => router.push(`/campaigns/${cid}`)}
+            emptyLabel="No campaigns for this product yet."
           />
+        ) : (
+          <EmptyNote text="No campaigns for this product yet — launch one from Spot." />
         )}
-        {tab === "settings" && (
-          <SetupSection
-            project={project}
-            onAsk={askProject}
-            onOpenLibrary={() => setTab("library")}
-          />
-        )}
-      </div>
+      </Section>
 
-      <ProjectAskBar projectName={project.name} onAsk={askProject} />
+      {/* Enrichment — placeholder (design pending). */}
+      <Section title="Enrichment">
+        <div className="bg-white border border-border border-dashed rounded-card px-5 py-8 flex flex-col items-center justify-center text-center">
+          <Sparkles size={18} strokeWidth={1.5} className="text-text-tertiary mb-2" />
+          <div className="text-[12.5px] font-medium text-text-primary">Enrichment · coming soon</div>
+          <div className="text-[11.5px] text-text-tertiary mt-0.5 max-w-[420px]">
+            Enrichment data for this product will live here.
+          </div>
+        </div>
+      </Section>
     </motion.div>
   );
 }
 
+/* --- Helpers --- */
+
+function LinkOut({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: typeof Brain;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button border border-border bg-white text-[12px] font-medium text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+    >
+      <Icon size={13} strokeWidth={1.6} />
+      {label}
+    </button>
+  );
+}
+
+function Section({
+  title,
+  sub,
+  action,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-6">
+      <div className="flex items-end justify-between gap-3 mb-2.5">
+        <div>
+          <h2 className="text-[14px] font-semibold text-text-primary">{title}</h2>
+          {sub && <div className="text-[11.5px] text-text-tertiary mt-0.5">{sub}</div>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyNote({ text }: { text: string }) {
+  return (
+    <div className="bg-white border border-border rounded-card px-4 py-6 text-center text-[12.5px] text-text-tertiary italic">
+      {text}
+    </div>
+  );
+}
