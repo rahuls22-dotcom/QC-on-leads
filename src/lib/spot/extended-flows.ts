@@ -846,6 +846,304 @@ export function planFor(kind: "scale" | "optimize" | "test-angles"): WorkflowPla
 }
 
 /* ────────────────────────────────────────────────────────────────
+ * CREATIVE ANGLES — the ang-creatives iteration surface
+ *
+ * After the brief is locked (ang-clarify), Spot's Creative Agent drafts
+ * a set of candidate angles. Each one renders on the canvas as the
+ * ACTUAL ad creative (a visual HTML mockup — hook + visual + CTA composed
+ * like a real Meta ad), not a markdown spec. The user then iterates three
+ * ways, all on the same card:
+ *   1. Edit the copy directly (hook / primary text / button) — inline.
+ *   2. Ask Spot to revise it — relayed THROUGH the chat thread (a
+ *      `creative.revise` tool-call runs and Spot redrafts it). The user
+ *      never chats a worker directly (Principle 1).
+ *   3. Scrub the version history — every revision is a version; the user
+ *      can step back/forward and refine any version.
+ *
+ * Each angle is grounded in the winning pattern (specificity + parent
+ * autonomy) and screened against memory constraints (no rank/outcome
+ * guarantees — legal; no competitor name-checks).
+ * ──────────────────────────────────────────────────────────────── */
+
+export type CreativeAngle = {
+  /** Stable id used to key revisions + local UI state. */
+  id: string;
+  /** Short human label for the angle. */
+  label: string;
+  /** The scroll-stopping hook line (rendered big on the creative). */
+  hook: string;
+  /** The supporting body / primary text. */
+  body: string;
+  /** The call to action (the button label on the creative). */
+  cta: string;
+  /** Production format — drives how the creative renders. */
+  format: "Reel" | "Static" | "Carousel";
+  /** Which slice of the winning pattern this leans on. */
+  patternTag: string;
+  /** Art direction for the visual — the imagery the creative renders. */
+  visualConcept: string;
+  /** Hue token driving the creative's gradient + the card accent. */
+  hue: "violet" | "sky" | "emerald" | "amber" | "rose" | "indigo";
+};
+
+export type AngleRevision = {
+  /** The suggestion-chip label the user clicks (imperative, short). */
+  changeLabel: string;
+  /** Spot's one-line confirmation of what it changed + why. */
+  note: string;
+  /** The redrafted angle. id + hue carry over; visualConcept is optional
+   *  (revisions usually change copy, not the art direction). */
+  angle: Omit<CreativeAngle, "id" | "hue" | "visualConcept"> & {
+    visualConcept?: string;
+  };
+};
+
+/**
+ * Six candidate angles for the demo's flagship persona — the
+ * Engineer-Parent. All grounded in specificity + autonomy; none make an
+ * outcome promise or name a competitor.
+ */
+export const ANGLE_CANDIDATES: CreativeAngle[] = [
+  {
+    id: "ang-1",
+    label: "The 11pm doubt",
+    hook: "It's 11pm. You're still wondering if the concept actually landed today.",
+    body: "Most parents find out at the report card. You'll see the weak chapter flagged the same night — and exactly what we're doing about it tomorrow.",
+    cta: "See tonight's flag",
+    format: "Reel",
+    patternTag: "Specificity · the named moment",
+    visualConcept:
+      "Close-up of a parent's face lit only by a laptop at night, then a soft notification glow as the flag arrives.",
+    hue: "violet",
+  },
+  {
+    id: "ang-2",
+    label: "They own the dashboard",
+    hook: "Your kid checks their own progress before you do.",
+    body: "Every concept, every reset, every streak — on one screen they actually open. Autonomy isn't a buzzword here; it's the default screen.",
+    cta: "Tour the dashboard",
+    format: "Carousel",
+    patternTag: "Autonomy · the learner owns it",
+    visualConcept:
+      "A teen swiping through a clean progress dashboard on their phone, parent watching over the shoulder, relaxed.",
+    hue: "sky",
+  },
+  {
+    id: "ang-3",
+    label: "A mentor who knows the weak chapters",
+    hook: "Not a tutor who repeats the textbook. A mentor who knows which three chapters are shaky.",
+    body: "We map the exact concepts that didn't stick, then a mentor works those — not the whole syllabus again. You see the map too.",
+    cta: "See the concept map",
+    format: "Static",
+    patternTag: "Specificity · the diagnosis",
+    visualConcept:
+      "Split frame — a generic textbook on the left, a highlighted concept-map with three chapters circled on the right.",
+    hue: "emerald",
+  },
+  {
+    id: "ang-4",
+    label: "The Sunday plan they build",
+    hook: "Sunday, 10 minutes: your kid sets their own week.",
+    body: "They pick the concepts to reset, we suggest the order, and the week runs itself. You get the recap — you don't have to nag.",
+    cta: "Watch a week get built",
+    format: "Reel",
+    patternTag: "Autonomy · self-directed cadence",
+    visualConcept:
+      "Sunday-morning kitchen table — a kid dragging concept cards into a weekly planner on a tablet, coffee steaming.",
+    hue: "amber",
+  },
+  {
+    id: "ang-5",
+    label: "15-minute concept resets",
+    hook: "One shaky concept. Fifteen focused minutes. Done before dinner.",
+    body: "No three-hour cram. We isolate the exact concept that slipped and reset it in a single short session — and show you which one it was.",
+    cta: "See a reset session",
+    format: "Static",
+    patternTag: "Specificity · the small unit",
+    visualConcept:
+      "A 15-minute timer mid-countdown beside a single neatly-solved problem — calm, uncluttered desk.",
+    hue: "rose",
+  },
+  {
+    id: "ang-6",
+    label: "The recording that waits two years",
+    hook: "Every session is recorded — so the concept is still there when the board exam asks for it.",
+    body: "Two years later, your kid re-opens the exact explanation that made it click the first time. Nothing's lost between Class 9 and the boards.",
+    cta: "Browse the library",
+    format: "Carousel",
+    patternTag: "Specificity · the durable asset",
+    visualConcept:
+      "A video library scrubbing back two years to the exact lesson, a 'still here' timestamp badge glowing.",
+    hue: "indigo",
+  },
+];
+
+/**
+ * Pre-authored revisions per angle. When the user picks one of these (or
+ * types a free-text request that maps to one), Spot "redrafts" the angle
+ * to the version stored here. Keyed by angle id. The `changeLabel`s
+ * become the suggestion chips on each card.
+ */
+export const ANGLE_REVISIONS: Record<string, AngleRevision[]> = {
+  "ang-1": [
+    {
+      changeLabel: "Make the hook less anxious",
+      note: "Pulled the 11pm-worry framing — leads with the reassurance instead of the dread, keeps the same-night specificity.",
+      angle: {
+        label: "The 11pm doubt",
+        hook: "You'll know how today's concept landed — tonight, not at the report card.",
+        body: "The weak chapter gets flagged the same evening, with exactly what we're doing about it tomorrow. No waiting, no guessing.",
+        cta: "See tonight's flag",
+        format: "Reel",
+        patternTag: "Specificity · the named moment",
+      },
+    },
+    {
+      changeLabel: "Try a shorter hook",
+      note: "Tightened the hook to one breath — punchier for a Reel cold-open, same idea.",
+      angle: {
+        label: "The 11pm doubt",
+        hook: "Stop guessing if it landed.",
+        body: "You'll see the weak chapter flagged the same night — and the plan for tomorrow. Most parents wait for the report card. You won't.",
+        cta: "See tonight's flag",
+        format: "Reel",
+        patternTag: "Specificity · the named moment",
+      },
+    },
+  ],
+  "ang-2": [
+    {
+      changeLabel: "Lead with the parent",
+      note: "Re-centred on the parent's relief while keeping the kid-autonomy as the proof — you stop chasing, they self-track.",
+      angle: {
+        label: "They own the dashboard",
+        hook: "You stopped asking 'did you study?' — they just show you.",
+        body: "Your kid checks their own progress before you do. Every concept, reset and streak on one screen they actually open.",
+        cta: "Tour the dashboard",
+        format: "Carousel",
+        patternTag: "Autonomy · the learner owns it",
+      },
+    },
+    {
+      changeLabel: "Make it more specific",
+      note: "Swapped the abstract 'progress' for the three concrete things on the screen — specificity over vibe.",
+      angle: {
+        label: "They own the dashboard",
+        hook: "Three taps: weak chapters, next reset, current streak.",
+        body: "Your kid opens it before you do. The whole picture — what's shaky, what's next, how consistent — on one screen they own.",
+        cta: "Tour the dashboard",
+        format: "Carousel",
+        patternTag: "Autonomy · the learner owns it",
+      },
+    },
+  ],
+  "ang-3": [
+    {
+      changeLabel: "Lead with the mentor",
+      note: "Put the human mentor up front — the relationship is the hook, the concept-map is the proof underneath.",
+      angle: {
+        label: "A mentor who knows the weak chapters",
+        hook: "A mentor who already knows which three chapters are shaky — before the first session.",
+        body: "We map the exact concepts that didn't stick, then your mentor works those, not the whole syllabus again. You see the map too.",
+        cta: "Meet the mentor",
+        format: "Static",
+        patternTag: "Specificity · the diagnosis",
+      },
+    },
+    {
+      changeLabel: "Make the hook less anxious",
+      note: "Softened the 'shaky chapters' anxiety — frames it as a head-start rather than a problem to fear.",
+      angle: {
+        label: "A mentor who knows the weak chapters",
+        hook: "Imagine a mentor who's already done the homework on your kid.",
+        body: "We map which concepts need a second pass, then a mentor works exactly those. Targeted from day one — and you can see the map.",
+        cta: "See the concept map",
+        format: "Static",
+        patternTag: "Specificity · the diagnosis",
+      },
+    },
+  ],
+  "ang-4": [
+    {
+      changeLabel: "Make it more specific",
+      note: "Named the actual Sunday ritual + the 10-minute unit instead of a generic 'plan' — concrete beats aspirational.",
+      angle: {
+        label: "The Sunday plan they build",
+        hook: "Sunday, 10 minutes, kitchen table: your kid picks next week's resets.",
+        body: "They choose the shaky concepts, we order them, the week runs itself. You get the Friday recap — no nagging in between.",
+        cta: "Watch a week get built",
+        format: "Reel",
+        patternTag: "Autonomy · self-directed cadence",
+      },
+    },
+    {
+      changeLabel: "Try a shorter hook",
+      note: "Cut the hook to a single line for the Reel open — keeps the self-directed angle.",
+      angle: {
+        label: "The Sunday plan they build",
+        hook: "Your kid plans their own week now.",
+        body: "Ten minutes on Sunday: they pick the concepts to reset, we suggest the order, the week runs itself. You just get the recap.",
+        cta: "Watch a week get built",
+        format: "Reel",
+        patternTag: "Autonomy · self-directed cadence",
+      },
+    },
+  ],
+  "ang-5": [
+    {
+      changeLabel: "Lead with the parent",
+      note: "Opened on the parent's evening relief — the 15-minute unit becomes the reason it's possible.",
+      angle: {
+        label: "15-minute concept resets",
+        hook: "No more three-hour cram sessions you have to police.",
+        body: "We isolate the one concept that slipped and reset it in fifteen focused minutes — done before dinner, and you see which concept it was.",
+        cta: "See a reset session",
+        format: "Static",
+        patternTag: "Specificity · the small unit",
+      },
+    },
+    {
+      changeLabel: "Make the hook less anxious",
+      note: "Dropped the 'shaky concept' worry framing — leads with the calm, short-session promise.",
+      angle: {
+        label: "15-minute concept resets",
+        hook: "Fifteen focused minutes. One concept. Done before dinner.",
+        body: "We pick the single concept worth revisiting and reset it in one short session — no marathon, and you see exactly what got covered.",
+        cta: "See a reset session",
+        format: "Static",
+        patternTag: "Specificity · the small unit",
+      },
+    },
+  ],
+  "ang-6": [
+    {
+      changeLabel: "Make it more specific",
+      note: "Anchored the abstract 'two years' to the concrete Class 9 → boards span — specificity sharpens the payoff.",
+      angle: {
+        label: "The recording that waits two years",
+        hook: "The Class 9 explanation that finally clicked? Still there in Class 11.",
+        body: "Every session is recorded, so your kid re-opens the exact explanation that worked the first time — right when the boards ask for it.",
+        cta: "Browse the library",
+        format: "Carousel",
+        patternTag: "Specificity · the durable asset",
+      },
+    },
+    {
+      changeLabel: "Lead with the parent",
+      note: "Framed it as the parent never having to re-explain or re-pay for the same concept — value to the household.",
+      angle: {
+        label: "The recording that waits two years",
+        hook: "You never pay to re-teach the same concept twice.",
+        body: "Every session's recorded. When the board exam circles back to a Class 9 concept, your kid re-opens the explanation that already worked.",
+        cta: "Browse the library",
+        format: "Carousel",
+        patternTag: "Specificity · the durable asset",
+      },
+    },
+  ],
+};
+
+/* ────────────────────────────────────────────────────────────────
  * PERSISTENT PRODUCT PLAN
  *
  * Every product has ONE long-lived plan. The Agent keeps working on
@@ -1145,19 +1443,47 @@ export function extendedIntroMessage(
           : kind === "optimize"
             ? `Three questions on the right — I've biased the defaults toward what I think the priority should be based on the analysis. Confirm or change.`
             : `Three questions on the right — these constrain what I generate. Defaults are picked from the audit.`;
+      // For test-angles the next step isn't the plan — it's the angle
+      // drafting surface. So the CTA points there instead.
+      const clarifyCta =
+        kind === "test-angles"
+          ? {
+              type: "step-cta" as const,
+              label: "Confirm · draft the angles",
+              helper:
+                "I'll generate a fresh set of angles from these constraints for you to review.",
+              refineHint: "or change the picks on the right",
+            }
+          : {
+              type: "step-cta" as const,
+              label: "Confirm · build the execution plan",
+              helper: "I'll fold these into a time-phased execution plan to approve.",
+              refineHint: "or change the picks on the right",
+            };
+      return {
+        role: "spot",
+        parts: [{ type: "text", text }, clarifyCta],
+      };
+    }
+
+    /* ─── creatives (test-angles only) ─────────────────────────── */
+    case "ang-creatives":
       return {
         role: "spot",
         parts: [
-          { type: "text", text },
+          {
+            type: "text",
+            text: `Drafted six fresh angles for **${productName}** — rendered on the right as the actual ad creatives, each built off the winning pattern (specificity + parent autonomy) and screened against your memory constraints (no outcome promises, no competitor name-checks). Edit any copy right on the card, ask me to revise an angle and I'll redraft it, and scrub each card's version history to compare drafts. Lock the ones you want in the test.`,
+          },
           {
             type: "step-cta",
-            label: "Confirm · build the execution plan",
-            helper: "I'll fold these into a time-phased execution plan to approve.",
-            refineHint: "or change the picks on the right",
+            label: "Approve these angles · build the test plan",
+            helper: "I'll fold the locked angles into the time-phased A/B test plan.",
+            refineHint:
+              'or tell me which angle to revise — e.g. "make angle 2 less anxious"',
           },
         ],
       };
-    }
 
     /* ─── plan ────────────────────────────────────────────────── */
     case "scale-plan":
@@ -1168,7 +1494,7 @@ export function extendedIntroMessage(
           ? "Execution plan's ready · 3 phases over 3 weeks. The actions for Week 1 are concrete; the later phases adapt based on what I observe. Guardrails are listed at the bottom — I enforce them without asking."
           : kind === "optimize"
             ? "Execution plan's ready · 3 phases over 3 weeks. Week 1 ships the small reversible fixes. Week 2 is the bigger swings. Week 3 is watch-mode + writing learnings to memory."
-            : "Execution plan's ready · 3 phases over ~17 days. Week 1 launches the 6-angle test. Week 2 prunes and doubles down. Week 3 promotes winners + writes the pattern to memory.";
+            : "Execution plan's ready · 3 phases over ~17 days — built around the angles you just approved. Week 1 launches the test. Week 2 prunes and doubles down. Week 3 promotes winners + writes the pattern to memory.";
       return {
         role: "spot",
         parts: [
@@ -1242,6 +1568,10 @@ export const OPTIMIZE_STEPS = [
 export const ANGLES_STEPS = [
   "ang-analyze",
   "ang-clarify",
+  // New: Spot generates a set of candidate angles from the brief and
+  // the user iterates on them (AI-revise, Spot-mediated) before the
+  // test plan gets built. This is the creative-iteration surface.
+  "ang-creatives",
   "ang-plan",
   "ang-live",
   "done",
@@ -1258,6 +1588,7 @@ export const EXTENDED_STEP_LABELS: Record<string, string> = {
   "opt-live": "Running",
   "ang-analyze": "Analysis",
   "ang-clarify": "Goals",
+  "ang-creatives": "New angles",
   "ang-plan": "Execution plan",
   "ang-live": "Running",
 };
@@ -1307,6 +1638,15 @@ export const EXTENDED_TOOL_CALLS: Record<
     agent: "spot.brief",
     detail: "framing the goal · narrowing the option space…",
     delayMs: 1800,
+  },
+  // Creatives — Spot generates the candidate angles from the brief.
+  // The Creative Agent drafts each one grounded in the winning pattern
+  // and screened against the product's memory constraints.
+  "ang-creatives": {
+    agent: "creative.generate",
+    detail:
+      "drafting fresh angles from the brief · grounding each in the winning pattern · screening against memory constraints…",
+    delayMs: 4500,
   },
   // Plan — now a shorter recompute since most of the work happened at
   // analyze. Spot is just folding the user's picks in.

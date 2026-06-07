@@ -84,7 +84,7 @@ export default function ProjectsPage() {
       <div className="flex items-end justify-between mb-6">
         <div>
           <div className="text-[12px] text-text-secondary mb-1">{wsLabel} · Lead Generation</div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.01em]">Projects</h1>
+          <h1 className="text-[26px] font-semibold tracking-[-0.01em]">Products</h1>
         </div>
         <div className="flex items-center gap-2">
           <button

@@ -4,7 +4,7 @@
 // approval action lives in the left chat (via the step-cta part). This
 // pane just shows what Spot is working on.
 
-import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, ChevronDown, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink, Image as ImageIcon, Mic, MessageSquare, Phone, ArrowRight, Upload, FileText, Film as FilmIcon, Layers, Paperclip, Brain, Home, Maximize2 } from "lucide-react";
+import { PanelRightClose, X, Users, Package, ChartPie, Sparkles, Megaphone, Layout as LayoutIcon, PartyPopper, CheckCircle2, Check, Wifi, WifiOff, Cog, ChevronRight, ChevronDown, Pencil, Search, ShieldAlert, TrendingUp, ExternalLink, Image as ImageIcon, Mic, MessageSquare, Phone, ArrowRight, Upload, Download, FileText, Film as FilmIcon, Layers, Paperclip, Brain, Home, Maximize2 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +41,7 @@ import {
   LaunchReviewStep,
 } from "@/components/spot/workflow/launch-build-steps";
 import { CampaignDiveStep } from "@/components/spot/workflow/campaign-dive-step";
+import { ImportCampaignsStep } from "@/components/spot/workflow/import-campaigns-step";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { SpotLoader, SpotFullscreen } from "@/components/spot/spot-loader";
 import { PRODUCTS } from "@/lib/products-data";
@@ -50,6 +51,7 @@ const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
   "deep-research": Search,
   "product-setup": Package,
   kickoff: Sparkles,
+  "import-campaigns": Download,
   "launch-plan": Sparkles,
   "launch-building": Cog,
   "launch-review": CheckCircle2,
@@ -74,6 +76,7 @@ const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
   "opt-live": ShieldAlert,
   "ang-analyze": Search,
   "ang-clarify": ChartPie,
+  "ang-creatives": Layers,
   "ang-plan": Sparkles,
   "ang-live": ImageIcon,
   "campaign-dive": Megaphone,
@@ -145,6 +148,7 @@ export function defaultFileForStep(step: WorkflowStep): CanvasFile {
     step === "kickoff"
   )
     return "memory";
+  if (step === "import-campaigns") return "plan";
   if (step === "launch-plan" || step === "launch-building") return "plan";
   if (
     step === "launch-review" ||
@@ -164,6 +168,9 @@ export function defaultFileForStep(step: WorkflowStep): CanvasFile {
   // Analyze lands on Analysis (the audit of current angles); plan
   // lands on Plan; live focuses Assets where new creatives appear.
   if (step === "ang-analyze") return "analysis";
+  // The new-angles drafting surface lives on Assets (the candidate
+  // creatives the user iterates on before the plan is built).
+  if (step === "ang-creatives") return "assets";
   if (step === "ang-clarify" || step === "ang-plan") return "plan";
   if (step === "ang-live") return "assets";
 
@@ -220,6 +227,12 @@ export function WorkflowPane() {
   const isBuilding =
     workflow.kind === "launch-campaign" &&
     workflow.step === "launch-building";
+
+  // Import campaigns → the canvas becomes the ad-account picker, then
+  // the selectable campaign list, then the imported summary.
+  const isImporting =
+    workflow.kind === "launch-campaign" &&
+    workflow.step === "import-campaigns";
 
   // Review Assets & Launch → enter launch-review. The whole canvas
   // becomes the asset pack preview (creatives, landing pages, lead
@@ -352,7 +365,9 @@ export function WorkflowPane() {
               {/* Pane body · loader/celebration states take over;
                   otherwise normal file body. */}
               <div className="flex-1 overflow-y-auto">
-                {isAwaitingSetup && tab === "memory" ? (
+                {isImporting ? (
+                  <ImportCampaignsStep workflow={workflow as LaunchWorkflow} />
+                ) : isAwaitingSetup && tab === "memory" ? (
                   <AwaitingInputCanvas />
                 ) : isBuilding && tab !== "memory" ? (
                   <LaunchBuildingLoader
@@ -1503,6 +1518,13 @@ const DIAGNOSTIC_THOUGHTS = {
       "Narrowing the option space.",
       "Picking the right questions to ask you.",
     ],
+    // Filler — scale has no creatives phase, but the table is `as const`
+    // and keyed uniformly, so every kind needs the same phase set.
+    creatives: [
+      "Drafting concepts…",
+      "Grounding each in the winning pattern.",
+      "Screening against memory constraints.",
+    ],
     plan: [
       "Folding your picks into the execution plan…",
       "Mapping winners to scale-ready audiences.",
@@ -1533,6 +1555,12 @@ const DIAGNOSTIC_THOUGHTS = {
       "Narrowing where to act first.",
       "Picking the right questions to ask you.",
     ],
+    // Filler — optimize has no creatives phase (see scale note).
+    creatives: [
+      "Drafting concepts…",
+      "Grounding each in the winning pattern.",
+      "Screening against memory constraints.",
+    ],
     plan: [
       "Folding your picks into the execution plan…",
       "Drafting pause list · clearly broken units.",
@@ -1562,6 +1590,13 @@ const DIAGNOSTIC_THOUGHTS = {
       "Narrowing the test universe.",
       "Picking the right questions to ask you.",
     ],
+    creatives: [
+      "Drafting fresh angles from the brief…",
+      "Grounding each hook in specificity + parent autonomy.",
+      "Screening against memory constraints · no outcome promises.",
+      "Checking each angle reads distinct from the others.",
+      "Laying out the candidate set for your review.",
+    ],
     plan: [
       "Drafting the Persona × Angle test matrix…",
       "Composing 3 new creative concepts per persona.",
@@ -1583,7 +1618,7 @@ const DIAGNOSTIC_THOUGHTS = {
  *  a phase mapping so the loader runs through the whole flow. */
 function diagnosticPhaseFor(step: WorkflowStep): {
   kind: "scale" | "optimize" | "test-angles";
-  phase: "analyze" | "clarify" | "plan" | "live";
+  phase: "analyze" | "clarify" | "creatives" | "plan" | "live";
 } | null {
   if (step === "scale-analyze") return { kind: "scale", phase: "analyze" };
   if (step === "scale-clarify") return { kind: "scale", phase: "clarify" };
@@ -1595,12 +1630,13 @@ function diagnosticPhaseFor(step: WorkflowStep): {
   if (step === "opt-live") return { kind: "optimize", phase: "live" };
   if (step === "ang-analyze") return { kind: "test-angles", phase: "analyze" };
   if (step === "ang-clarify") return { kind: "test-angles", phase: "clarify" };
+  if (step === "ang-creatives") return { kind: "test-angles", phase: "creatives" };
   if (step === "ang-plan") return { kind: "test-angles", phase: "plan" };
   if (step === "ang-live") return { kind: "test-angles", phase: "live" };
   return null;
 }
 
-type DiagPhase = "analyze" | "clarify" | "plan" | "live";
+type DiagPhase = "analyze" | "clarify" | "creatives" | "plan" | "live";
 type DiagKind = "scale" | "optimize" | "test-angles";
 
 /** Dark Spot loader for diagnostic flows · same pattern as launch.
@@ -1620,18 +1656,21 @@ function DiagnosticPhaseLoader({
     scale: {
       analyze: "Analyzing scale opportunities for",
       clarify: "Framing the scale brief for",
+      creatives: "Drafting concepts for",
       plan: "Drafting the scale plan for",
       live: "Pushing the scale plan live for",
     },
     optimize: {
       analyze: "Analyzing what's holding back",
       clarify: "Framing the optimization brief for",
+      creatives: "Drafting concepts for",
       plan: "Drafting the optimization plan for",
       live: "Shipping the optimizations for",
     },
     "test-angles": {
       analyze: "Auditing current angles for",
       clarify: "Framing the angle-test brief for",
+      creatives: "Drafting fresh angles for",
       plan: "Drafting the angle-test plan for",
       live: "Launching new angles for",
     },
@@ -1640,18 +1679,21 @@ function DiagnosticPhaseLoader({
     scale: {
       analyze: "Scale Analyst · live",
       clarify: "Scale Brief Agent · live",
+      creatives: "Creative Agent · live",
       plan: "Scale Planner · live",
       live: "Scale Deploy Agent · live",
     },
     optimize: {
       analyze: "Optimization Analyst · live",
       clarify: "Optimization Brief Agent · live",
+      creatives: "Creative Agent · live",
       plan: "Optimization Planner · live",
       live: "Optimization Deploy Agent · live",
     },
     "test-angles": {
       analyze: "Creative Strategist · live",
       clarify: "Angle Brief Agent · live",
+      creatives: "Creative Agent · live",
       plan: "Angle Test Planner · live",
       live: "Angle Deploy Agent · live",
     },

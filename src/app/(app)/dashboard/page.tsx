@@ -202,9 +202,9 @@ export default function DashboardPage() {
                 ? [
                     {
                       illustration: <IllustrationProjects />,
-                      title: "Create a project",
-                      description: "Group campaigns and leads by property or development",
-                      ctaLabel: "Create project",
+                      title: "Create a product",
+                      description: "Group campaigns and leads by product",
+                      ctaLabel: "Create product",
                       href: "/projects",
                     },
                   ]

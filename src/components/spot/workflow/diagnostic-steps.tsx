@@ -35,6 +35,19 @@ import {
   ShieldCheck,
   Eye,
   Zap,
+  Lock,
+  Unlock,
+  Wand2,
+  Pencil,
+  Send,
+  Loader2,
+  ChevronLeft,
+  Heart,
+  MessageCircle,
+  Bookmark,
+  Music2,
+  Play,
+  X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -49,12 +62,17 @@ import {
   clarifyQuestionsFor,
   planFor,
   PENDING_RECOMMENDATIONS,
+  ANGLE_CANDIDATES,
+  ANGLE_REVISIONS,
   type AnalysisCampaignSignal,
   type AnalysisFindings,
   type ClarifyQuestion,
   type PendingRecommendation,
   type WorkflowPlan,
+  type CreativeAngle,
+  type AngleRevision,
 } from "@/lib/spot/extended-flows";
+import type { SpotMessage } from "@/lib/spot/types";
 
 const canvasStagger: Variants = {
   hidden: {},
@@ -78,6 +96,9 @@ export function DiagnosticStep({ workflow }: { workflow: DiagnosticWorkflow }) {
     case "opt-clarify":
     case "ang-clarify":
       return <ClarifyStep workflow={workflow} />;
+
+    case "ang-creatives":
+      return <CreativeAnglesStep workflow={workflow} />;
 
     case "scale-plan":
     case "opt-plan":
@@ -671,6 +692,770 @@ function BriefCard({ workflow }: { workflow: DiagnosticWorkflow }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * CREATIVE ANGLES STEP  (test-angles only · ang-creatives)
+ *
+ * This is the creative-iteration surface. Spot's Creative Agent has
+ * drafted a set of candidate angles; the user reviews them here and
+ * iterates WITHOUT ever chatting a worker directly. Two affordances per
+ * card:
+ *
+ *   · Revise with Spot  — the live path. User clicks a suggestion chip
+ *     (or types a request); the canvas posts that request INTO the Spot
+ *     chat thread, a `creative.revise` tool-call runs, and Spot redrafts
+ *     the angle in place. Every revise is relayed through Spot — there's
+ *     no direct user↔worker channel (Principle 1).
+ *   · Edit inline       — the future path. Shown disabled ("soon") so the
+ *     direction reads, but the V0 experience is the AI-revise loop.
+ *
+ * Locking an angle marks it as "in the test"; the header tracks the
+ * locked count. Approval (fold the angles into the plan) lives in chat
+ * via the step-cta, same as every other diagnostic step.
+ * ═══════════════════════════════════════════════════════════════ */
+
+// Saturated accent + gradient stops per angle. The creative mockups render
+// as real ad units on a near-black card, so the gradients carry the visual.
+// `dot` is the chip/accent color; `from`/`to` are the creative's backdrop.
+// All applied inline (the dark theme only remaps className-based tints).
+const ANGLE_HUES: Record<
+  CreativeAngle["hue"],
+  { dot: string; from: string; to: string }
+> = {
+  violet: { dot: "#8B5CF6", from: "#7C3AED", to: "#3B1380" },
+  sky: { dot: "#0EA5E9", from: "#0EA5E9", to: "#0B3F66" },
+  emerald: { dot: "#10B981", from: "#10B981", to: "#064E3B" },
+  amber: { dot: "#F59E0B", from: "#F59E0B", to: "#9A4A09" },
+  rose: { dot: "#F43F5E", from: "#F43F5E", to: "#8F1133" },
+  indigo: { dot: "#6366F1", from: "#6366F1", to: "#2B2A78" },
+};
+
+type AngleHue = (typeof ANGLE_HUES)[CreativeAngle["hue"]];
+
+/* ────────────────────────────────────────────────────────────────
+ * CreativeAdPreview — renders an angle as the ACTUAL ad creative: a
+ * format-specific HTML/CSS mockup (Reel 9:16 / Static square / Carousel
+ * square with peek + dots), branded as the product, with the hook as the
+ * scroll-stopping overlay and the CTA as a real button. This is what the
+ * user sees and edits — not a markdown card.
+ * ──────────────────────────────────────────────────────────────── */
+function CreativeAdPreview({
+  angle,
+  hue,
+  dimmed,
+}: {
+  angle: CreativeAngle;
+  hue: AngleHue;
+  dimmed?: boolean;
+}) {
+  const bg = { background: `linear-gradient(150deg, ${hue.from}, ${hue.to})` };
+  const caption =
+    angle.body.length > 72 ? `${angle.body.slice(0, 72).trimEnd()}…` : angle.body;
+
+  // ── Reel · vertical 9:16 with social rail ──
+  if (angle.format === "Reel") {
+    return (
+      <div
+        className="relative"
+        style={{ width: 158, height: 272, opacity: dimmed ? 0.4 : 1 }}
+      >
+        <div
+          className="absolute inset-0 rounded-[20px] overflow-hidden flex flex-col"
+          style={{ ...bg, boxShadow: "0 18px 40px -12px rgba(0,0,0,0.7)" }}
+        >
+          <span
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(0,0,0,0.34), rgba(0,0,0,0) 28%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.62))",
+            }}
+            aria-hidden
+          />
+          {/* brand row */}
+          <div className="relative flex items-center gap-1.5 px-2.5 pt-2.5">
+            <span
+              className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[9px] font-extrabold"
+              style={{ color: hue.dot }}
+            >
+              g
+            </span>
+            <div className="leading-none">
+              <div className="text-[8.5px] font-semibold text-white">
+                guyju.learning
+              </div>
+              <div className="text-[7px] text-white/70 mt-[1px]">Sponsored</div>
+            </div>
+          </div>
+          {/* play affordance */}
+          <div className="relative flex-1 flex items-center justify-center">
+            <span className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-[2px] flex items-center justify-center">
+              <Play size={14} className="text-white ml-[1px]" fill="currentColor" />
+            </span>
+          </div>
+          {/* hook overlay */}
+          <div className="relative px-2.5">
+            <p
+              className="text-[12px] font-bold text-white leading-[1.18]"
+              style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
+            >
+              {angle.hook}
+            </p>
+            <p className="text-[8px] text-white/80 leading-snug mt-1 line-clamp-2">
+              {caption}
+            </p>
+          </div>
+          {/* CTA */}
+          <div className="relative px-2.5 pb-2.5 pt-1.5">
+            <span
+              className="flex items-center justify-center gap-1 h-6 rounded-md bg-white text-[9px] font-semibold"
+              style={{ color: hue.dot }}
+            >
+              {angle.cta}
+              <ArrowUpRight size={9} strokeWidth={2.6} />
+            </span>
+          </div>
+        </div>
+        {/* social rail */}
+        <div className="absolute right-[-20px] bottom-4 flex flex-col items-center gap-2.5 text-white/70">
+          <Heart size={13} strokeWidth={2} />
+          <MessageCircle size={13} strokeWidth={2} />
+          <Send size={12} strokeWidth={2} />
+          <Bookmark size={12} strokeWidth={2} />
+          <span className="w-4 h-4 rounded-full border border-white/40 flex items-center justify-center">
+            <Music2 size={8} strokeWidth={2} />
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Static + Carousel · square ──
+  const isCarousel = angle.format === "Carousel";
+  return (
+    <div className="relative" style={{ opacity: dimmed ? 0.4 : 1 }}>
+      <div
+        className="relative rounded-[16px] overflow-hidden flex flex-col"
+        style={{
+          ...bg,
+          width: 248,
+          height: 248,
+          boxShadow: "0 18px 40px -12px rgba(0,0,0,0.7)",
+        }}
+      >
+        <span
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.3), rgba(0,0,0,0) 34%, rgba(0,0,0,0) 56%, rgba(0,0,0,0.55))",
+          }}
+          aria-hidden
+        />
+        {/* brand row */}
+        <div className="relative flex items-center gap-1.5 px-3 pt-3">
+          <span
+            className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[11px] font-extrabold"
+            style={{ color: hue.dot }}
+          >
+            g
+          </span>
+          <div className="leading-none">
+            <div className="text-[10px] font-semibold text-white">
+              guyju.learning
+            </div>
+            <div className="text-[8px] text-white/70 mt-[1px]">Sponsored</div>
+          </div>
+          {isCarousel && (
+            <div className="ml-auto flex gap-1">
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: i === 0 ? "#fff" : "rgba(255,255,255,0.4)",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        {/* hook */}
+        <div className="relative flex-1 flex items-center px-3.5">
+          <p
+            className="text-[16px] font-bold text-white leading-[1.16]"
+            style={{ textShadow: "0 1px 12px rgba(0,0,0,0.45)" }}
+          >
+            {angle.hook}
+          </p>
+        </div>
+        {/* CTA */}
+        <div className="relative px-3 pb-3">
+          <span
+            className="flex items-center justify-center gap-1 h-8 rounded-lg bg-white text-[11px] font-semibold"
+            style={{ color: hue.dot }}
+          >
+            {angle.cta}
+            <ArrowUpRight size={11} strokeWidth={2.6} />
+          </span>
+        </div>
+      </div>
+      {/* carousel peek strip */}
+      {isCarousel && (
+        <div
+          className="absolute right-[-9px] top-7 bottom-7 w-2.5 rounded-r-[8px]"
+          style={{ background: hue.to, opacity: 0.55 }}
+          aria-hidden
+        />
+      )}
+    </div>
+  );
+}
+
+const CREATIVE_LOADER_MESSAGES = [
+  "Reading the winning pattern from memory…",
+  "Drafting fresh angles from the brief…",
+  "Grounding each hook in specificity + autonomy…",
+  "Screening against memory constraints…",
+  "Laying out the candidate set…",
+];
+
+function CreativeAnglesLoader() {
+  return (
+    <div className="h-full flex items-center justify-center px-5 py-8">
+      <SpotFullscreen
+        title="Drafting fresh angles"
+        messages={CREATIVE_LOADER_MESSAGES}
+        size={64}
+        className="!min-h-[360px]"
+      />
+    </div>
+  );
+}
+
+function CreativeAnglesStep({ workflow }: { workflow: DiagnosticWorkflow }) {
+  const appendMessage = useSpotStore((s) => s.appendMessage);
+  const setThread = useSpotStore((s) => s.setThread);
+
+  // Per-angle version history. history[id] is the ordered list of drafts
+  // (index 0 = the original). An AI-revise appends a version; a manual
+  // copy edit mutates the active version in place. cursor[id] is the
+  // version currently shown (undefined = latest). This is the source of
+  // truth for both the rendered creative and the "v2/3" scrubber.
+  const [history, setHistory] = useState<Record<string, CreativeAngle[]>>({});
+  const [cursor, setCursor] = useState<Record<string, number>>({});
+  // Which cards are in inline copy-edit mode.
+  const [editing, setEditing] = useState<Record<string, boolean>>({});
+  // Which angles the user has locked into the test.
+  const [locked, setLocked] = useState<Record<string, boolean>>({});
+  // Which card has its "revise with Spot" panel open (one at a time).
+  const [openReviseFor, setOpenReviseFor] = useState<string | null>(null);
+  // Free-text revise draft for the open card.
+  const [draft, setDraft] = useState("");
+  // The angle id Spot is currently redrafting (locks that card's UI).
+  const [revising, setRevising] = useState<string | null>(null);
+
+  if (!workflow.ready) {
+    return <CreativeAnglesLoader />;
+  }
+
+  // ── Version helpers ──
+  const historyFor = (base: CreativeAngle): CreativeAngle[] =>
+    history[base.id] ?? [base];
+  const activeIndex = (id: string, hist: CreativeAngle[]) => {
+    const c = cursor[id];
+    if (c === undefined) return hist.length - 1;
+    return Math.max(0, Math.min(c, hist.length - 1));
+  };
+  const activeIndexFor = (base: CreativeAngle) =>
+    activeIndex(base.id, historyFor(base));
+  const activeAngle = (base: CreativeAngle): CreativeAngle =>
+    historyFor(base)[activeIndexFor(base)];
+
+  const lockedCount = ANGLE_CANDIDATES.filter((a) => locked[a.id]).length;
+
+  // Relay a revise request THROUGH Spot: post the user's ask + a running
+  // creative.revise tool-call into the chat, then after a beat flip it to
+  // done, append Spot's confirmation, and APPEND a new version (jumping
+  // the scrubber to it). Revises from whatever version is currently active.
+  const commitRevision = (
+    base: CreativeAngle,
+    rev: AngleRevision,
+    userText: string,
+  ) => {
+    if (revising) return;
+    const id = base.id;
+    const callId = `revise-${id}-${Date.now()}`;
+
+    setThread((prev: SpotMessage[]) => [
+      ...prev,
+      { role: "user", text: userText },
+      {
+        role: "spot",
+        parts: [
+          {
+            type: "tool-call",
+            id: callId,
+            agent: "creative.revise",
+            detail:
+              "redrafting the angle · keeping the winning pattern · re-screening against memory constraints…",
+            status: "running",
+          },
+        ],
+      },
+    ]);
+    setRevising(id);
+    setOpenReviseFor(null);
+    setEditing((e) => ({ ...e, [id]: false }));
+    setDraft("");
+
+    window.setTimeout(() => {
+      // Flip the most recent matching tool-call to done.
+      setThread((prev: SpotMessage[]) =>
+        prev.map((m) =>
+          m.role === "spot"
+            ? {
+                ...m,
+                parts: m.parts.map((p) =>
+                  p.type === "tool-call" && p.id === callId
+                    ? { ...p, status: "done" as const }
+                    : p,
+                ),
+              }
+            : m,
+        ),
+      );
+      appendMessage({ role: "spot", parts: [{ type: "text", text: rev.note }] });
+      // Append a new version, derived from the active one so unspecified
+      // fields (incl. visualConcept) carry over.
+      setHistory((h) => {
+        const hist = h[id] ?? [base];
+        const from = hist[activeIndex(id, hist)];
+        const next: CreativeAngle = {
+          ...from,
+          ...rev.angle,
+          id: from.id,
+          hue: from.hue,
+          visualConcept: rev.angle.visualConcept ?? from.visualConcept,
+        };
+        return { ...h, [id]: [...hist, next] };
+      });
+      // Jump the scrubber to the freshly-appended latest version.
+      setCursor((c) => {
+        const n = { ...c };
+        delete n[id];
+        return n;
+      });
+      setRevising(null);
+    }, 2200);
+  };
+
+  const onPickRevision = (base: CreativeAngle, rev: AngleRevision) => {
+    commitRevision(
+      base,
+      rev,
+      `Revise "${base.label}" — ${rev.changeLabel.toLowerCase()}.`,
+    );
+  };
+
+  const onSubmitFreeText = (base: CreativeAngle) => {
+    const text = draft.trim();
+    if (!text) return;
+    const revs = ANGLE_REVISIONS[base.id] ?? [];
+    if (revs.length === 0) return;
+    // Loosely map the free-text ask onto a pre-authored revision; fall
+    // back to the first. The note quotes the user so it reads bespoke.
+    const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    const matched =
+      revs.find((r) =>
+        words.some((w) => r.changeLabel.toLowerCase().includes(w)),
+      ) ?? revs[0];
+    const note = `Redrafted "${base.label}" around your note — "${text}". Kept the winning pattern (specificity + autonomy) and re-screened it against your memory constraints.`;
+    commitRevision(base, { ...matched, note }, `Revise "${base.label}" — ${text}`);
+  };
+
+  // Manual inline edit — mutate the active version's copy in place. The
+  // creative above updates live as the user types.
+  const updateField = (
+    base: CreativeAngle,
+    field: "hook" | "body" | "cta",
+    value: string,
+  ) => {
+    const id = base.id;
+    setHistory((h) => {
+      const hist = h[id] ?? [base];
+      const idx = activeIndex(id, hist);
+      const next = hist.slice();
+      next[idx] = { ...next[idx], [field]: value };
+      return { ...h, [id]: next };
+    });
+  };
+
+  // Scrub the version history. Closes edit mode so the user isn't typing
+  // into a version that's about to slide away.
+  const goVersion = (base: CreativeAngle, dir: -1 | 1) => {
+    const hist = historyFor(base);
+    const idx = activeIndexFor(base);
+    const nextIdx = Math.max(0, Math.min(hist.length - 1, idx + dir));
+    setCursor((c) => ({ ...c, [base.id]: nextIdx }));
+    setEditing((e) => ({ ...e, [base.id]: false }));
+  };
+
+  const toggleLock = (id: string) =>
+    setLocked((l) => ({ ...l, [id]: !l[id] }));
+
+  const toggleEditing = (id: string) => {
+    setEditing((e) => ({ ...e, [id]: !e[id] }));
+    setOpenReviseFor(null);
+  };
+
+  const toggleRevise = (id: string) => {
+    setOpenReviseFor((cur) => (cur === id ? null : id));
+    setEditing((e) => ({ ...e, [id]: false }));
+  };
+
+  return (
+    <motion.div
+      className="px-5 py-5 max-w-[900px] mx-auto"
+      initial="hidden"
+      animate="show"
+      variants={canvasStagger}
+    >
+      {/* Header */}
+      <motion.div variants={canvasReveal} className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-[#FAF8F2] border border-[#E8E3D5]">
+            <Sparkles size={11} strokeWidth={2} className="text-text-secondary" />
+            <span className="text-[10.5px] uppercase tracking-wider text-text-secondary font-semibold">
+              Candidate creatives · {ANGLE_CANDIDATES.length}
+            </span>
+          </span>
+          <span className="text-[11px] text-text-tertiary">
+            Grounded in the winning pattern · {workflow.productName}
+          </span>
+          <span
+            className={`ml-auto inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] text-[11px] font-medium ${
+              lockedCount > 0 ? "text-[#15803D]" : "text-text-tertiary"
+            }`}
+          >
+            <Lock size={11} strokeWidth={2} />
+            {lockedCount} of {ANGLE_CANDIDATES.length} locked
+          </span>
+        </div>
+        <StepHeader
+          title="Fresh creatives to test"
+          blurb="Each one is rendered as the actual ad — built off the winning pattern (specificity + parent autonomy) and screened against your constraints (no outcome promises, no competitor name-checks). Edit the copy right on the card, scrub each one's version history, or tell me how to revise it and I'll redraft it. Lock the ones you want in the test."
+        />
+      </motion.div>
+
+      {/* Creative grid */}
+      <div className="grid grid-cols-2 gap-3.5">
+        {ANGLE_CANDIDATES.map((base) => {
+          const angle = activeAngle(base);
+          const hue = ANGLE_HUES[angle.hue];
+          const hist = historyFor(base);
+          const idx = activeIndexFor(base);
+          const isLocked = !!locked[base.id];
+          const isRevising = revising === base.id;
+          const isOpen = openReviseFor === base.id;
+          const isEditing = !!editing[base.id];
+          const revs = ANGLE_REVISIONS[base.id] ?? [];
+
+          return (
+            <motion.div
+              key={base.id}
+              variants={canvasReveal}
+              className={`relative bg-white border rounded-card overflow-hidden flex flex-col ${
+                isLocked ? "" : "border-border"
+              }`}
+              style={
+                isLocked
+                  ? { borderColor: hue.dot, boxShadow: `inset 0 0 0 1px ${hue.dot}` }
+                  : undefined
+              }
+            >
+              {/* Accent rail */}
+              <span
+                className="absolute left-0 top-0 bottom-0 w-[3px] z-10"
+                style={{ background: hue.dot }}
+                aria-hidden
+              />
+
+              {/* ── Creative stage — the rendered ad ── */}
+              <div
+                className="relative flex items-center justify-center px-4 pt-9 pb-5"
+                style={{ minHeight: 308 }}
+              >
+                {/* hue glow behind the creative */}
+                <span
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(58% 52% at 50% 44%, ${hue.dot}26, transparent 72%)`,
+                  }}
+                  aria-hidden
+                />
+                {/* format badge */}
+                <span
+                  className="absolute top-3 left-5 z-10 inline-flex items-center h-5 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ background: `${hue.dot}24`, color: hue.dot }}
+                >
+                  {angle.format}
+                </span>
+                {/* version scrubber */}
+                {hist.length > 1 && (
+                  <div className="absolute top-3 right-4 z-10 inline-flex items-center gap-0.5 h-6 px-1 rounded-full bg-[#FAF8F2] border border-[#E8E3D5]">
+                    <button
+                      type="button"
+                      onClick={() => goVersion(base, -1)}
+                      disabled={idx === 0}
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full text-text-secondary hover:bg-[#E8E3D5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      aria-label="Previous version"
+                    >
+                      <ChevronLeft size={13} strokeWidth={2.2} />
+                    </button>
+                    <span className="text-[10px] font-semibold text-text-secondary tabular-nums px-0.5">
+                      v{idx + 1}/{hist.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => goVersion(base, 1)}
+                      disabled={idx === hist.length - 1}
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full text-text-secondary hover:bg-[#E8E3D5] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      aria-label="Next version"
+                    >
+                      <ChevronRight size={13} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                )}
+
+                <CreativeAdPreview angle={angle} hue={hue} dimmed={isRevising} />
+
+                {/* redrafting overlay */}
+                {isRevising && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center">
+                    <span className="inline-flex items-center gap-2 h-8 px-3.5 rounded-full bg-black/60 backdrop-blur-sm text-[11.5px] font-medium text-white">
+                      <Loader2 size={13} className="animate-spin" />
+                      Spot is redrafting…
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Meta + controls ── */}
+              <div className="px-4 pb-4 pl-5 border-t border-border">
+                {/* label + pattern tag */}
+                <div className="flex items-center gap-1.5 pt-3 mb-1.5">
+                  <span className="text-[11px] uppercase tracking-wider text-text-secondary font-semibold">
+                    {angle.label}
+                  </span>
+                  <span className="ml-auto inline-flex items-center gap-1 text-[10.5px] text-text-tertiary">
+                    <span
+                      className="inline-flex w-1.5 h-1.5 rounded-full"
+                      style={{ background: hue.dot }}
+                    />
+                    {angle.patternTag}
+                  </span>
+                </div>
+
+                {/* art direction caption */}
+                <p className="text-[11px] text-text-tertiary leading-snug mb-3">
+                  <span
+                    className="font-semibold uppercase tracking-wider text-[9px] mr-1.5"
+                    style={{ color: hue.dot }}
+                  >
+                    Art direction
+                  </span>
+                  {angle.visualConcept}
+                </p>
+
+                {/* Action row */}
+                {!isRevising && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleLock(base.id)}
+                      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11.5px] font-medium transition-colors ${
+                        isLocked ? "" : "bg-[#FAF8F2] text-text-secondary"
+                      }`}
+                      style={isLocked ? { background: hue.dot, color: "#fff" } : undefined}
+                    >
+                      {isLocked ? (
+                        <>
+                          <Lock size={12} strokeWidth={2.2} /> Locked
+                        </>
+                      ) : (
+                        <>
+                          <Unlock size={12} strokeWidth={2} /> Lock in
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleEditing(base.id)}
+                      className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11.5px] font-medium border transition-colors ${
+                        isEditing
+                          ? "bg-[#FAF8F2] border-text-tertiary text-text-primary"
+                          : "bg-white border-border text-text-primary hover:bg-[#FAF8F2]"
+                      }`}
+                    >
+                      <Pencil size={12} strokeWidth={2} />
+                      {isEditing ? "Done editing" : "Edit copy"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleRevise(base.id)}
+                      disabled={!!revising}
+                      className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11.5px] font-medium bg-white border border-border text-text-primary hover:bg-[#FAF8F2] transition-colors disabled:opacity-40"
+                    >
+                      <Wand2 size={12} strokeWidth={2} />
+                      Revise with Spot
+                    </button>
+                  </div>
+                )}
+
+                {/* Inline edit panel */}
+                {isEditing && !isRevising && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="mt-3 pt-3 border-t border-border"
+                  >
+                    <div className="flex items-center gap-1.5 mb-2.5">
+                      <Pencil size={12} strokeWidth={2} className="text-text-secondary" />
+                      <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+                        Edit the copy
+                      </span>
+                      <span className="ml-auto text-[10px] text-text-tertiary">
+                        saving to v{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleEditing(base.id)}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-full text-text-tertiary hover:bg-[#FAF8F2] transition-colors"
+                        aria-label="Close editor"
+                      >
+                        <X size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <div>
+                        <label className="block text-[9.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+                          Hook
+                        </label>
+                        <textarea
+                          value={angle.hook}
+                          onChange={(e) => updateField(base, "hook", e.target.value)}
+                          rows={2}
+                          className="w-full px-2.5 py-1.5 rounded-md border border-border bg-white text-[12.5px] font-semibold text-text-primary leading-snug resize-none focus:outline-none focus:border-text-tertiary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+                          Body
+                        </label>
+                        <textarea
+                          value={angle.body}
+                          onChange={(e) => updateField(base, "body", e.target.value)}
+                          rows={3}
+                          className="w-full px-2.5 py-1.5 rounded-md border border-border bg-white text-[12px] text-text-secondary leading-relaxed resize-none focus:outline-none focus:border-text-tertiary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9.5px] uppercase tracking-wider text-text-tertiary font-semibold mb-1">
+                          Button
+                        </label>
+                        <input
+                          value={angle.cta}
+                          onChange={(e) => updateField(base, "cta", e.target.value)}
+                          className="w-full h-8 px-2.5 rounded-md border border-border bg-white text-[12px] font-medium text-text-primary focus:outline-none focus:border-text-tertiary"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10.5px] text-text-tertiary mt-2 flex items-center gap-1.5">
+                      <Eye size={11} strokeWidth={2} />
+                      The creative above updates live as you type.
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Revise-with-Spot panel */}
+                {isOpen && !isRevising && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="mt-3 pt-3 border-t border-border"
+                  >
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <SpotMark size={13} />
+                      <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
+                        Tell Spot how to revise it
+                      </span>
+                    </div>
+
+                    {/* Suggestion chips */}
+                    {revs.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2.5">
+                        {revs.map((r, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => onPickRevision(base, r)}
+                            className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-medium bg-[#FAF8F2] border border-[#E8E3D5] text-text-secondary hover:border-text-tertiary hover:text-text-primary transition-colors"
+                          >
+                            <Sparkles size={10} strokeWidth={2} />
+                            {r.changeLabel}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Free-text */}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") onSubmitFreeText(base);
+                        }}
+                        placeholder='e.g. "make the hook warmer" or "lead with the mentor"'
+                        className="flex-1 h-8 px-2.5 rounded-md border border-border bg-white text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onSubmitFreeText(base)}
+                        disabled={!draft.trim()}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-md text-white transition-opacity disabled:opacity-30"
+                        style={{ background: hue.dot }}
+                        aria-label="Send revise request to Spot"
+                      >
+                        <Send size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+                    <p className="text-[10.5px] text-text-tertiary mt-1.5">
+                      Spot redrafts it as a new version and posts the change in
+                      your chat — your constraints are re-checked automatically.
+                    </p>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Footer hint — approval lives in chat */}
+      <motion.div
+        variants={canvasReveal}
+        className="mt-4 flex items-center gap-2 text-[11.5px] text-text-tertiary"
+      >
+        <Check size={13} strokeWidth={2} className="text-[#15803D]" />
+        When the set looks right, approve in the chat and I&apos;ll fold these
+        into the time-phased test plan.
+      </motion.div>
+    </motion.div>
   );
 }
 

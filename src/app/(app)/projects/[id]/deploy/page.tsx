@@ -238,7 +238,7 @@ export default function DeployMediaPlanPage() {
         >
           <ArrowLeft size={13} />
         </button>
-        <span>Projects</span>
+        <span>Products</span>
         <span className="text-text-tertiary">›</span>
         <span>{project.name.split(" · ")[0]}</span>
         <span className="text-text-tertiary">›</span>

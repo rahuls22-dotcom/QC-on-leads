@@ -26,6 +26,10 @@ export type WorkflowStep =
   | "deep-research"
   | "product-setup"
   | "kickoff"
+  // After memory setup the user branches: import existing campaigns
+  // (this step · selects an ad account then campaigns) or launch new
+  // (continues to launch-plan). Driven manually, not via STEP_ORDER.
+  | "import-campaigns"
   | "launch-plan"
   | "launch-building"
   | "launch-review"
@@ -51,6 +55,7 @@ export type WorkflowStep =
   | "opt-live"
   | "ang-analyze"
   | "ang-clarify"
+  | "ang-creatives"
   | "ang-plan"
   | "ang-live"
   // Campaign dive · single-step "Spot it" surface that opens
@@ -100,6 +105,7 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
   "deep-research": "Deep research",
   "product-setup": "Product memory",
   kickoff: "Memory",
+  "import-campaigns": "Import campaigns",
   "launch-plan": "Execution plan",
   "launch-building": "Spot working",
   "launch-review": "Review & deploy",
@@ -124,6 +130,7 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
   "opt-live": EXTENDED_STEP_LABELS["opt-live"],
   "ang-analyze": EXTENDED_STEP_LABELS["ang-analyze"],
   "ang-clarify": EXTENDED_STEP_LABELS["ang-clarify"],
+  "ang-creatives": EXTENDED_STEP_LABELS["ang-creatives"],
   "ang-plan": EXTENDED_STEP_LABELS["ang-plan"],
   "ang-live": EXTENDED_STEP_LABELS["ang-live"],
   "campaign-dive": "Spot it",
@@ -225,6 +232,15 @@ export type LaunchWorkflow = {
    *  "product-setup"; ignored after. */
   productSetupStage?: ProductSetupStage;
   productSetupAnswers?: ProductSetupAnswers;
+  /** Import-campaigns sub-flow state. Only meaningful while step is
+   *  "import-campaigns" (or just after, for the imported summary). */
+  importStage?: "select-account" | "select-campaigns" | "imported";
+  /** Ad account the user picked to import from. */
+  importAdAccountId?: string | null;
+  /** Campaign ids currently ticked in the import list. */
+  selectedImportCampaignIds?: string[];
+  /** Campaign ids the user actually imported (frozen at confirm). */
+  importedCampaignIds?: string[];
   /** Bottom-drawer open state on the left chat panel. False
    *  immediately after startNewProductFlow (Spot's "preparing form"
    *  tool-call is still running); flips to true after the ~1.4s

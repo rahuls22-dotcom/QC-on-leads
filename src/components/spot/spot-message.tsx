@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, Check, Info, ChevronRight, ArrowRight, Cog } from "lucide-react";
+import { AlertTriangle, Check, Info, ChevronRight, ArrowRight, Cog, Rocket, Download, BarChart3, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { SpotMark } from "./spot-mark";
 import { SpotLoader } from "./spot-loader";
 import { RichText } from "./rich-text";
-import type { SpotFinding, SpotKpi, SpotMessage, SpotPart, Verdict, GuidedKind } from "@/lib/spot/types";
+import type { SpotFinding, SpotKpi, SpotMessage, SpotPart, Verdict, GuidedKind, SpotChoiceOption, SpotChoiceIcon } from "@/lib/spot/types";
 import { useSpotStore } from "@/lib/spot/store";
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
@@ -224,6 +225,106 @@ function StepCtaPart({ label, helper, refineHint }: { label: string; helper?: st
   );
 }
 
+const CHOICE_ICON: Record<SpotChoiceIcon, typeof Rocket> = {
+  rocket: Rocket,
+  download: Download,
+  chart: BarChart3,
+  sparkles: Sparkles,
+};
+
+/**
+ * ChoicePart · two (or three) mutually-exclusive branch options in one
+ * Spot message. Rendered as a small stack of clickable rows — primary
+ * gets the gold accent, secondary stays neutral. Picking one echoes the
+ * label as a user message, hides the whole choice, and dispatches the
+ * option's `action` to the right store call (or navigation).
+ */
+function ChoicePart({ prompt, options }: { prompt?: string; options: SpotChoiceOption[] }) {
+  const router = useRouter();
+  const advanceWorkflow = useSpotStore((s) => s.advanceWorkflow);
+  const startImportCampaigns = useSpotStore((s) => s.startImportCampaigns);
+  const exitWorkflow = useSpotStore((s) => s.exitWorkflow);
+  const appendMessage = useSpotStore((s) => s.appendMessage);
+  const markClicked = useSpotStore((s) => s.markCtaClicked);
+  // Hide the whole choice once any option has been chosen.
+  const answered = useSpotStore((s) => options.some((o) => s.clickedCtas.has(o.label)));
+
+  if (answered) return null;
+
+  const choose = (o: SpotChoiceOption) => {
+    appendMessage({ role: "user", text: o.label });
+    markClicked(o.label);
+    switch (o.action) {
+      case "launch-new":
+        advanceWorkflow(); // kickoff → launch-plan
+        break;
+      case "import-campaigns":
+        startImportCampaigns();
+        break;
+      case "launch-after-import":
+        advanceWorkflow(undefined, "launch-plan");
+        break;
+      case "analyse-performance":
+        exitWorkflow();
+        router.push("/campaigns");
+        break;
+    }
+  };
+
+  return (
+    <div className="mb-2.5">
+      {prompt && (
+        <div className="text-[12px] font-medium text-text-secondary mb-1.5">{prompt}</div>
+      )}
+      <div className="space-y-1.5">
+        {options.map((o) => {
+          const Icon = o.icon ? CHOICE_ICON[o.icon] : ArrowRight;
+          const primary = o.variant === "primary";
+          return (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => choose(o)}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] border text-left transition-colors group"
+              style={{
+                background: primary
+                  ? "linear-gradient(135deg, rgba(201,168,106,0.16) 0%, rgba(224,192,131,0.10) 100%)"
+                  : "#FFFFFF",
+                borderColor: primary ? "#E0C083" : "var(--border)",
+              }}
+            >
+              <span
+                className="inline-flex items-center justify-center w-7 h-7 rounded-[8px] flex-shrink-0"
+                style={{
+                  background: primary ? "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)" : "var(--surface-secondary)",
+                  color: primary ? "#0A0A09" : "var(--text-secondary)",
+                }}
+              >
+                <Icon size={14} strokeWidth={2} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12.5px] font-semibold text-text-primary leading-tight">
+                  {o.label}
+                </span>
+                {o.helper && (
+                  <span className="block text-[10.5px] text-text-tertiary leading-snug mt-0.5">
+                    {o.helper}
+                  </span>
+                )}
+              </span>
+              <ArrowRight
+                size={13}
+                strokeWidth={2}
+                className="text-text-tertiary group-hover:text-text-primary flex-shrink-0 transition-colors"
+              />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ToolCallPart({ agent, detail, status }: { agent: string; detail?: string; status: "running" | "done" }) {
   const running = status === "running";
   // Inline thinking line — no card, no border. Single row that reads
@@ -266,6 +367,8 @@ function PartRenderer({ part }: { part: SpotPart }) {
       return <HandoffPart kind={part.kind} label={part.label} reason={part.reason} />;
     case "step-cta":
       return <StepCtaPart label={part.label} helper={part.helper} refineHint={part.refineHint} />;
+    case "choice":
+      return <ChoicePart prompt={part.prompt} options={part.options} />;
     case "tool-call":
       return <ToolCallPart agent={part.agent} detail={part.detail} status={part.status} />;
     case "text":

@@ -25,6 +25,7 @@ import { projectHealth } from "@/lib/spot/project-health";
 import { scorecardsForProduct } from "@/lib/spot/persona-scorecard";
 import { CampaignsTable, inr, num } from "@/components/campaigns/campaigns-table";
 import { PersonaScorecardCard } from "@/components/personas/persona-scorecard-card";
+import { PersonasEmptyState } from "@/components/personas/personas-empty-state";
 import { LeadDistribution } from "@/components/enrichment/lead-distribution";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { SpotMark } from "@/components/spot/spot-mark";
@@ -69,7 +70,7 @@ export default function ProjectDetailPage() {
         >
           <ArrowLeft size={16} strokeWidth={1.5} />
         </button>
-        <span className="text-meta text-text-secondary">Projects &rsaquo; {product!.name}</span>
+        <span className="text-meta text-text-secondary">Products &rsaquo; {product!.name}</span>
       </div>
 
       {/* Header */}
@@ -172,7 +173,7 @@ export default function ProjectDetailPage() {
             ))}
           </div>
         ) : (
-          <EmptyNote text="No personas linked to this product yet." />
+          <PersonasEmptyState compact productName={product!.name} />
         ))}
 
       {tab === "campaigns" && (

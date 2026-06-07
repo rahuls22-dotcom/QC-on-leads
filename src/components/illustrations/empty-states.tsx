@@ -225,6 +225,25 @@ export function IllustrationPhone() {
   );
 }
 
+export function IllustrationPersonas() {
+  return (
+    <svg width="120" height="100" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Persona card */}
+      <rect x="26" y="20" width="68" height="60" rx="8" fill="#F5F5F5" stroke="#D4D4D4" strokeWidth="1.5" />
+      {/* Avatar */}
+      <circle cx="46" cy="42" r="9" fill="white" stroke="#9B9B9B" strokeWidth="1.5" />
+      <path d="M34 62 Q34 52, 46 51 Q58 52, 58 62" stroke="#9B9B9B" strokeWidth="1.5" fill="white" strokeLinecap="round" />
+      {/* Attribute lines */}
+      <path d="M64 38 L86 38" stroke="#D4D4D4" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M64 45 L80 45" stroke="#E5E5E5" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M34 70 L86 70" stroke="#E5E5E5" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Sparkle — AI-drafted persona */}
+      <path d="M96 24 L98.5 33 L107.5 35.5 L98.5 38 L96 47 L93.5 38 L84.5 35.5 L93.5 33 Z" fill="#F5F5F5" stroke="#9B9B9B" strokeWidth="1.3" strokeLinejoin="round" />
+      <circle cx="20" cy="66" r="3" fill="#E5E5E5" />
+    </svg>
+  );
+}
+
 export function IllustrationEnrichment() {
   return (
     <svg width="120" height="100" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">

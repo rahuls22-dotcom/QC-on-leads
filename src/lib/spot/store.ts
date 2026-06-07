@@ -18,6 +18,18 @@ import {
   type WorkflowStep,
 } from "./workflow";
 import { PRODUCTS } from "../products-data";
+import {
+  campaignsForAccount,
+  importAccount,
+  summariseImport,
+} from "./import-campaigns-data";
+
+/** Compact rupee formatter for chat narration (₹2.4L / ₹420). */
+function inrShort(n: number): string {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1000000 ? 1 : 2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${Math.round(n)}`;
+}
 
 type PanelState = {
   open: boolean;
@@ -97,8 +109,23 @@ type PanelState = {
     channel: "Meta" | "Google";
     metaUrl: string;
   }) => void;
-  /** Advance the workflow to the next step + seed a Spot narration message. */
-  advanceWorkflow: (narration?: string) => void;
+  /** Advance the workflow to the next step + seed a Spot narration message.
+   *  Pass `forcedNext` to jump to a specific step instead of the linear
+   *  next one (used by the import branch to enter the launch plan). */
+  advanceWorkflow: (narration?: string, forcedNext?: WorkflowStep) => void;
+  /** Begin the import-campaigns sub-flow (after memory setup). Opens the
+   *  ad-account picker on the canvas. */
+  startImportCampaigns: () => void;
+  /** Pick an ad account → load its campaigns (all pre-ticked). */
+  selectImportAdAccount: (accountId: string) => void;
+  /** Return to the ad-account picker from the campaign list. */
+  backToImportAccounts: () => void;
+  /** Toggle one campaign in the import selection. */
+  toggleImportCampaign: (id: string) => void;
+  /** Replace the whole import selection (select-all / clear). */
+  setImportSelection: (ids: string[]) => void;
+  /** Confirm the import → freeze the set + post the next-step choice. */
+  confirmImportCampaigns: () => void;
   /** Jump to a specific step (used for "edit a previous step"). */
   gotoStep: (step: WorkflowStep) => void;
   setWorkflowBudget: (b: WorkflowBudget) => void;
@@ -336,10 +363,24 @@ export const useSpotStore = create<PanelState>((set) => ({
                 : `Pulled what I have onto the right.`,
             },
             {
-              type: "step-cta",
-              label: "Looks right — draft the execution plan",
-              helper: "I'll fold personas, media, creatives, landing pages, and campaigns into one plan to approve.",
-              refineHint: "or tell me what's missing",
+              type: "choice",
+              prompt: "Memory's ready — how do you want to start?",
+              options: [
+                {
+                  label: "Import existing campaigns",
+                  helper: "Pull campaigns from a connected ad account",
+                  action: "import-campaigns",
+                  icon: "download",
+                  variant: "secondary",
+                },
+                {
+                  label: "Launch new campaigns",
+                  helper: "Draft a fresh execution plan with Spot",
+                  action: "launch-new",
+                  icon: "rocket",
+                  variant: "primary",
+                },
+              ],
             },
           ],
         };
@@ -765,13 +806,27 @@ export const useSpotStore = create<PanelState>((set) => ({
             },
             {
               type: "text",
-              text: `I've drafted what I'd lead with and what to avoid. The right pane shows it — since this is brand-new with no past campaign data, I'll plan a **conservative experiment** at the next step.`,
+              text: `I've drafted what I'd lead with and what to avoid — the right pane shows it. From here you can pull in your existing campaigns to analyse them, or have me draft a fresh execution plan.`,
             },
             {
-              type: "step-cta",
-              label: "Looks right — draft the execution plan",
-              helper: "I'll fold personas, media, creatives, landing pages, and campaigns into one plan to approve.",
-              refineHint: "or tell me what's missing",
+              type: "choice",
+              prompt: "Memory's ready — how do you want to start?",
+              options: [
+                {
+                  label: "Import existing campaigns",
+                  helper: "Pull campaigns from a connected ad account",
+                  action: "import-campaigns",
+                  icon: "download",
+                  variant: "secondary",
+                },
+                {
+                  label: "Launch new campaigns",
+                  helper: "Draft a fresh execution plan with Spot",
+                  action: "launch-new",
+                  icon: "rocket",
+                  variant: "primary",
+                },
+              ],
             },
           ],
         };
@@ -848,10 +903,10 @@ export const useSpotStore = create<PanelState>((set) => ({
     }));
   },
 
-  advanceWorkflow: (narration) =>
+  advanceWorkflow: (narration, forcedNext) =>
     set((s) => {
       if (!s.workflow) return {};
-      const upcoming = nextStepFor(s.workflow.kind, s.workflow.step);
+      const upcoming = forcedNext ?? nextStepFor(s.workflow.kind, s.workflow.step);
       const tc = STEP_TOOL_CALL[upcoming];
       const callId = `tc-${Date.now()}`;
       // Flip the workflow step IMMEDIATELY so the right pane swaps to
@@ -971,6 +1026,132 @@ export const useSpotStore = create<PanelState>((set) => ({
       const intro = stepIntroMessage(upcoming, nextWorkflow);
       if (intro) appended.push(intro);
       return { workflow: nextWorkflow, thread: [...s.thread, ...appended] };
+    }),
+
+  startImportCampaigns: () =>
+    set((s) => {
+      if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      const intro: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: "Let's bring in your existing campaigns. Pick an ad account on the right — I'll pull every campaign in it so you can choose what to import.",
+          },
+        ],
+      };
+      return {
+        canvasOpen: true,
+        workflow: {
+          ...s.workflow,
+          step: "import-campaigns",
+          importStage: "select-account",
+          importAdAccountId: null,
+          selectedImportCampaignIds: [],
+          importedCampaignIds: [],
+        },
+        thread: [...s.thread, intro],
+      };
+    }),
+
+  selectImportAdAccount: (accountId) =>
+    set((s) => {
+      if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      const all = campaignsForAccount(accountId).map((c) => c.id);
+      const acct = importAccount(accountId);
+      const reply: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text: acct
+              ? `Pulled **${all.length} campaigns** from ${acct.name}. They're all ticked — untick anything you don't want, then import.`
+              : `Pulled ${all.length} campaigns. Pick what to import.`,
+          },
+        ],
+      };
+      return {
+        workflow: {
+          ...s.workflow,
+          importStage: "select-campaigns",
+          importAdAccountId: accountId,
+          selectedImportCampaignIds: all,
+        },
+        thread: [...s.thread, reply],
+      };
+    }),
+
+  backToImportAccounts: () =>
+    set((s) => {
+      if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      return {
+        workflow: {
+          ...s.workflow,
+          importStage: "select-account",
+          importAdAccountId: null,
+          selectedImportCampaignIds: [],
+        },
+      };
+    }),
+
+  toggleImportCampaign: (id) =>
+    set((s) => {
+      if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      const cur = s.workflow.selectedImportCampaignIds ?? [];
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      return { workflow: { ...s.workflow, selectedImportCampaignIds: next } };
+    }),
+
+  setImportSelection: (ids) =>
+    set((s) =>
+      s.workflow && s.workflow.kind === "launch-campaign"
+        ? { workflow: { ...s.workflow, selectedImportCampaignIds: ids } }
+        : {},
+    ),
+
+  confirmImportCampaigns: () =>
+    set((s) => {
+      if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      const ids = s.workflow.selectedImportCampaignIds ?? [];
+      if (ids.length === 0) return {};
+      const sum = summariseImport(ids);
+      const msg: SpotMessage = {
+        role: "spot",
+        parts: [
+          {
+            type: "headline",
+            text: `${sum.count} campaign${sum.count === 1 ? "" : "s"} imported.`,
+            verdict: "ok",
+          },
+          {
+            type: "text",
+            text: `Wired ${sum.count} campaign${sum.count === 1 ? "" : "s"} into ${s.workflow.productName}'s memory — ${inrShort(sum.spend)} spend, ${sum.leads.toLocaleString("en-IN")} leads, ${inrShort(sum.blendedCpl)} blended CPL. What next?`,
+          },
+          {
+            type: "choice",
+            options: [
+              {
+                label: "Launch new campaigns",
+                helper: "Draft a fresh execution plan with Spot",
+                action: "launch-after-import",
+                icon: "rocket",
+                variant: "primary",
+              },
+              {
+                label: "Analyse campaign performance",
+                helper: "Open Campaigns with Spot's take on each",
+                action: "analyse-performance",
+                icon: "chart",
+                variant: "secondary",
+              },
+            ],
+          },
+        ],
+      };
+      return {
+        workflow: { ...s.workflow, importStage: "imported", importedCampaignIds: ids },
+        thread: [...s.thread, msg],
+      };
     }),
 
   gotoStep: (step) =>

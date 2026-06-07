@@ -98,11 +98,11 @@ export default function EmptyStatesPage() {
           />
         </PreviewCard>
 
-        <PreviewCard label="Projects" tag="No data">
+        <PreviewCard label="Products" tag="No data">
           <EmptyState
             illustration={<IllustrationProjects />}
-            title="No projects yet"
-            description="Group your campaigns into projects for better organization and reporting."
+            title="No products yet"
+            description="Group your campaigns by product for cleaner organization and reporting."
             action={
               <button className="h-9 px-4 bg-accent text-white text-[13px] font-medium rounded-button hover:bg-accent-hover transition-colors duration-150">
                 Create project
@@ -331,7 +331,7 @@ export default function EmptyStatesPage() {
             { name: "Campaigns", el: <IllustrationCampaigns /> },
             { name: "Search Empty", el: <IllustrationSearchEmpty /> },
             { name: "Agents", el: <IllustrationAgents /> },
-            { name: "Projects", el: <IllustrationProjects /> },
+            { name: "Products", el: <IllustrationProjects /> },
             { name: "Leads", el: <IllustrationLeads /> },
             { name: "Contacts", el: <IllustrationContacts /> },
             { name: "Creatives", el: <IllustrationCreatives /> },

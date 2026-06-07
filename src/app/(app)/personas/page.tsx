@@ -22,6 +22,8 @@ import {
 } from "@/lib/personas-data";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { useSpotStore } from "@/lib/spot/store";
+import { useDemoMode } from "@/lib/demo-mode";
+import { PersonasEmptyState } from "@/components/personas/personas-empty-state";
 
 const CHANNEL_COLOR: Record<Persona["preferredChannels"][number], string> = {
   Meta: "pill-info",
@@ -33,6 +35,7 @@ const CHANNEL_COLOR: Record<Persona["preferredChannels"][number], string> = {
 
 export default function PersonasPage() {
   const askSpot = useSpotStore((s) => s.askSpot);
+  const { isEmpty } = useDemoMode();
 
   return (
     <div>
@@ -65,6 +68,10 @@ export default function PersonasPage() {
         </div>
       </div>
 
+      {isEmpty ? (
+        <PersonasEmptyState />
+      ) : (
+        <>
       {/* Roll-up strip */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         <Stat label="Total personas" value={PERSONAS.length} />
@@ -82,6 +89,8 @@ export default function PersonasPage() {
           <PersonaCard key={p.id} persona={p} onLaunch={() => askSpot(`Draft creative angles for "${p.name}".`)} />
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 }

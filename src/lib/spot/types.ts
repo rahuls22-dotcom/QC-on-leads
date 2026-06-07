@@ -24,6 +24,10 @@ export type SpotPart =
   // Spent rendered the right-pane canvas as a place to *see* the work
   // and the chat as the place to *act on it*, like Claude's flows.
   | { type: "step-cta"; label: string; helper?: string; refineHint?: string }
+  // Multi-option branch — two or three mutually-exclusive choices in a
+  // single Spot message (e.g. "Import campaigns" vs "Launch new"). Each
+  // option carries an `action` key the renderer maps to a store call.
+  | { type: "choice"; prompt?: string; options: SpotChoiceOption[] }
   // Tool / agent call narration — renders a compact status row that
   // says "Spawning Persona Researcher…" with a spinner. Status flips
   // to "done" with a check once the workflow advances.
@@ -34,6 +38,24 @@ export type SpotPart =
       detail?: string;
       status: "running" | "done";
     };
+
+/** Branch actions a `choice` part can trigger. Mapped to store calls in
+ *  the chat renderer (ChoicePart). */
+export type SpotChoiceAction =
+  | "launch-new" // kickoff → draft a fresh execution plan
+  | "import-campaigns" // open the import-campaigns canvas
+  | "launch-after-import" // after import → jump into the launch plan
+  | "analyse-performance"; // after import → open Campaigns
+
+export type SpotChoiceIcon = "rocket" | "download" | "chart" | "sparkles";
+
+export type SpotChoiceOption = {
+  label: string;
+  helper?: string;
+  action: SpotChoiceAction;
+  icon?: SpotChoiceIcon;
+  variant?: "primary" | "secondary";
+};
 
 export type SpotFinding = {
   tone?: "concern" | "positive" | "neutral";
