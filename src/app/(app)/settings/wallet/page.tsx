@@ -389,13 +389,12 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
             defaultPreset="30"
             onChange={(preset) => setRange(presetToDays(preset))}
           />
-          {v === "utilization" && billingMode === "prepaid" && (
+          {/* Add money is a billing/wallet action — only relevant on
+              the Billing page and only for prepaid customers. Postpaid
+              has nothing to top up against. */}
+          {v === "billing" && billingMode === "prepaid" && (
             <BillingPrimaryCta
               onAddMoney={() => {
-                // When the wallet is blocking (empty/expired), redirect
-                // the Add Money click to the recharge-request modal —
-                // there's no balance left to top up against the normal
-                // estimator. Otherwise open the estimator as usual.
                 if (isBalanceBlocking(billingMode, balanceState)) {
                   setLowBalanceOpen(true);
                 } else {
@@ -418,26 +417,37 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
       </div>
 
       {/* ── Utilization route ──────────────────────────────────────────
-          Utilization tracks consumption — "how much of each product
-          have I used over this time period, in real units?" — and
-          it applies to both prepaid and postpaid customers. The
-          numbers are the same either way; the only mode-specific
-          element is the prepaid balance hero, which obviously can't
-          render for postpaid (no balance to draw down).
-
-          Layout:
-            1. Balance hero — prepaid only (skipped for postpaid).
-            2. Per-product utilization table — always (universal flat
-               tree, units only).
-            3. Utilization over time chart — always.
+          Utilization is the consumption story — "how much of each
+          product have I used over this time period, in real units?".
+          Pure units, no money. Applies identically to prepaid and
+          postpaid customers (consumption is consumption; how the org
+          gets billed for it doesn't change what was consumed).
       */}
-      {v === "utilization" && billingMode === "prepaid" && isBalanceBlocking(billingMode, balanceState) && (
+      {v === "utilization" && (
+        <UtilizationByProductTable rangeDays={range} />
+      )}
+
+      {/* ── Billing route ──────────────────────────────────────────────
+          Billing is the money story — how much have I spent, and
+          (for prepaid) how much balance do I have left to draw down
+          on? The hero differs by billing mode because the underlying
+          model differs:
+
+            Prepaid  → Spend in range + Remaining balance + % of
+                       plan. There IS a wallet to deplete.
+            Postpaid → Estimated bill this cycle + Spend cap. NO
+                       balance, just an end-of-cycle invoice number.
+
+          The Products spend table + invoices below the hero are
+          shared across both modes.
+      */}
+      {v === "billing" && billingMode === "prepaid" && isBalanceBlocking(billingMode, balanceState) && (
         <PrepaidEmptyHero
           balance={balanceState}
           onRecharge={() => setLowBalanceOpen(true)}
         />
       )}
-      {v === "utilization" && billingMode === "prepaid" && !isBalanceBlocking(billingMode, balanceState) && (
+      {v === "billing" && billingMode === "prepaid" && !isBalanceBlocking(billingMode, balanceState) && (
         <PrepaidBalanceHero
           rangeUtilized={rangeUtilized}
           range={range}
@@ -446,19 +456,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           periodLabel={periodLabel}
         />
       )}
-      {v === "utilization" && (
-        <UtilizationByProductTable rangeDays={range} />
-      )}
-
-      {/* ── Billing route ──────────────────────────────────────────────
-          Same content for both prepaid and postpaid: how much money
-          you've spent over a time period, split by product, with
-          invoices below. The only difference between modes is the
-          framing copy on the spend hero ("drawn from your wallet"
-          vs "to be invoiced this cycle") — the numbers are the same
-          underlying spend calculation.
-      */}
-      {v === "billing" && (
+      {v === "billing" && billingMode === "postpaid" && (
         <BillingSpendHero
           rangeUtilized={rangeUtilized}
           range={range}
