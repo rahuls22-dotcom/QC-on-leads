@@ -46,6 +46,11 @@ import {
   outreachDailySpendForId,
 } from "@/lib/outreach-data";
 import type { ContactOutcome, AIQualStatus, OutreachContact, OutreachDetail } from "@/lib/outreach-data";
+import {
+  dailySeriesForOutreach,
+  rangeWindowFromPreset,
+  sumInRange,
+} from "@/lib/daily-series";
 import { DateRangeSelector, getComparisonRange } from "@/components/dashboard/date-range-selector";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { EditOutreachDrawer, type EditOutreachInitial } from "@/components/outreach/edit-outreach-drawer";
@@ -2442,34 +2447,41 @@ export default function OutreachDetailPage() {
   }, [sources, activeSourceId]);
 
   const scaled = useMemo(() => {
-    const activity = d.activityDays || 1;
-    const timeShare = Math.min(1, rangeDays / activity);
-    // Composite share — time window × source mix. Numbers shrink when the
-    // user narrows either dimension, and they recover when they widen back
-    // out. Using a product (not min/max) keeps the relationship intuitive:
-    // halving the date range *and* halving the source list shows ¼ of the
-    // activity, which lines up with how a real backend would aggregate.
-    const share = timeShare * sourceShare;
-    const r = (n: number) => Math.round(n * share);
+    // Sum the outreach's real daily fingerprint within the chosen window
+    // instead of multiplying lifetime totals by rangeDays/activity. The
+    // numbers now pick up real weekday/weekend variation, the outreach's
+    // ramp-up/decay, and (crucially) zero days that are actually zero
+    // rather than 1/N of the lifetime. Source filter still multiplies
+    // on top — per-source daily series isn't modelled in mock data, so
+    // proportional thinning is the most honest stand-in.
+    const win = rangeWindowFromPreset(rangePreset);
+    const agg = sumInRange(dailySeriesForOutreach(d.id), win);
+    const r = (n: number) => Math.round(n * sourceShare);
     return {
-      called:        r(d.called),
-      connected:     r(d.connected),
-      interacted:    r(d.interacted),
-      qualified:     r(d.qualified),
-      notQualified:  r(d.notQualified),
-      callback:      r(d.callback),
-      noAnswer:      r(d.noAnswer),
-      talktimeMins:  r(d.totalMinutes),
-      totalCalls:    r(d.totalCalls),
-      spend:         r(d.spend),
-      // Dial-attempt bucket distribution stays the same shape; magnitudes scale.
-      dialAttempts:  d.dialAttempts.map(v => r(v)),
-      // For the funnel: leads = audience worked in this window AND coming
-      // from the selected sources. Scaled so all five stages remain
-      // proportional. At lifetime + all sources it equals total.
-      leadsInWindow: r(d.totalContacts),
+      called:        r(agg.calls),
+      connected:     r(agg.connected),
+      interacted:    r(agg.interacted),
+      qualified:     r(agg.qualified),
+      notQualified:  r(agg.notQualified),
+      // callback / noAnswer aren't carried on the daily series — keep
+      // them proportional to lifetime so the dial-attempts widget still
+      // has plausible values. They're a secondary panel, not a headline.
+      callback:      r(d.callback * (agg.calls / Math.max(1, d.called))),
+      noAnswer:      r(d.noAnswer * (agg.calls / Math.max(1, d.called))),
+      talktimeMins:  r(agg.talkMinutes),
+      totalCalls:    r(agg.calls),
+      spend:         r(agg.spend),
+      // Dial-attempt bucket distribution stays the same shape; magnitudes
+      // scale with the windowed call count. Buckets are always proportions
+      // of attempts — the relationship is stable across time windows.
+      dialAttempts:  d.dialAttempts.map(v =>
+        r(v * (agg.calls / Math.max(1, d.called)))
+      ),
+      // For the funnel: leads worked in this window AND coming from the
+      // selected sources. At lifetime + all sources it equals total.
+      leadsInWindow: r(agg.newLeads),
     };
-  }, [d, rangeDays, sourceShare]);
+  }, [d, rangePreset, sourceShare]);
 
   const progressPercent = (d.called / d.totalContacts) * 100;
 

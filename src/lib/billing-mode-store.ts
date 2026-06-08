@@ -41,9 +41,14 @@ export type WalletBalanceState = "healthy" | "low" | "empty" | "expired";
  */
 export type PrepaidPlanType = "subscription" | "pure";
 
-const MODE_KEY      = "revspot:billing-mode";
-const BALANCE_KEY   = "revspot:wallet-balance-state";
-const PLAN_TYPE_KEY = "revspot:prepaid-plan-type";
+// Versioned localStorage keys. Bumping the suffix invalidates any value
+// persisted under the previous version — useful when the demo's default
+// landing state changes. v2 was introduced when we re-asserted prepaid as
+// the default landing experience so the wallet always shows on first
+// visit, even for users who previously toggled the demo to postpaid.
+const MODE_KEY      = "revspot:billing-mode-v2";
+const BALANCE_KEY   = "revspot:wallet-balance-state-v2";
+const PLAN_TYPE_KEY = "revspot:prepaid-plan-type-v2";
 
 interface BillingModeState {
   mode: BillingMode;

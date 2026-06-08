@@ -9,7 +9,14 @@ import {
   ChevronDown, Upload, Bot, TrendingDown, Trophy, CalendarDays,
   Rocket, X, Pencil,
 } from "lucide-react";
-import { outreachList, dailyTalktime90d, dailySpend90d } from "@/lib/outreach-data";
+import { outreachList } from "@/lib/outreach-data";
+import {
+  dailyTalktime90d,
+  dailySpend90d,
+  dailySeriesForOutreach,
+  rangeWindowFromPreset,
+  sumInRange,
+} from "@/lib/daily-series";
 import type { OutreachStatus, OutreachListItem } from "@/lib/outreach-data";
 import { useDemoMode } from "@/lib/demo-mode";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
@@ -555,9 +562,11 @@ function OutreachRow({
         <StatusPill status={o.status} />
       </td>
       {/* Leads — top of the funnel, no rate beside it (it IS the
-          baseline that everything else divides by). */}
-      <td className="px-3 py-3 text-right text-[13px] tabular-nums text-text-primary">
-        {o.totalContacts.toLocaleString()}
+          baseline that everything else divides by). Same weight/size
+          as the other funnel numbers so the column reads as one
+          consistent visual ladder. */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.totalContacts.toLocaleString()}</span>
       </td>
       {/* Funnel stages — number + "% of leads" rendered inline on a
           single line. Stacking the percentage below the number read
@@ -579,10 +588,12 @@ function OutreachRow({
         <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.interacted, o.totalContacts)}%</span>
       </td>
       {/* Qualified — bottom of the funnel and the headline metric.
-          One step heavier than the other stages so the eye lands
-          on the answer to "how is this outreach performing?". */}
+          Kept on the same weight/size ladder as the other funnel
+          numbers so nothing reads as accidentally bold; the column
+          itself (rightmost stage) and the % chip do the work of
+          calling attention to the outcome. */}
       <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15.5px] font-semibold text-text-primary">{o.qualified.toLocaleString()}</span>
+        <span className="text-[15px] font-medium text-text-primary">{o.qualified.toLocaleString()}</span>
         <span className="text-[10.5px] text-text-tertiary ml-2">{qualRate}%</span>
       </td>
       {/* Dates trail to the right — useful metadata but not the headline.
@@ -616,15 +627,10 @@ function OutreachRow({
   );
 }
 
-// Compute the fraction of an outreach's lifetime that falls inside the
-// selected time range. An outreach with 60 activity days viewed at "last 7d"
-// contributes 7/60; at "90d" it contributes 1 (cap). An outreach with 0 days
-// of activity (Scheduled) contributes 0. This keeps per-row numbers, the
-// aggregates, and the funnel internally consistent.
-function rangeShare(activityDays: number, rangeDays: number): number {
-  if (activityDays <= 0) return 0;
-  return Math.min(1, rangeDays / activityDays);
-}
+// `rangeShare` used to live here — it scaled an outreach's lifetime totals
+// by `rangeDays / activityDays` to fake a windowed view. We now derive
+// per-row numbers from each outreach's real daily fingerprint (see
+// daily-series.ts), so the scaling helper is no longer needed.
 
 // ── First-time landing ────────────────────────────────────────────────────
 // When the workspace has no outreaches yet, we skip the populated chrome
@@ -868,27 +874,38 @@ function PopulatedOutreach({
   const talktimeDelta  = periodTrend(dailyTalktime90d, days);
   const spendDelta     = periodTrend(dailySpend90d, days);
 
-  // Apply status filter, then scale every outreach's numbers to the period.
+  // Apply status filter, then derive each outreach's in-window numbers
+  // from its real daily fingerprint. Previously this multiplied the
+  // outreach's lifetime total by `rangeDays / activityDays` — a flat
+  // scaling that made 7d look like exactly half of 14d. Now we sum the
+  // actual per-day series within the requested window, so the numbers
+  // pick up real weekday/weekend variation and per-outreach launch
+  // timing (an outreach launched 3 days ago contributes only its 3
+  // most-recent days to a "Last 7 days" view, not 3/45 of its lifetime).
   const scaled = useMemo(() => {
+    const win = rangeWindowFromPreset(rangePreset);
     return allOutreach
       .filter(o => statusTab === "all" || o.status === statusTab)
       .map(o => {
-        const share = rangeShare(o.activityDays, days);
+        const agg = sumInRange(dailySeriesForOutreach(o.id), win);
         return {
           ...o,
-          totalContacts: Math.round(o.totalContacts * share),
-          called:        Math.round(o.called        * share),
-          connected:     Math.round(o.connected     * share),
-          interacted:    Math.round(o.interacted    * share),
-          qualified:     Math.round(o.qualified     * share),
-          talktimeMins:  Math.round(o.talktimeMins  * share),
-          spend:         Math.round(o.spend         * share),
-          // Hide rows with no activity in the selected period — they'd be
-          // entirely zero and confusing.
-          _hasActivity:  share > 0,
+          totalContacts: agg.newLeads,
+          called:        agg.calls,
+          connected:     agg.connected,
+          interacted:    agg.interacted,
+          qualified:     agg.qualified,
+          talktimeMins:  agg.talkMinutes,
+          spend:         agg.spend,
+          // Hide rows with no activity in the selected window. Real data
+          // can be zero for a draft outreach, an outreach whose entire
+          // active window predates the filter, or a completed outreach
+          // viewed at "Today" — surfacing them as all-zero rows would
+          // confuse the funnel scan.
+          _hasActivity:  agg.calls > 0 || agg.newLeads > 0,
         };
       });
-  }, [allOutreach, statusTab, days]);
+  }, [allOutreach, statusTab, rangePreset]);
 
   const visible = scaled.filter(o => o._hasActivity);
 
@@ -1104,11 +1121,13 @@ function PopulatedOutreach({
 
       {/* Status tabs — same segmented control pattern as /campaigns. Sits
           above the list so the user can narrow by lifecycle status in one
-          click without opening a popover. Tab order matches the lifecycle
-          (active → done → paused → upcoming). */}
+          click without opening a popover. Tab order puts the live states
+          first (Running → Paused → Completed) so the user can scan their
+          active work without their eye getting caught by Draft, which is
+          a pre-launch parking lot and lives at the far end of the strip. */}
       <motion.div variants={fadeUp} className="flex items-center mb-3">
         <div className="inline-flex items-center gap-0.5 bg-surface-secondary rounded-input p-0.5">
-          {(["all", "draft", "in_progress", "paused", "completed"] as const).map((s) => {
+          {(["all", "in_progress", "paused", "completed", "draft"] as const).map((s) => {
             const label =
               s === "all" ? "All" :
               s === "draft" ? "Draft" :

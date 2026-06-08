@@ -306,21 +306,10 @@ export function outreachesForProject(projectId: string): OutreachListItem[] {
   return outreachList.filter(o => o.projectId === projectId);
 }
 
-// 90 days of daily aggregates — one entry per day, oldest → newest. Used to
-// power the time-range filter on the Outreach list. Generated deterministically
-// at module-load so SSR and client get identical values.
-export const dailyTalktime90d: number[] = (() => {
-  const out: number[] = [];
-  for (let i = 0; i < 90; i++) {
-    // Gentle upward trend + sinusoidal weekly variation, clamped to >= 60.
-    const v = 200 + i * 4.5 + Math.sin(i * 0.6) * 80 + Math.cos(i * 0.25) * 40;
-    out.push(Math.max(60, Math.round(v)));
-  }
-  return out;
-})();
-
-// Spend tracks talktime at ~₹20 / min (Gupshup-equivalent voice rate).
-export const dailySpend90d: number[] = dailyTalktime90d.map((m) => m * 20);
+// dailyTalktime90d / dailySpend90d used to live here. They now derive
+// from the unified daily-series module (see ./daily-series.ts) so that
+// the workspace trend chip always agrees with what each row contributes.
+// Import them from "@/lib/daily-series" instead.
 
 export const voiceAgents = [
   { id: "va-1", name: "Vox" },
@@ -1827,40 +1816,28 @@ export function outreachDetailForId(id: string): OutreachDetail | null {
 }
 
 // 90-day per-outreach activity series, used by the KPI widgets on the
-// detail page so trend chips reflect the outreach the user is looking
-// at — not the workspace aggregate. Sums to roughly talktimeMins across
-// the most-recent `activityDays` days; older days are zero (the outreach
-// wasn't running yet). Scheduled outreaches return an all-zero series.
+// Per-outreach sparkline series. Both functions now derive from the
+// unified daily-series module — talktime and spend are independent fields
+// on each day's fingerprint, so the spend curve no longer has to be an
+// exact ₹20 × talktime multiple. That removes a tell that real call-centre
+// data wouldn't have (some calls connect but barely talk, etc.) and means
+// the spend trend chip can move differently from the talktime one.
 export function outreachDailyTalktimeForId(id: string): number[] {
-  const o = outreachList.find(x => x.id === id);
-  if (!o || o.activityDays === 0 || o.talktimeMins === 0) {
-    return new Array(90).fill(0);
-  }
-  const series = new Array(90).fill(0);
-  const activity = Math.min(o.activityDays, 90);
-  const s = _seed(id);
-  const raw: number[] = [];
-  let total = 0;
-  for (let i = 0; i < activity; i++) {
-    // Mild upward drift + per-id sinusoidal variation so two outreaches
-    // never produce identical-looking sparklines.
-    const v = 40 + i * 1.2 + Math.abs(Math.sin((s + i) * 0.27)) * 80 + Math.cos((s + i) * 0.13) * 25;
-    const clamped = Math.max(20, v);
-    raw.push(clamped);
-    total += clamped;
-  }
-  // Normalise so the series adds up to the outreach's lifetime talktime —
-  // keeps numerical consistency between the chart and the headline figure.
-  for (let i = 0; i < activity; i++) {
-    series[90 - activity + i] = Math.round((raw[i] / total) * o.talktimeMins);
-  }
-  return series;
+  return outreachDailySeriesForIdInternal(id).map((d) => d.talkMinutes);
 }
 
-// Spend tracks talktime at ~₹20 / min — same Gupshup-equivalent rate the
-// global series uses, just per-outreach now.
 export function outreachDailySpendForId(id: string): number[] {
-  return outreachDailyTalktimeForId(id).map(m => m * 20);
+  return outreachDailySeriesForIdInternal(id).map((d) => d.spend);
+}
+
+// Lazy delegation so the import cycle between daily-series.ts and this
+// file resolves cleanly — daily-series needs OutreachListItem, and
+// outreach-data is the canonical home for the legacy talktime/spend
+// shape exporters. Keeps both modules cycle-safe.
+function outreachDailySeriesForIdInternal(id: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { dailySeriesForOutreach } = require("./daily-series") as typeof import("./daily-series");
+  return dailySeriesForOutreach(id);
 }
 
 // CSV preview mock
