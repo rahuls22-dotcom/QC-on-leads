@@ -25,7 +25,6 @@ import type { MetricChartDef, MetricOption } from "@/components/shared/metric-ch
 import { format } from "date-fns";
 import {
   allLeads,
-  enquiryStats,
   campaignFilterOptions,
   leadStageLabels,
   leadStageColors,
@@ -152,22 +151,37 @@ const selectStyle = {
   backgroundPosition: "right 10px center",
 };
 
-// Lead metric trends
-const leadDates = Array.from({ length: 14 }, (_, i) => `Mar ${10 + i}`);
-const leadTrends: Record<string, MetricChartDef> = {
-  total: { key: "total", label: "Total Leads", unit: "number", data: Array.from({ length: 14 }, (_, i) => Math.round(780 + i * 5 + Math.random() * 15)) },
-  verified: { key: "verified", label: "Verified", unit: "number", data: Array.from({ length: 14 }, (_, i) => Math.round(120 + i * 1.5 + Math.random() * 5)) },
-  qualified: { key: "qualified", label: "Qualified", unit: "number", data: Array.from({ length: 14 }, (_, i) => Math.round(105 + i * 1.5 + Math.random() * 5)) },
-  notQualified: { key: "notQualified", label: "Not Qualified", unit: "number", data: Array.from({ length: 14 }, (_, i) => Math.round(380 + i * 2 + Math.random() * 10)) },
-  pending: { key: "pending", label: "Follow Up", unit: "number", data: Array.from({ length: 14 }, (_, i) => Math.round(280 + i * 2 + Math.random() * 8)) },
-};
-const leadMetricOptions: MetricOption[] = [
-  { key: "total", label: "Total Leads", category: "Leads", currentValue: "845" },
-  { key: "verified", label: "Verified", category: "Leads", currentValue: "142" },
-  { key: "qualified", label: "Qualified", category: "Leads", currentValue: "127" },
-  { key: "notQualified", label: "Not Qualified", category: "Leads", currentValue: "412" },
-  { key: "pending", label: "Follow Up", category: "Leads", currentValue: "306" },
-];
+// Date labels for the metric chart — the last 14 days ending today.
+// Was previously a static "Mar 10–23" array which never reflected
+// today's date; now anchored on `new Date()` so the chart's x-axis
+// always reads as "the past two weeks".
+function lastFourteenDayLabels(): string[] {
+  const today = new Date();
+  return Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (13 - i));
+    return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  });
+}
+
+// Distribute a total across a 14-day window with realistic shape —
+// weekday/weekend dip + small noise. Same pattern used by the daily-
+// series module on the outreach side. Total sums to roughly `count` so
+// the chart's max bar ≈ the headline number, which makes the visual
+// scale match the card without needing a separate axis spec.
+function shapeFourteenDays(count: number, seed: number): number[] {
+  if (count <= 0) return new Array(14).fill(0);
+  const weights: number[] = [];
+  for (let i = 0; i < 14; i++) {
+    const dow = (new Date().getDay() - (13 - i) + 14) % 7;
+    const isWeekend = dow === 0 || dow === 6;
+    const baseline = isWeekend ? 0.45 : 1;
+    const noise = 1 + (((seed * 31 + i * 17) % 100) / 100 - 0.5) * 0.3;
+    weights.push(baseline * noise);
+  }
+  const sumW = weights.reduce((a, b) => a + b, 0);
+  return weights.map((w) => Math.max(0, Math.round((w / sumW) * count)));
+}
 
 export default function EnquiriesPage() {
   const { isEmpty } = useDemoMode();
@@ -214,6 +228,43 @@ export default function EnquiriesPage() {
     page * PAGE_SIZE
   );
 
+  // Live metric counts derived from the filtered set. Was previously a
+  // hardcoded `enquiryStats` constant that never changed regardless of
+  // which filters the user applied — picking "Godrej Reflections" still
+  // showed "845 total leads" even though only a fraction of those were
+  // from that campaign. Now the cards reflect exactly what's in the
+  // table below them.
+  const counts = useMemo(() => {
+    const total        = filtered.length;
+    const verified     = filtered.filter((l) => l.verified).length;
+    const qualified    = filtered.filter((l) => l.aiQualification === "qualified").length;
+    const notQualified = filtered.filter((l) => l.aiQualification === "not_qualified").length;
+    const pending      = filtered.filter((l) => l.aiQualification === "pending").length;
+    return { total, verified, qualified, notQualified, pending };
+  }, [filtered]);
+
+  // Chart trends — distribute each count across the last 14 days using
+  // the shared shapeFourteenDays helper. Sum of each series ≈ that
+  // metric's count, so the chart's scale and the card's value never
+  // disagree. Date labels recompute too so the x-axis always reads as
+  // the actual past two weeks.
+  const leadDates  = useMemo(lastFourteenDayLabels, []);
+  const leadTrends = useMemo<Record<string, MetricChartDef>>(() => ({
+    total:        { key: "total",        label: "Total Leads",   unit: "number", data: shapeFourteenDays(counts.total,        1) },
+    verified:     { key: "verified",     label: "Verified",      unit: "number", data: shapeFourteenDays(counts.verified,     2) },
+    qualified:    { key: "qualified",    label: "Qualified",     unit: "number", data: shapeFourteenDays(counts.qualified,    3) },
+    notQualified: { key: "notQualified", label: "Not Qualified", unit: "number", data: shapeFourteenDays(counts.notQualified, 4) },
+    pending:      { key: "pending",      label: "Follow Up",     unit: "number", data: shapeFourteenDays(counts.pending,      5) },
+  }), [counts]);
+
+  const leadMetricOptions: MetricOption[] = useMemo(() => ([
+    { key: "total",        label: "Total Leads",   category: "Leads", currentValue: String(counts.total) },
+    { key: "verified",     label: "Verified",      category: "Leads", currentValue: String(counts.verified) },
+    { key: "qualified",    label: "Qualified",     category: "Leads", currentValue: String(counts.qualified) },
+    { key: "notQualified", label: "Not Qualified", category: "Leads", currentValue: String(counts.notQualified) },
+    { key: "pending",      label: "Follow Up",     category: "Leads", currentValue: String(counts.pending) },
+  ]), [counts]);
+
   return (
     <motion.div initial="hidden" animate="show" variants={fadeUp}>
       {/* Header */}
@@ -221,7 +272,7 @@ export default function EnquiriesPage() {
         <div>
           <div className="text-meta text-text-secondary mb-1">CRM</div>
           <h1 className="text-page-title text-text-primary">
-            Leads ({enquiryStats.total})
+            Leads ({counts.total})
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -253,19 +304,22 @@ export default function EnquiriesPage() {
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards — derived from `counts` (the filtered lead set).
+          Every card recomputes when the user changes campaign filter,
+          status filter, or search. Previously these read from a static
+          `enquiryStats` constant so they never moved. */}
       <div className="grid grid-cols-5 gap-2.5 mb-3">
-        <MetricCard label="Total" value={enquiryStats.total}
+        <MetricCard label="Total" value={counts.total}
           chartKey="total" isSelected={selectedMetrics.includes("total")} onToggle={toggleMetric} />
-        <MetricCard label="Verified" value={enquiryStats.verified}
-          subMetric={`${Math.round((enquiryStats.verified / enquiryStats.total) * 100)}% rate`}
+        <MetricCard label="Verified" value={counts.verified}
+          subMetric={counts.total > 0 ? `${Math.round((counts.verified / counts.total) * 100)}% rate` : "—"}
           chartKey="verified" isSelected={selectedMetrics.includes("verified")} onToggle={toggleMetric} />
-        <MetricCard label="Qualified" value={enquiryStats.qualified}
-          subMetric={`${Math.round((enquiryStats.qualified / enquiryStats.total) * 100)}% rate`}
+        <MetricCard label="Qualified" value={counts.qualified}
+          subMetric={counts.total > 0 ? `${Math.round((counts.qualified / counts.total) * 100)}% rate` : "—"}
           chartKey="qualified" isSelected={selectedMetrics.includes("qualified")} onToggle={toggleMetric} />
-        <MetricCard label="Not Qualified" value={enquiryStats.notQualified}
+        <MetricCard label="Not Qualified" value={counts.notQualified}
           chartKey="notQualified" isSelected={selectedMetrics.includes("notQualified")} onToggle={toggleMetric} />
-        <MetricCard label="Follow Up" value={enquiryStats.pending}
+        <MetricCard label="Follow Up" value={counts.pending}
           chartKey="pending" isSelected={selectedMetrics.includes("pending")} onToggle={toggleMetric} />
       </div>
 

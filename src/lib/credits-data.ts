@@ -172,6 +172,33 @@ export type Wallet = Module;
 // charts to look like flat random noise, so this combines a base level
 // with a slow weekly sine, a stronger Mon/Thu spike, and a per-wallet
 // seed offset so the three wallets don't move in lockstep.
+// AI Calling's daily wallet consumption equals the workspace outreach
+// voice spend for the same day — they describe the same underlying
+// activity (every minute of voice goes through outreach). Earlier the
+// wallet had its own independent random series, which meant the
+// dashboard / outreach spend numbers diverged from the wallet's
+// AI Calling row — a user reconciling "how much did I spend on voice
+// this month" would get different answers depending on which page they
+// were on. Pulling the series from daily-series.ts fixes that.
+//
+// Lazy-required to keep the credits-data ⇄ daily-series import order
+// safe (daily-series builds workspace aggregates at module load by
+// summing outreach data; credits-data also evaluates module data at
+// load — easier to dodge the cycle by reading the workspace series on
+// first access).
+function workspaceVoiceDaily(): { date: string; amount: number }[] {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { workspaceDailySeries } = require("./daily-series") as typeof import("./daily-series");
+  const series = workspaceDailySeries();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return series.map((d, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (series.length - 1 - i));
+    return { date: date.toISOString().slice(0, 10), amount: d.spend };
+  });
+}
+
 function generateDailySeries(
   base:     number,    // mean spend per day in rupees
   variance: number,    // amplitude of variation
@@ -368,20 +395,33 @@ export const MODULES: Module[] = [
     border:      "#DAE3DD",
     gradient:    "linear-gradient(135deg, #EFF3F0 0%, #DAE3DD 100%)",
     chartColor:  "#8AA395", // muted sage
-    // ~₹55K of the month's spend — biggest of the three. Voice minutes
-    // are the headline consumable for the agency, so this is where most
-    // of the ₹2L gets spent.
-    utilized:     55000,
+    // Wallet AI Calling lifetime/cycle totals derive from the workspace
+    // outreach spend — same activity, single source of truth. Hand-rolled
+    // utilization figures used to sit here (~₹55K) and they didn't agree
+    // with what the outreach pages reported (~₹148K in May). Derived
+    // figures are slightly higher but they actually match what the user
+    // sees elsewhere.
+    utilized:     (() => {
+      const daily = workspaceVoiceDaily();
+      // Last 30 days = the cycle window the rest of the wallet uses.
+      return daily.slice(-30).reduce((s, d) => s + d.amount, 0);
+    })(),
     capabilities: [
       {
         id:         "talktime",
         label:      "Talk time",
         icon:       PhoneCall,
-        // ₹4 per minute × 13,750 minutes ≈ ₹55,000 — roughly 220 hours
-        // of agent talktime across the month, in line with what the
-        // outreach pages report.
-        creditsUsed: 55000,
-        unitCount:   13750,
+        // ₹4 per minute. Credits = sum of last-30-day voice spend (linked
+        // to outreach). Units derive from that at the contracted rate so
+        // the per-minute count agrees with the spend column.
+        creditsUsed: (() => {
+          const daily = workspaceVoiceDaily();
+          return daily.slice(-30).reduce((s, d) => s + d.amount, 0);
+        })(),
+        unitCount:   (() => {
+          const daily = workspaceVoiceDaily();
+          return Math.round(daily.slice(-30).reduce((s, d) => s + d.amount, 0) / 4);
+        })(),
         unitLabel:   "min",
         rate:        4,
       },
@@ -399,7 +439,9 @@ export const MODULES: Module[] = [
     ],
     periodStart:  PERIOD_START,
     periodEnd:    PERIOD_END,
-    daily:        generateDailySeries(1800, 900, 2),
+    // Same source of truth as the outreach pages — each day's wallet
+    // consumption equals that day's workspace outreach spend.
+    daily:        workspaceVoiceDaily(),
   },
 ];
 
