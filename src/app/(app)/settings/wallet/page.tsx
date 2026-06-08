@@ -948,20 +948,6 @@ function WalletUsageChart() {
       >
         {WALLETS.map((w, i) => {
           const active = i === activeIdx;
-          // Per-tab range total — compute the product's unit total
-          // for the active range, using the same period→range ratio
-          // logic the active product uses. This keeps each tab's
-          // caption in units (e.g., "779 phones", "732 mins") and
-          // never reverts to rupees.
-          const tabRupees   = days.walletTotals[i] ?? 0;
-          const tabRatio    = w.utilized > 0 ? tabRupees / w.utilized : 0;
-          const wCaps       = w.capabilities.filter((c) => !c.included);
-          const tabUnits    = wCaps.reduce((s, c) => s + Math.round(c.unitCount * tabRatio), 0);
-          const firstUnit   = wCaps[0]?.unitLabel ?? "";
-          const allSameUnit = wCaps.every((c) => c.unitLabel === firstUnit);
-          const tabUnitLabel = allSameUnit
-            ? `${firstUnit}${tabUnits === 1 ? "" : "s"}`
-            : "actions";
           return (
             <button
               key={w.id}
@@ -980,9 +966,6 @@ function WalletUsageChart() {
                 style={{ background: w.chartColor, opacity: active ? 1 : 0.55 }}
               />
               <span>{w.name}</span>
-              <span className="text-[10.5px] text-text-tertiary tabular-nums">
-                {formatNum(tabUnits)} {tabUnitLabel}
-              </span>
               {active && (
                 <span
                   className="absolute bottom-[-1px] left-0 right-0 h-[2px]"
