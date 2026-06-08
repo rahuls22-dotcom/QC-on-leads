@@ -29,6 +29,7 @@ import {
   periodProgress,
   sliceDailyToRange,
   billingMonthOptions,
+  billingMonthFor,
   CURRENCIES,
   formatMoney,
 } from "@/lib/credits-data";
@@ -39,7 +40,7 @@ import { LowBalanceModal } from "@/components/wallet/low-balance-modal";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { TopUpEstimatorModal } from "@/components/wallet/top-up-estimator-modal";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
-import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown } from "lucide-react";
+import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 // The shared DateRangeSelector emits a preset string ("7", "30",
 // "thismonth", "lifetime", etc.). Our daily series is keyed by N-day
@@ -93,12 +94,42 @@ function BillingMonthSelector({
   options: BillingMonth[];
 }) {
   const [open, setOpen] = useState(false);
+  // The dropdown has two sub-views: the preset list (most recent six
+  // months) and the Custom picker (year navigation + 12-month grid).
+  // Default to the preset list when the menu opens; switch to picker
+  // when the user clicks "Custom…". Resets when the menu closes.
+  const [view, setView] = useState<"presets" | "custom">("presets");
+  const today = new Date();
+  // Picker year — starts at the year of the currently-selected month
+  // so the user can see where they are. Past months ≤ today are
+  // selectable; future months in the picker year are disabled (no
+  // billing data exists yet).
+  const selectedYear  = parseInt(value.id.slice(0, 4), 10);
+  const selectedMonth = parseInt(value.id.slice(5, 7), 10) - 1;
+  const [pickerYear, setPickerYear] = useState(selectedYear);
+
+  const close = () => {
+    setOpen(false);
+    // Defer view reset slightly so the user doesn't see it flip during
+    // the close animation.
+    setTimeout(() => setView("presets"), 150);
+  };
+
+  const monthShortNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => !o);
+          // When opening, snap the picker year back to the selected
+          // month's year so the user always starts where they are.
+          if (!open) setPickerYear(selectedYear);
+        }}
         className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong transition-colors duration-150"
       >
         <Calendar size={12} strokeWidth={1.75} className="text-text-tertiary" />
@@ -112,27 +143,116 @@ function BillingMonthSelector({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl py-1 min-w-[200px]">
-            {options.map((opt) => {
-              const isActive = opt.id === value.id;
-              return (
+          <div className="fixed inset-0 z-10" onClick={close} />
+          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl py-1 min-w-[240px]">
+            {view === "presets" ? (
+              <>
+                {options.map((opt) => {
+                  const isActive = opt.id === value.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(opt);
+                        close();
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
+                        isActive ? "bg-surface-secondary" : ""
+                      }`}
+                    >
+                      <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
+                      <span className="text-[11px] text-text-tertiary tabular-nums">{opt.range}</span>
+                    </button>
+                  );
+                })}
+                {/* Custom — only entry point for months in other years
+                    or months older than the preset window. Sits at the
+                    bottom of the list so the common case (this/last
+                    month) is one click away. */}
+                <div className="my-1 border-t border-border-subtle" />
                 <button
-                  key={opt.id}
                   type="button"
-                  onClick={() => {
-                    onChange(opt);
-                    setOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
-                    isActive ? "bg-surface-secondary" : ""
-                  }`}
+                  onClick={() => setView("custom")}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100"
                 >
-                  <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
-                  <span className="text-[11px] text-text-tertiary tabular-nums">{opt.range}</span>
+                  <span className="text-[12.5px] font-medium text-text-secondary">Custom…</span>
+                  <span className="text-[11px] text-text-tertiary">pick any month</span>
                 </button>
-              );
-            })}
+              </>
+            ) : (
+              <div className="p-2 w-[280px]">
+                {/* Year navigation — clamp forward at the current year
+                    (no point letting the user wander into 2027 when no
+                    data exists). No earliest year limit; old months will
+                    just show ₹0. */}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setView("presets")}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-text-tertiary hover:text-text-primary transition-colors duration-100"
+                  >
+                    <ChevronLeft size={11} strokeWidth={2} />
+                    Back
+                  </button>
+                  <div className="inline-flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setPickerYear((y) => y - 1)}
+                      className="w-6 h-6 inline-flex items-center justify-center rounded-[5px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors duration-100"
+                      aria-label="Previous year"
+                    >
+                      <ChevronLeft size={13} strokeWidth={2} />
+                    </button>
+                    <span className="text-[12.5px] font-semibold text-text-primary tabular-nums px-1.5 min-w-[44px] text-center">
+                      {pickerYear}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPickerYear((y) => Math.min(y + 1, today.getFullYear()))}
+                      disabled={pickerYear >= today.getFullYear()}
+                      className="w-6 h-6 inline-flex items-center justify-center rounded-[5px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors duration-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                      aria-label="Next year"
+                    >
+                      <ChevronRight size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 12-month grid. Months past today are disabled — no
+                    bill exists for a month that hasn't started. The
+                    currently-selected month gets a filled background;
+                    every other month gets a hover state only. */}
+                <div className="grid grid-cols-3 gap-1">
+                  {monthShortNames.map((m, idx) => {
+                    const isFuture =
+                        pickerYear > today.getFullYear()
+                     || (pickerYear === today.getFullYear() && idx > today.getMonth());
+                    const isSelected = pickerYear === selectedYear && idx === selectedMonth;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={isFuture}
+                        onClick={() => {
+                          onChange(billingMonthFor(pickerYear, idx));
+                          close();
+                        }}
+                        className={`h-8 rounded-[6px] text-[12px] font-medium transition-colors duration-100 ${
+                          isSelected
+                            ? "bg-text-primary text-white"
+                            : isFuture
+                              ? "text-text-tertiary/40 cursor-not-allowed"
+                              : "text-text-primary hover:bg-surface-secondary"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

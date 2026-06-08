@@ -507,53 +507,69 @@ export interface BillingMonth {
   offsetFromEnd: number;
 }
 
+// Build a BillingMonth for any (year, month) pair. Used by the Custom
+// picker on the Billing page when the user reaches for a month outside
+// the most-recent six. Same shape as billingMonthOptions returns, so
+// downstream code doesn't need a separate path for "custom" months.
+export function billingMonthFor(year: number, monthIdx: number): BillingMonth {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const monthStart = new Date(year, monthIdx, 1);
+  const monthEnd   = new Date(year, monthIdx + 1, 0);
+  monthEnd.setHours(0, 0, 0, 0);
+  const monthName  = monthStart.toLocaleDateString("en-IN", { month: "short" });
+
+  // Same labelling rules as the preset options — "This month" / "Last
+  // month" if the picked month matches, otherwise "MMM YYYY". That way
+  // a user who picks the current month via Custom gets the same label
+  // they'd see in the preset list.
+  const monthsAgo =
+      (today.getFullYear() - monthStart.getFullYear()) * 12
+    + (today.getMonth() - monthStart.getMonth());
+
+  const isCurrent  = monthsAgo === 0;
+  const isLast     = monthsAgo === 1;
+  const label =
+      isCurrent ? "This month"
+    : isLast    ? "Last month"
+    : `${monthName} ${monthStart.getFullYear()}`;
+
+  // For current month, the window ends today and only spans days-elapsed.
+  // For past months, the window covers the full month and slides back to
+  // end at month-end.
+  const days = isCurrent ? today.getDate() : monthEnd.getDate();
+  const offsetFromEnd = isCurrent
+    ? 0
+    : Math.round((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
+
+  const lastDay = isCurrent ? today.getDate() : monthEnd.getDate();
+  const range = `1 – ${lastDay} ${monthName}`;
+
+  return {
+    id: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`,
+    label,
+    range,
+    days,
+    offsetFromEnd,
+  };
+}
+
 // Returns the most recent `count` calendar months, newest first.
 // Index 0 is always the current month ("This month"); index 1 is
-// "Last month"; older months are labelled "MMM YYYY".
+// "Last month"; older months are labelled "MMM YYYY". Older or
+// other-year months are reachable via billingMonthFor (Custom picker
+// on the UI).
 export function billingMonthOptions(count: number = 6): BillingMonth[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const out: BillingMonth[] = [];
   for (let i = 0; i < count; i++) {
     const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const monthEnd   = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-    monthEnd.setHours(0, 0, 0, 0);
-    const isCurrent = i === 0;
-
-    // Window length:
-    //   current month  → days elapsed (1..today)
-    //   past month     → full month length
-    const days = isCurrent ? today.getDate() : monthEnd.getDate();
-
-    // Offset:
-    //   current month  → 0 (window ends today)
-    //   past month     → days from today back to month-end
-    const offsetFromEnd = isCurrent
-      ? 0
-      : Math.round((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
-
-    const monthName = monthStart.toLocaleDateString("en-IN", { month: "short" });
-    const yearShort = monthStart.getFullYear();
-    const label =
-      isCurrent ? "This month"
-      : i === 1 ? "Last month"
-      : `${monthName} ${yearShort}`;
-
-    // Secondary range string, e.g. "1 – 6 Jun" for partial current month,
-    // "1 – 31 May" for full past month. Compact and unambiguous.
-    const lastDay = isCurrent ? today.getDate() : monthEnd.getDate();
-    const range = `1 – ${lastDay} ${monthName}`;
-
-    out.push({
-      id: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`,
-      label,
-      range,
-      days,
-      offsetFromEnd,
-    });
+    out.push(billingMonthFor(monthStart.getFullYear(), monthStart.getMonth()));
   }
   return out;
 }
+
 
 // Module split — each module's spend as a share of the pool's utilized
 // portion. Drives the stacked utilization bar in the hero.
