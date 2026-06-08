@@ -24,21 +24,42 @@ export type BillingMode = "prepaid" | "postpaid";
 
 export type WalletBalanceState = "healthy" | "low" | "empty" | "expired";
 
-const MODE_KEY    = "revspot:billing-mode";
-const BALANCE_KEY = "revspot:wallet-balance-state";
+/**
+ * Prepaid sub-models:
+ *
+ * - "subscription": the org pays a fixed monthly fee (e.g. ₹2L) which
+ *   becomes the starting balance for the cycle. Usage draws against it.
+ *   If they run out before cycle close, they can recharge — top-up
+ *   credits accumulate on top of the plan baseline. New cycle resets
+ *   the plan (top-ups carry over).
+ *
+ * - "pure": the org just deposits whatever they want into a wallet and
+ *   spends it down. No fixed monthly fee, no plan baseline — only the
+ *   sum of their top-ups acts as the available balance.
+ *
+ * Postpaid ignores planType entirely.
+ */
+export type PrepaidPlanType = "subscription" | "pure";
+
+const MODE_KEY      = "revspot:billing-mode";
+const BALANCE_KEY   = "revspot:wallet-balance-state";
+const PLAN_TYPE_KEY = "revspot:prepaid-plan-type";
 
 interface BillingModeState {
   mode: BillingMode;
   balance: WalletBalanceState;
+  prepaidPlanType: PrepaidPlanType;
   hydrated: boolean;
   set: (m: BillingMode) => void;
   setBalance: (b: WalletBalanceState) => void;
+  setPrepaidPlanType: (p: PrepaidPlanType) => void;
   hydrate: () => void;
 }
 
 export const useBillingModeStore = create<BillingModeState>((set, get) => ({
   mode: "prepaid",
   balance: "healthy",
+  prepaidPlanType: "subscription",
   hydrated: false,
   set: (m) => {
     set({ mode: m });
@@ -52,16 +73,24 @@ export const useBillingModeStore = create<BillingModeState>((set, get) => ({
       window.localStorage.setItem(BALANCE_KEY, b);
     } catch { /* ignore */ }
   },
+  setPrepaidPlanType: (p) => {
+    set({ prepaidPlanType: p });
+    try {
+      window.localStorage.setItem(PLAN_TYPE_KEY, p);
+    } catch { /* ignore */ }
+  },
   hydrate: () => {
     if (get().hydrated) return;
     try {
       const rawMode = window.localStorage.getItem(MODE_KEY);
       const rawBal  = window.localStorage.getItem(BALANCE_KEY);
+      const rawPlan = window.localStorage.getItem(PLAN_TYPE_KEY);
       const patch: Partial<BillingModeState> = { hydrated: true };
       if (rawMode === "prepaid" || rawMode === "postpaid") patch.mode = rawMode;
       if (rawBal === "healthy" || rawBal === "low" || rawBal === "empty" || rawBal === "expired") {
         patch.balance = rawBal;
       }
+      if (rawPlan === "subscription" || rawPlan === "pure") patch.prepaidPlanType = rawPlan;
       set(patch as BillingModeState);
     } catch {
       set({ hydrated: true });

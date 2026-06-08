@@ -413,6 +413,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           drives the entire spend layout. */}
       <div className="flex items-center gap-6 flex-wrap">
         <BillingModeSwitch />
+        {billingMode === "prepaid" && <PrepaidPlanTypeSwitch />}
         {billingMode === "prepaid" && <BalanceStateDemoSwitch />}
       </div>
 
@@ -1335,6 +1336,50 @@ function BalanceStateDemoSwitch() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+//  PrepaidPlanTypeSwitch — demo control to flip between the two
+//  prepaid sub-models. "Subscription" is a fixed monthly fee (e.g.
+//  ₹50K/month) that sets the cycle's starting balance; in-cycle
+//  top-ups stack on top. "Pure" is just pay-as-you-go top-ups —
+//  there's no plan baseline, the balance IS whatever the org has
+//  deposited.
+// ────────────────────────────────────────────────────────────────────
+function PrepaidPlanTypeSwitch() {
+  const planType    = useBillingModeStore((s) => s.prepaidPlanType);
+  const setPlanType = useBillingModeStore((s) => s.setPrepaidPlanType);
+  const opts: { id: typeof planType; label: string }[] = [
+    { id: "subscription", label: "Subscription" },
+    { id: "pure",         label: "Pure prepaid" },
+  ];
+  return (
+    <div className="inline-flex items-center gap-2">
+      <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.4px]">
+        Plan type
+      </span>
+      <div className="inline-flex items-center bg-surface-secondary rounded-input p-0.5">
+        {opts.map((o) => {
+          const active = planType === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setPlanType(o.id)}
+              aria-pressed={active}
+              className={`h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] transition-colors ${
+                active
+                  ? "bg-white text-text-primary shadow-sm"
+                  : "text-text-tertiary hover:text-text-secondary"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
 //  PrepaidEmptyHero — takes the place of the normal balance card
 //  when the prepaid wallet is empty or expired. Hard-stops the
 //  spend story: big red number is the zero balance, secondary copy
@@ -1418,12 +1463,30 @@ function PrepaidBalanceHero({
   period: { daysLeft: number; end: Date };
   periodLabel: string;
 }) {
-  const planPct      = pool.totalCredits > 0 ? (rangeUtilized / pool.totalCredits) * 100 : 0;
-  const remainingPct = pool.totalCredits > 0 ? (pool.remaining / pool.totalCredits) * 100 : 0;
-  const usedPct      = Math.max(0, Math.min(100, 100 - remainingPct));
-  // Colour the utilization bar by remaining headroom so finance can
-  // see at a glance whether a top-up is imminent. Mirrors the spend-
-  // cap tones on the postpaid hero for consistency.
+  // Prepaid plan type drives the layout. "subscription" shows the
+  // breakdown of a fixed monthly fee + any in-cycle top-ups; "pure"
+  // collapses to a simpler balance + used view since there's no plan
+  // baseline to compare against.
+  const planType = useBillingModeStore((s) => s.prepaidPlanType);
+
+  // Demo numbers. In a real backend these would come from the billing
+  // ledger; here we derive them from the static poolSummary so they
+  // stay consistent with the rest of the page.
+  // - Subscription: planBaseline = the fixed monthly fee (treat the
+  //   existing totalCredits as the subscription amount).
+  //   topupBalance = additional credits the org added mid-cycle.
+  // - Pure: planBaseline = 0; topupBalance = total deposited so far.
+  const planBaseline = planType === "subscription" ? pool.totalCredits : 0;
+  const topupBalance = planType === "subscription" ? 20000 : pool.totalCredits;
+  const totalAvailable = planBaseline + topupBalance;
+
+  // Used + remaining are computed off the combined available pool so
+  // the math ties out: used + remaining = totalAvailable.
+  const used         = rangeUtilized;
+  const remaining    = Math.max(0, totalAvailable - used);
+  const usedPct      = totalAvailable > 0
+    ? Math.max(0, Math.min(100, (used / totalAvailable) * 100))
+    : 0;
   const barTone =
       usedPct >= 90 ? "#DC2626"
     : usedPct >= 75 ? "#D97706"
@@ -1431,57 +1494,120 @@ function PrepaidBalanceHero({
 
   return (
     <div className="bg-white border border-border rounded-card p-5">
-      {/* Top row — period chip + days left */}
+      {/* Top row — cycle chip + days left + reset date */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Calendar size={13} strokeWidth={1.6} className="text-text-tertiary" />
-          <span className="text-[12px] font-medium text-text-secondary">Current period</span>
+          <span className="text-[12px] font-medium text-text-secondary">Current cycle</span>
           <span className="text-[12px] text-text-primary font-medium">{periodLabel}</span>
         </div>
         <span className="text-[11px] font-medium text-text-tertiary">
-          <span className="text-text-secondary">{period.daysLeft}</span> days left · resets {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
+          <span className="text-text-secondary">{period.daysLeft}</span> days left · {planType === "subscription" ? "renews" : "resets"} {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
         </span>
       </div>
 
-      {/* Hero numbers — range spend on the left, remaining on the
-          right. Two-up grid so the user reads "spent / left" without
-          scrolling. */}
-      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5 items-end mb-4">
-        <div>
-          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-            Spend in last {range} days
-          </p>
-          <p
-            className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {formatAmount(rangeUtilized, "INR")}
-          </p>
-          <p className="text-[11.5px] text-text-tertiary mt-1.5 tabular-nums">
-            {planPct.toFixed(1)}% of your {formatAmountShort(pool.totalCredits, "INR")} plan
-          </p>
+      {/* Four-column breakdown for subscription, two-column for pure
+          prepaid. The whole row tells the budget story in one read:
+          how much money came in (plan + top-ups), how much went out
+          (used), and what's left. */}
+      {planType === "subscription" ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-4">
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Monthly plan
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
+              {formatAmount(planBaseline, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1.5">
+              charged on cycle start
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Top-ups this cycle
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
+              {topupBalance > 0 ? `+ ${formatAmount(topupBalance, "INR")}` : formatAmount(0, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1.5">
+              added via recharge
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Used in last {range} days
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
+              {formatAmount(used, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1.5 tabular-nums">
+              {usedPct.toFixed(1)}% of available
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Remaining
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
+              {formatAmount(remaining, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1.5">
+              available now
+            </p>
+          </div>
         </div>
-        <div className="text-left md:text-right">
-          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-            Remaining
-          </p>
-          <p className="text-[20px] font-semibold text-text-primary tabular-nums">
-            {formatAmount(pool.remaining, "INR")}
-          </p>
-          <p className="text-[11px] text-text-tertiary mt-1 tabular-nums">
-            resets in {period.daysLeft} days
-          </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5 items-end mb-4">
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Used in last {range} days
+            </p>
+            <p
+              className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {formatAmount(used, "INR")}
+            </p>
+            <p className="text-[11.5px] text-text-tertiary mt-1.5 tabular-nums">
+              {usedPct.toFixed(1)}% of your {formatAmountShort(totalAvailable, "INR")} top-up balance
+            </p>
+          </div>
+          <div className="text-left md:text-right">
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Remaining
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary tabular-nums">
+              {formatAmount(remaining, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1">
+              top up to extend runway
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Utilization bar — fills with the % of plan used. Colour
-          escalates from grey → amber → red as the org approaches
-          the ceiling. */}
+      {/* Single progress bar — fraction of available pool that's been
+          used. Colour escalates from grey → amber → red as the org
+          approaches the ceiling. */}
       <div className="h-2.5 rounded-full bg-surface-secondary overflow-hidden">
         <div
           className="h-full transition-all"
           style={{ width: `${usedPct.toFixed(2)}%`, background: barTone }}
         />
+      </div>
+
+      {/* Math footer — used/total to make the ratio explicit. Helps
+          the user reconcile the columns above with the bar. */}
+      <div className="flex items-center justify-between mt-2 text-[10.5px] text-text-tertiary tabular-nums">
+        <span>
+          <span className="text-text-secondary font-medium">{formatAmount(used, "INR")}</span> used
+          {" "}of{" "}
+          <span className="text-text-secondary font-medium">{formatAmount(totalAvailable, "INR")}</span> available
+        </span>
+        <span>
+          {usedPct.toFixed(0)}%
+        </span>
       </div>
     </div>
   );
