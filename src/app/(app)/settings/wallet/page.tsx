@@ -1832,15 +1832,6 @@ function BillingSpendHero({
   period: { daysLeft: number; end: Date };
   periodLabel: string;
 }) {
-  // Spend cap is a postpaid-only concept — a hard ceiling at which
-  // dialing auto-pauses so the org doesn't get a surprise invoice.
-  const cycleCap = 50000;
-  const capPct = Math.min(100, (rangeUtilized / cycleCap) * 100);
-  const capTone =
-      capPct >= 90 ? "#DC2626"
-    : capPct >= 75 ? "#D97706"
-    : "rgba(15, 23, 42, 0.85)";
-
   return (
     <div className="bg-white border border-border rounded-card p-5">
       {/* Top row — period chip + supporting meta. For postpaid we
@@ -1861,52 +1852,30 @@ function BillingSpendHero({
         )}
       </div>
 
-      {/* Hero numbers. Spent-in-range is the headline for both modes.
-          Postpaid also shows the spend cap on the right; prepaid
-          gets a wider headline column since there's no cap meter. */}
-      <div className={`grid grid-cols-1 ${billingMode === "postpaid" ? "md:grid-cols-[2fr_1fr]" : ""} gap-5 items-end mb-4`}>
-        <div>
-          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-            {billingMode === "postpaid"
-              ? "Estimated bill this cycle"
-              : rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`}
-          </p>
-          <p
-            className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {formatAmount(rangeUtilized, "INR")}
-          </p>
-          <p className="text-[11.5px] text-text-tertiary mt-1.5">
-            {billingMode === "postpaid"
-              ? <>Invoiced on {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}. You&apos;ll be charged exactly what you use.</>
-              : "Drawn from your prepaid balance over this window."}
-          </p>
-        </div>
-        {billingMode === "postpaid" && (
-          <div className="text-left md:text-right">
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Spend cap
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary tabular-nums">
-              {formatAmount(cycleCap, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1 tabular-nums">
-              {capPct.toFixed(0)}% used · auto-pause at cap
-            </p>
-          </div>
-        )}
+      {/* Hero number — just the bill. Postpaid is "you pay for exactly
+          what you used", so there's no balance / cap / remaining bar
+          to draw against. Earlier this card surfaced a spend-cap with a
+          progress bar, which read as a "remaining" metaphor and didn't
+          fit the postpaid mental model. Spend caps still exist as an
+          admin guardrail; they live elsewhere in the admin surface. */}
+      <div>
+        <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+          {billingMode === "postpaid"
+            ? "Estimated bill this cycle"
+            : rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`}
+        </p>
+        <p
+          className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatAmount(rangeUtilized, "INR")}
+        </p>
+        <p className="text-[11.5px] text-text-tertiary mt-1.5">
+          {billingMode === "postpaid"
+            ? <>Invoiced on {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}. You&apos;ll be charged exactly what you use.</>
+            : "Drawn from your prepaid balance over this window."}
+        </p>
       </div>
-
-      {/* Spend-cap progress bar — only renders for postpaid. */}
-      {billingMode === "postpaid" && (
-        <div className="h-2.5 rounded-full bg-surface-secondary overflow-hidden">
-          <div
-            className="h-full transition-all"
-            style={{ width: `${capPct.toFixed(2)}%`, background: capTone }}
-          />
-        </div>
-      )}
     </div>
   );
 }
