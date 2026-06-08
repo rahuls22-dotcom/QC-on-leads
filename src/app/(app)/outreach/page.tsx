@@ -9,7 +9,14 @@ import {
   ChevronDown, Upload, Bot, TrendingDown, Trophy, CalendarDays,
   Rocket, X, Pencil,
 } from "lucide-react";
-import { outreachList, dailyTalktime90d, dailySpend90d } from "@/lib/outreach-data";
+import { outreachList } from "@/lib/outreach-data";
+import {
+  dailyTalktime90d,
+  dailySpend90d,
+  dailySeriesForOutreach,
+  rangeWindowFromPreset,
+  sumInRange,
+} from "@/lib/daily-series";
 import type { OutreachStatus, OutreachListItem } from "@/lib/outreach-data";
 import { useDemoMode } from "@/lib/demo-mode";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
@@ -80,7 +87,12 @@ function StatusPill({ status }: { status: OutreachStatus }) {
     in_progress: { label: "Running",   cls: "bg-[#F0FDF4] text-[#15803D]" },
     completed:   { label: "Completed", cls: "bg-surface-secondary text-text-secondary" },
     paused:      { label: "Paused",    cls: "bg-[#FEF3C7] text-[#92400E]" },
-    scheduled:   { label: "Scheduled", cls: "bg-[#EFF6FF] text-[#1D4ED8]" },
+    // "Draft" replaces the old "Scheduled" pill. A draft outreach is
+    // one that's been created but doesn't have an audience yet, so it
+    // cannot run. Visually demoted (subtle slate) to read as
+    // unfinished work rather than something that's queued and about
+    // to start.
+    draft:       { label: "Draft",     cls: "bg-surface-secondary text-text-tertiary" },
   };
   const { label, cls } = cfg[status];
   return (
@@ -320,10 +332,10 @@ function PerformanceFunnel({
 
 // ── Status multi-select filter ──────────────────────────────────────────────
 const STATUS_OPTS: { value: OutreachStatus; label: string; dot: string }[] = [
+  { value: "draft",       label: "Draft",     dot: "#94A3B8" },
   { value: "in_progress", label: "Running",   dot: "#22C55E" },
   { value: "paused",      label: "Paused",    dot: "#F59E0B" },
   { value: "completed",   label: "Completed", dot: "#3B82F6" },
-  { value: "scheduled",   label: "Scheduled", dot: "#A855F7" },
 ];
 
 // Status filter — three useful states only: all selected, multi-select,
@@ -549,18 +561,40 @@ function OutreachRow({
       <td className="px-3 py-3">
         <StatusPill status={o.status} />
       </td>
-      <td className="px-3 py-3 text-right text-[13px] tabular-nums text-text-primary">
-        {o.totalContacts.toLocaleString()}
+      {/* Leads — top of the funnel, no rate beside it (it IS the
+          baseline that everything else divides by). Same weight/size
+          as the other funnel numbers so the column reads as one
+          consistent visual ladder. */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.totalContacts.toLocaleString()}</span>
       </td>
-      <td className="px-3 py-3 text-right text-[13px] tabular-nums text-text-primary">
-        {o.qualified.toLocaleString()}
+      {/* Funnel stages — number + "% of leads" rendered inline on a
+          single line. Stacking the percentage below the number read
+          as visual noise; pushing it beside the number keeps each
+          cell to one line and lets the column scan vertically as
+          plain numbers. Rates are all vs. the top of the funnel
+          (Leads), not stage-over-stage — each column reads "how
+          many of my leads made it this far?". */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.called.toLocaleString()}</span>
+        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.called, o.totalContacts)}%</span>
       </td>
-      {/* Qual rate — the headline metric. Bolder so the eye lands on the
-          answer to "how is this outreach performing?". */}
-      <td className="px-3 py-3 text-right">
-        <span className="text-[14px] font-semibold tabular-nums text-text-primary">
-          {qualRate}%
-        </span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.connected.toLocaleString()}</span>
+        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.connected, o.totalContacts)}%</span>
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.interacted.toLocaleString()}</span>
+        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.interacted, o.totalContacts)}%</span>
+      </td>
+      {/* Qualified — bottom of the funnel and the headline metric.
+          Kept on the same weight/size ladder as the other funnel
+          numbers so nothing reads as accidentally bold; the column
+          itself (rightmost stage) and the % chip do the work of
+          calling attention to the outcome. */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[15px] font-medium text-text-primary">{o.qualified.toLocaleString()}</span>
+        <span className="text-[10.5px] text-text-tertiary ml-2">{qualRate}%</span>
       </td>
       {/* Dates trail to the right — useful metadata but not the headline.
           Created / Updated sit together so the user can read them as a
@@ -593,15 +627,10 @@ function OutreachRow({
   );
 }
 
-// Compute the fraction of an outreach's lifetime that falls inside the
-// selected time range. An outreach with 60 activity days viewed at "last 7d"
-// contributes 7/60; at "90d" it contributes 1 (cap). An outreach with 0 days
-// of activity (Scheduled) contributes 0. This keeps per-row numbers, the
-// aggregates, and the funnel internally consistent.
-function rangeShare(activityDays: number, rangeDays: number): number {
-  if (activityDays <= 0) return 0;
-  return Math.min(1, rangeDays / activityDays);
-}
+// `rangeShare` used to live here — it scaled an outreach's lifetime totals
+// by `rangeDays / activityDays` to fake a windowed view. We now derive
+// per-row numbers from each outreach's real daily fingerprint (see
+// daily-series.ts), so the scaling helper is no longer needed.
 
 // ── First-time landing ────────────────────────────────────────────────────
 // When the workspace has no outreaches yet, we skip the populated chrome
@@ -845,27 +874,38 @@ function PopulatedOutreach({
   const talktimeDelta  = periodTrend(dailyTalktime90d, days);
   const spendDelta     = periodTrend(dailySpend90d, days);
 
-  // Apply status filter, then scale every outreach's numbers to the period.
+  // Apply status filter, then derive each outreach's in-window numbers
+  // from its real daily fingerprint. Previously this multiplied the
+  // outreach's lifetime total by `rangeDays / activityDays` — a flat
+  // scaling that made 7d look like exactly half of 14d. Now we sum the
+  // actual per-day series within the requested window, so the numbers
+  // pick up real weekday/weekend variation and per-outreach launch
+  // timing (an outreach launched 3 days ago contributes only its 3
+  // most-recent days to a "Last 7 days" view, not 3/45 of its lifetime).
   const scaled = useMemo(() => {
+    const win = rangeWindowFromPreset(rangePreset);
     return allOutreach
       .filter(o => statusTab === "all" || o.status === statusTab)
       .map(o => {
-        const share = rangeShare(o.activityDays, days);
+        const agg = sumInRange(dailySeriesForOutreach(o.id), win);
         return {
           ...o,
-          totalContacts: Math.round(o.totalContacts * share),
-          called:        Math.round(o.called        * share),
-          connected:     Math.round(o.connected     * share),
-          interacted:    Math.round(o.interacted    * share),
-          qualified:     Math.round(o.qualified     * share),
-          talktimeMins:  Math.round(o.talktimeMins  * share),
-          spend:         Math.round(o.spend         * share),
-          // Hide rows with no activity in the selected period — they'd be
-          // entirely zero and confusing.
-          _hasActivity:  share > 0,
+          totalContacts: agg.newLeads,
+          called:        agg.calls,
+          connected:     agg.connected,
+          interacted:    agg.interacted,
+          qualified:     agg.qualified,
+          talktimeMins:  agg.talkMinutes,
+          spend:         agg.spend,
+          // Hide rows with no activity in the selected window. Real data
+          // can be zero for a draft outreach, an outreach whose entire
+          // active window predates the filter, or a completed outreach
+          // viewed at "Today" — surfacing them as all-zero rows would
+          // confuse the funnel scan.
+          _hasActivity:  agg.calls > 0 || agg.newLeads > 0,
         };
       });
-  }, [allOutreach, statusTab, days]);
+  }, [allOutreach, statusTab, rangePreset]);
 
   const visible = scaled.filter(o => o._hasActivity);
 
@@ -898,10 +938,10 @@ function PopulatedOutreach({
   const statusCounts = useMemo(() => {
     const counts: Record<OutreachStatus | "all", number> = {
       all:         allOutreach.length,
+      draft:       0,
       in_progress: 0,
       completed:   0,
       paused:      0,
-      scheduled:   0,
     };
     for (const o of allOutreach) counts[o.status]++;
     return counts;
@@ -988,9 +1028,9 @@ function PopulatedOutreach({
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold text-green-800">
               {justLaunched.needsAudience
-                ? "Outreach created — add an audience to start calling"
-                : justLaunched.status === "scheduled"
-                  ? "Scheduled — your outreach is queued"
+                ? "Outreach saved as draft — add an audience to start calling"
+                : justLaunched.status === "draft"
+                  ? "Saved as draft — add an audience to start calling"
                   : "Launched — your outreach is live"}
             </div>
             <div className="text-[11.5px] text-green-700 mt-0.5 truncate">
@@ -1001,7 +1041,7 @@ function PopulatedOutreach({
                 : (
                   <>
                     {" · "}{justLaunched.totalContacts.toLocaleString()} leads
-                    {justLaunched.status === "scheduled" && justLaunched.startDate
+                    {justLaunched.status === "draft" && justLaunched.startDate
                       ? ` · starts ${justLaunched.startDate}${justLaunched.startTime ? ` at ${justLaunched.startTime}` : ""}`
                       : " — dialing has begun"}
                   </>
@@ -1042,10 +1082,11 @@ function PopulatedOutreach({
         </div>
       </motion.div>
 
-      {/* Row 1: Spot Insights — full width, 4 insights horizontal */}
-      <motion.div variants={fadeUp} className="mb-4">
-        <SpotInsightsWidget insights={insights} />
-      </motion.div>
+      {/* Spot Insights widget removed — we're not introducing Spot in
+          this iteration. The widget code still lives in this file
+          (commented out below for the empty state, and kept defined as
+          SpotInsightsWidget) in case we bring it back; nothing
+          renders on the listing while Spot is paused. */}
 
       {/* Row 2: aggregate widgets — Talktime / Spend / Performance funnel.
           4-col grid mirrors the detail page so Talktime + Spend stay the
@@ -1080,17 +1121,19 @@ function PopulatedOutreach({
 
       {/* Status tabs — same segmented control pattern as /campaigns. Sits
           above the list so the user can narrow by lifecycle status in one
-          click without opening a popover. Tab order matches the lifecycle
-          (active → done → paused → upcoming). */}
+          click without opening a popover. Tab order puts the live states
+          first (Running → Paused → Completed) so the user can scan their
+          active work without their eye getting caught by Draft, which is
+          a pre-launch parking lot and lives at the far end of the strip. */}
       <motion.div variants={fadeUp} className="flex items-center mb-3">
         <div className="inline-flex items-center gap-0.5 bg-surface-secondary rounded-input p-0.5">
-          {(["all", "in_progress", "completed", "paused", "scheduled"] as const).map((s) => {
+          {(["all", "in_progress", "paused", "completed", "draft"] as const).map((s) => {
             const label =
               s === "all" ? "All" :
+              s === "draft" ? "Draft" :
               s === "in_progress" ? "Running" :
-              s === "completed" ? "Completed" :
               s === "paused" ? "Paused" :
-              "Scheduled";
+              "Completed";
             const count = statusCounts[s];
             const isActive = statusTab === s;
             return (
@@ -1137,14 +1180,26 @@ function PopulatedOutreach({
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-left">
                   Status
                 </th>
+                {/* Funnel columns — Leads is the top of the funnel,
+                    then Dialed / Connected / Interacted / Qualified
+                    narrow into the bottom. Each cell renders both the
+                    absolute number and the stage's conversion rate vs
+                    the top, so the user can scan the funnel shape per
+                    outreach without opening the detail page. */}
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
                   Leads
                 </th>
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
-                  Qualified
+                  Dialed
                 </th>
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
-                  Qual %
+                  Connected
+                </th>
+                <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
+                  Interacted
+                </th>
+                <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
+                  Qualified
                 </th>
                 <th className="pl-6 pr-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-left">
                   Created on

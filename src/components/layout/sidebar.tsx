@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid,
   FolderKanban,
@@ -35,27 +35,38 @@ import { useSpotStore } from "@/lib/spot/store";
 import { SpotMark } from "@/components/spot/spot-mark";
 import { WorkspaceSwitcher, UserRolePill } from "@/components/layout/workspace-switcher";
 import { useCurrentUser } from "@/lib/workspace-store";
+import { poolSummary } from "@/lib/credits-data";
+import { useBillingModeStore } from "@/lib/billing-mode-store";
 
 const dashboardItem = { name: "Dashboard", href: "/dashboard", icon: LayoutGrid };
 
-// Wallet — representative balance shown in the sidebar so the user always
-// knows how much head-room they have before they need to top up.
-const WALLET = {
-  totalMinutes: 5000,
-  usedMinutes:  3250,
-  rupeesPerMinute: 8,
-};
-
+// Compact Indian-grouped rupee formatter for the sidebar widget — same
+// "1.5K" / "2L" scheme the wallet page hero uses so the two readings
+// agree at a glance.
 function formatInrShort(n: number): string {
   if (n >= 100000) return `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
   if (n >= 1000)   return `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K`;
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
+// Sidebar wallet — drives the user's "do I still have head-room?" check
+// without leaving whatever page they're on. The numbers all come from the
+// same poolSummary() that backs the full wallet page, so the sidebar
+// reading and the /settings/wallet reading never disagree.
+//
+// Visible whenever billing mode is prepaid, regardless of which products
+// the workspace owns (enrichment-only, calling-only, or the full plan).
+// Postpaid orgs have no balance to manage, so the widget hides itself.
+// Calling is always-prepaid by design, so the widget is effectively
+// always-on for calling-only customers.
 function WalletWidget() {
-  const { totalMinutes, usedMinutes, rupeesPerMinute } = WALLET;
-  const remaining = Math.max(0, totalMinutes - usedMinutes);
-  const pctUsed = totalMinutes > 0 ? Math.min(100, (usedMinutes / totalMinutes) * 100) : 0;
+  const router = useRouter();
+  const pool   = poolSummary();
+  const used      = pool.utilized;
+  const total     = pool.totalCredits;
+  const pctUsed   = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+  // Tone escalates only when the balance is genuinely close to empty, so
+  // the colour means something when it appears.
   const tone =
       pctUsed >= 90 ? { bar: "#DC2626", text: "text-[#DC2626]" }
     : pctUsed >= 75 ? { bar: "#D97706", text: "text-[#92400E]" }
@@ -63,7 +74,11 @@ function WalletWidget() {
 
   return (
     <div className="px-3 pb-2">
-      <div className="rounded-[8px] border border-border-subtle bg-white px-2.5 py-2">
+      <button
+        type="button"
+        onClick={() => router.push("/settings/utilization")}
+        className="w-full text-left rounded-[8px] border border-border-subtle bg-white hover:border-text-tertiary hover:shadow-sm transition-all px-2.5 py-2"
+      >
         <div className="flex items-center gap-1.5 mb-1.5">
           <Wallet size={11} strokeWidth={1.75} className="text-text-tertiary shrink-0" />
           <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">Wallet</span>
@@ -77,22 +92,28 @@ function WalletWidget() {
             style={{ width: `${pctUsed.toFixed(1)}%`, background: tone.bar }}
           />
         </div>
+        {/* Used / total in pure ₹. All denominations on this widget are
+            rupees — no credits, no minutes — so the sidebar reading
+            matches what the wallet page shows for the same workspace. */}
         <div className="flex items-center justify-between mt-1.5 text-[10px] tabular-nums">
           <span className="text-text-tertiary">
-            <span className="text-text-secondary font-medium">{usedMinutes.toLocaleString()}</span>
+            <span className="text-text-secondary font-medium">{formatInrShort(used)}</span>
             <span className="mx-0.5">/</span>
-            {totalMinutes.toLocaleString()} min
+            {formatInrShort(total)}
           </span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 text-[10px] font-medium text-text-primary hover:underline"
-            title={`${remaining.toLocaleString()} min · ${formatInrShort(remaining * rupeesPerMinute)} left`}
+          <span
+            role="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push("/settings/utilization");
+            }}
+            className="inline-flex items-center gap-0.5 text-[10px] font-medium text-text-primary hover:underline cursor-pointer"
           >
             <Plus size={9} strokeWidth={2.5} />
             Top up
-          </button>
+          </span>
         </div>
-      </div>
+      </button>
     </div>
   );
 }
@@ -159,6 +180,17 @@ export function Sidebar() {
   const askSpot = useSpotStore((s) => s.askSpot);
   const spotOpen = useSpotStore((s) => s.open);
   const user = useCurrentUser();
+
+  // Billing mode drives whether the sidebar wallet widget renders.
+  // Prepaid orgs have a balance to track and a top-up flow; postpaid
+  // orgs don't have a wallet to manage, so the widget would only
+  // surface a meaningless bar — hidden entirely for them. Calling-only
+  // workspaces are always prepaid by product design, so the widget is
+  // effectively always-on for that customer profile.
+  const billingMode    = useBillingModeStore((s) => s.mode);
+  const hydrateBilling = useBillingModeStore((s) => s.hydrate);
+  useEffect(() => { hydrateBilling(); }, [hydrateBilling]);
+  const showWalletWidget = billingMode === "prepaid";
 
   // Manual expand/collapse overrides per parent href. `undefined` = follow the
   // route default (expanded when current path is under the parent). Toggling the
@@ -381,8 +413,11 @@ export function Sidebar() {
 
       </nav>
 
-      {/* Wallet — always visible above the demo controls. */}
-      <WalletWidget />
+      {/* Wallet — visible whenever billing mode is prepaid, across all
+          product entitlements (enrichment-only, calling-only, full
+          plan). Postpaid orgs hide it entirely since there's no
+          balance to manage. */}
+      {showWalletWidget && <WalletWidget />}
 
       {/* Demo mode toggles */}
       <div className="px-3 pb-2 space-y-1.5">

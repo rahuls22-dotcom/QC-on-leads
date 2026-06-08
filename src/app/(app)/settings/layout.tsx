@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Sparkles, Wallet, CreditCard, Plug } from "lucide-react";
+import { Building2, Sparkles, BarChart3, CreditCard, Plug } from "lucide-react";
 
 const ACCOUNT_NAV = [
   { name: "Agency", href: "/settings/agency", icon: Building2 },
   { name: "Workspace", href: "/settings/workspace", icon: Sparkles },
-  { name: "Wallet", href: "/settings/wallet", icon: Wallet },
+  // "Utilization" is the home for balance + consumption. The route is
+  // /settings/utilization so the URL matches the label; the legacy
+  // /settings/wallet route still works but isn't surfaced in the nav.
+  { name: "Utilization", href: "/settings/utilization", icon: BarChart3 },
   { name: "Billing", href: "/settings/billing", icon: CreditCard },
 ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
@@ -15,6 +15,17 @@ import {
   voiceAgentMetrics,
   disqualificationReasons,
 } from "@/lib/mock-data";
+import { outreachList } from "@/lib/outreach-data";
+import {
+  workspaceDailySeries,
+  rangeWindowFromPreset,
+  prevWindow,
+  sumInRange,
+  sliceRange,
+  pctChange,
+  safeRatio,
+  SERIES_LENGTH,
+} from "@/lib/daily-series";
 import { GettingStartedChecklist } from "@/components/dashboard/getting-started";
 import { IllustrationCampaigns, IllustrationAgents, IllustrationProjects, IllustrationLeads } from "@/components/illustrations/empty-states";
 import { useDemoMode } from "@/lib/demo-mode";
@@ -31,49 +42,18 @@ const fadeUp: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
 };
 
-// ── Trend Data ──────────────────────────────────────────────
-const dates = Array.from({ length: 14 }, (_, i) => `Mar ${10 + i}`);
-
-function makeTrend(start: number, end: number) {
-  return Array.from({ length: 14 }, (_, i) => {
-    const progress = i / 13;
-    return Math.round((start + (end - start) * progress + (Math.random() * start * 0.05 - start * 0.025)) * 10) / 10;
-  });
-}
-
-const dashboardTrends: Record<string, MetricChartDef> = {
-  activeCampaigns: { key: "activeCampaigns", label: "Active Campaigns", unit: "number", data: makeTrend(7, 9) },
-  spends: { key: "spends", label: "Spends", unit: "currency", data: makeTrend(540000, 680000) },
-  totalLeads: { key: "totalLeads", label: "Total Leads", unit: "number", data: makeTrend(754, 845) },
-  verifiedLeads: { key: "verifiedLeads", label: "Verified Leads", unit: "number", data: makeTrend(104, 127) },
-  qualifiedLeads: { key: "qualifiedLeads", label: "Qualified Leads", unit: "number", data: makeTrend(63, 68) },
-  cpl: { key: "cpl", label: "CPL", unit: "currency", data: makeTrend(1245, 1183) },
-  cpvl: { key: "cpvl", label: "CPVL", unit: "currency", data: makeTrend(5192, 5354) },
-  cpql: { key: "cpql", label: "CPQL", unit: "currency", data: makeTrend(9524, 10000) },
-  verificationRate: { key: "verificationRate", label: "Verification Rate", unit: "percentage", data: makeTrend(13.8, 15) },
-  qualificationRate: { key: "qualificationRate", label: "Qualification Rate", unit: "percentage", data: makeTrend(7.4, 8.1) },
-  ctr: { key: "ctr", label: "CTR", unit: "percentage", data: makeTrend(1.6, 2.1) },
-  connectRate: { key: "connectRate", label: "Connect Rate", unit: "percentage", data: makeTrend(72, 78.9) },
-};
-
-const allAvailableMetrics: MetricOption[] = [
-  { key: "activeCampaigns", label: "Active Campaigns", category: "Overview", currentValue: "9" },
-  { key: "spends", label: "Spends", category: "Overview", currentValue: "₹6.8L" },
-  { key: "totalLeads", label: "Total Leads", category: "Leads", currentValue: "845" },
-  { key: "verifiedLeads", label: "Verified Leads", category: "Leads", currentValue: "127" },
-  { key: "qualifiedLeads", label: "Qualified Leads", category: "Leads", currentValue: "68" },
-  { key: "cpl", label: "CPL", category: "Cost", currentValue: "₹1,183" },
-  { key: "cpvl", label: "CPVL", category: "Cost", currentValue: "₹5,354" },
-  { key: "cpql", label: "CPQL", category: "Cost", currentValue: "₹10,000" },
-  { key: "verificationRate", label: "Verification Rate", category: "Rates", currentValue: "15%" },
-  { key: "qualificationRate", label: "Qualification Rate", category: "Rates", currentValue: "8.1%" },
-  { key: "ctr", label: "CTR", category: "Rates", currentValue: "2.1%" },
-  { key: "connectRate", label: "Voice Connect Rate", category: "Rates", currentValue: "78.9%" },
-];
+// ── Dashboard metrics — derived from workspace daily series ────────────────
+//
+// Previously this file had a giant `metricsByRange` lookup with 4 hand-tuned
+// presets and a silent fallback to 30d for every other preset (this week,
+// last week, this month, lifetime). That made the dashboard read as a
+// static prototype — pick any range outside the 4 presets and nothing
+// moved. It's now derived from the unified workspace daily series, so
+// any preset (and any future custom range) returns coherent numbers
+// with trend deltas based on the prior comparable window.
 
 const MAX_CHART_METRICS = 3;
 
-// Mock data by date range
 type MetricSet = {
   activeCampaigns: { value: number; prev: number; delta: string; pct: number };
   spends: { value: string; full: string; prev: string; delta: string; pct: number };
@@ -85,63 +65,187 @@ type MetricSet = {
   cpql: { value: string; prev: string; delta: string; pct: number };
 };
 
-const metricsByRange: Record<string, MetricSet> = {
-  "30": {
-    activeCampaigns: { value: 9, prev: 7, delta: "+2", pct: 28.6 },
-    spends: { value: "₹6.8L", full: "₹6,80,000", prev: "₹5.9L", delta: "+₹90K", pct: 15 },
-    totalLeads: { value: 845, prev: 754, delta: "+91", pct: 12 },
-    verifiedLeads: { value: 127, prev: 104, delta: "+23", pct: 22.1, rate: "15%" },
-    qualifiedLeads: { value: 68, prev: 63, delta: "+5", pct: 7.9, rate: "8.1%" },
-    cpl: { value: "₹1,183", prev: "₹1,245", delta: "-₹62", pct: 5 },
-    cpvl: { value: "₹5,354", prev: "₹5,192", delta: "+₹162", pct: 3.1 },
-    cpql: { value: "₹10,000", prev: "₹9,524", delta: "+₹476", pct: 5 },
-  },
-  "7": {
-    activeCampaigns: { value: 9, prev: 9, delta: "—", pct: 0 },
-    spends: { value: "₹1.58L", full: "₹1,58,000", prev: "₹1.41L", delta: "+₹17K", pct: 12 },
-    totalLeads: { value: 198, prev: 177, delta: "+21", pct: 11.9 },
-    verifiedLeads: { value: 32, prev: 26, delta: "+6", pct: 23.1, rate: "16.2%" },
-    qualifiedLeads: { value: 18, prev: 15, delta: "+3", pct: 20, rate: "9.1%" },
-    cpl: { value: "₹798", prev: "₹797", delta: "-₹1", pct: 0.1 },
-    cpvl: { value: "₹4,938", prev: "₹5,423", delta: "-₹485", pct: 8.9 },
-    cpql: { value: "₹8,778", prev: "₹9,400", delta: "-₹622", pct: 6.6 },
-  },
-  "14": {
-    activeCampaigns: { value: 9, prev: 8, delta: "+1", pct: 12.5 },
-    spends: { value: "₹3.2L", full: "₹3,20,000", prev: "₹2.8L", delta: "+₹40K", pct: 14.3 },
-    totalLeads: { value: 412, prev: 368, delta: "+44", pct: 12 },
-    verifiedLeads: { value: 62, prev: 51, delta: "+11", pct: 21.6, rate: "15%" },
-    qualifiedLeads: { value: 34, prev: 30, delta: "+4", pct: 13.3, rate: "8.3%" },
-    cpl: { value: "₹1,068", prev: "₹1,087", delta: "-₹19", pct: 1.7 },
-    cpvl: { value: "₹5,161", prev: "₹5,490", delta: "-₹329", pct: 6 },
-    cpql: { value: "₹9,412", prev: "₹9,333", delta: "+₹79", pct: 0.8 },
-  },
-  "yesterday": {
-    activeCampaigns: { value: 9, prev: 9, delta: "—", pct: 0 },
-    spends: { value: "₹24.2K", full: "₹24,200", prev: "₹22.8K", delta: "+₹1.4K", pct: 6.1 },
-    totalLeads: { value: 32, prev: 27, delta: "+5", pct: 18.5 },
-    verifiedLeads: { value: 6, prev: 4, delta: "+2", pct: 50, rate: "18.8%" },
-    qualifiedLeads: { value: 3, prev: 2, delta: "+1", pct: 50, rate: "9.4%" },
-    cpl: { value: "₹756", prev: "₹844", delta: "-₹88", pct: 10.4 },
-    cpvl: { value: "₹4,033", prev: "₹5,700", delta: "-₹1,667", pct: 29.2 },
-    cpql: { value: "₹8,067", prev: "₹11,400", delta: "-₹3,333", pct: 29.2 },
-  },
-};
-
-// Fallback to 30d
-function getMetrics(range: string): MetricSet {
-  return metricsByRange[range] || metricsByRange["30"];
+// Compact Indian-format INR — "₹6.8L" / "₹85K" / "₹1,234".
+function formatINR(n: number): string {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1_000_000 ? 1 : 2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 
+// Full Indian-comma-style INR for the Spends tooltip — "₹6,80,000".
+function formatINRFull(n: number): string {
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
+// "+₹62" / "-₹1,234" — currency delta with sign.
+function formatINRDelta(diff: number): string {
+  if (diff === 0) return "—";
+  const sign = diff > 0 ? "+" : "-";
+  return `${sign}${formatINR(Math.abs(diff))}`;
+}
+
+// "+91" / "-7" / "—".
+function formatNumDelta(diff: number): string {
+  if (diff === 0) return "—";
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${Math.round(diff).toLocaleString("en-IN")}`;
+}
+
+// "was 754 last week" / "was 754 in prev. period". This label is the
+// MetricCard's hover-prev text, so it has to read naturally for any
+// range the user picks — not just the 4 we used to hardcode.
 function getPrevLabel(range: string) {
-  // "was X yesterday" / "was X last week" / "was X in prev. period"
   const labels: Record<string, string> = {
-    "today": "yesterday",
-    "yesterday": "day before",
-    "thisweek": "last week",
-    "thismonth": "last month",
+    today: "yesterday",
+    yesterday: "day before",
+    thisweek: "last week",
+    "7": "previous 7 days",
+    "14": "previous 14 days",
+    "30": "previous 30 days",
+    thismonth: "last month",
+    lastmonth: "month before",
+    lastweek: "week before",
+    lifetime: "in prev. period",
   };
   return labels[range] || "in prev. period";
+}
+
+// Build the metric set for the given preset by summing the workspace
+// daily series over the current window and its prior comparable window.
+// Trend chip percentages, deltas, and previous values all stay in sync
+// because they come from the same two numbers.
+function buildMetricSet(preset: string): MetricSet {
+  const series = workspaceDailySeries();
+  const win = rangeWindowFromPreset(preset);
+  const prev = prevWindow(win);
+  const curr = sumInRange(series, win);
+  const prv  = sumInRange(series, prev);
+
+  // Active campaigns is a workspace-level constant — count of outreaches
+  // currently running. Doesn't really have a time dimension; we still
+  // produce a small delta vs an arbitrary prior so the trend chip can
+  // animate, but the value itself isn't windowed.
+  const activeNow  = outreachList.filter((o) => o.status === "in_progress").length;
+  const activePrev = Math.max(0, activeNow - 1);
+
+  // Cost-per-lead family — derived ratios. Each one's previous value is
+  // computed the same way over the prior window so the % change actually
+  // means something. Note the trend semantics flip for CPL/CPVL/CPQL:
+  // a fall in cost-per is GOOD, so trend.positive = (curr < prv).
+  const cpl  = safeRatio(curr.spend, curr.newLeads);
+  const cpvl = safeRatio(curr.spend, curr.verifiedLeads);
+  const cpql = safeRatio(curr.spend, curr.qualified);
+  const cplPrev  = safeRatio(prv.spend, prv.newLeads);
+  const cpvlPrev = safeRatio(prv.spend, prv.verifiedLeads);
+  const cpqlPrev = safeRatio(prv.spend, prv.qualified);
+
+  // Verification / qualification rates — percentages over the window.
+  const verifRate = safeRatio(curr.verifiedLeads, curr.newLeads) * 100;
+  const qualRate  = safeRatio(curr.qualified,    curr.newLeads) * 100;
+
+  return {
+    activeCampaigns: {
+      value: activeNow,
+      prev:  activePrev,
+      delta: formatNumDelta(activeNow - activePrev),
+      pct:   pctChange(activeNow, activePrev),
+    },
+    spends: {
+      value: formatINR(curr.spend),
+      full:  formatINRFull(curr.spend),
+      prev:  formatINR(prv.spend),
+      delta: formatINRDelta(curr.spend - prv.spend),
+      pct:   Math.abs(pctChange(curr.spend, prv.spend)),
+    },
+    totalLeads: {
+      value: curr.newLeads,
+      prev:  prv.newLeads,
+      delta: formatNumDelta(curr.newLeads - prv.newLeads),
+      pct:   Math.abs(pctChange(curr.newLeads, prv.newLeads)),
+    },
+    verifiedLeads: {
+      value: curr.verifiedLeads,
+      prev:  prv.verifiedLeads,
+      delta: formatNumDelta(curr.verifiedLeads - prv.verifiedLeads),
+      pct:   Math.abs(pctChange(curr.verifiedLeads, prv.verifiedLeads)),
+      rate:  `${verifRate.toFixed(1)}%`,
+    },
+    qualifiedLeads: {
+      value: curr.qualified,
+      prev:  prv.qualified,
+      delta: formatNumDelta(curr.qualified - prv.qualified),
+      pct:   Math.abs(pctChange(curr.qualified, prv.qualified)),
+      rate:  `${qualRate.toFixed(1)}%`,
+    },
+    cpl: {
+      value: formatINR(cpl),
+      prev:  formatINR(cplPrev),
+      delta: formatINRDelta(cpl - cplPrev),
+      pct:   Math.abs(pctChange(cpl, cplPrev)),
+    },
+    cpvl: {
+      value: formatINR(cpvl),
+      prev:  formatINR(cpvlPrev),
+      delta: formatINRDelta(cpvl - cpvlPrev),
+      pct:   Math.abs(pctChange(cpvl, cpvlPrev)),
+    },
+    cpql: {
+      value: formatINR(cpql),
+      prev:  formatINR(cpqlPrev),
+      delta: formatINRDelta(cpql - cpqlPrev),
+      pct:   Math.abs(pctChange(cpql, cpqlPrev)),
+    },
+  };
+}
+
+// Build the per-metric chart series for the selected window. The
+// MetricChart consumes a flat number[] per metric; we slice the
+// workspace daily series into the window and project each day onto
+// the requested metric. Rate metrics (CPL etc.) are computed per day.
+function buildTrendDefs(preset: string): Record<string, MetricChartDef> {
+  const series = workspaceDailySeries();
+  const win = rangeWindowFromPreset(preset);
+  const slice = sliceRange(series, win);
+
+  const spend          = slice.map((d) => d.spend);
+  const leads          = slice.map((d) => d.newLeads);
+  const verified       = slice.map((d) => d.verifiedLeads);
+  const qualified      = slice.map((d) => d.qualified);
+  const connected      = slice.map((d) => d.connected);
+  const calls          = slice.map((d) => d.calls);
+
+  // Active campaigns is workspace-level — we draw a flat-with-jitter line
+  // so the chart still has shape but doesn't imply windowed changes.
+  const activeNow = outreachList.filter((o) => o.status === "in_progress").length;
+  const activeSeries = slice.map((_, i) => activeNow - (i < 2 ? 1 : 0));
+
+  // Per-day ratios for cost-per cards. Using safeRatio so days with
+  // zero leads don't break the line with NaN / Infinity gaps.
+  const cplSeries  = slice.map((d) => safeRatio(d.spend, d.newLeads));
+  const cpvlSeries = slice.map((d) => safeRatio(d.spend, d.verifiedLeads));
+  const cpqlSeries = slice.map((d) => safeRatio(d.spend, d.qualified));
+  const verifRate  = slice.map((d) => safeRatio(d.verifiedLeads, d.newLeads) * 100);
+  const qualRate   = slice.map((d) => safeRatio(d.qualified,    d.newLeads) * 100);
+  // CTR + connect rate aren't fed by outreach (no impressions in this
+  // mock) so we shape them off voice activity as a stand-in. They still
+  // move with the window, just don't represent ad performance.
+  const ctrSeries     = slice.map(() => 1.6 + Math.random() * 0.5);
+  const connectSeries = slice.map((d) => safeRatio(d.connected, d.calls) * 100);
+
+  return {
+    activeCampaigns:   { key: "activeCampaigns",   label: "Active Campaigns",   unit: "number",     data: activeSeries },
+    spends:            { key: "spends",            label: "Spends",             unit: "currency",   data: spend },
+    totalLeads:        { key: "totalLeads",        label: "Total Leads",        unit: "number",     data: leads },
+    verifiedLeads:     { key: "verifiedLeads",     label: "Verified Leads",     unit: "number",     data: verified },
+    qualifiedLeads:    { key: "qualifiedLeads",    label: "Qualified Leads",    unit: "number",     data: qualified },
+    cpl:               { key: "cpl",               label: "CPL",                unit: "currency",   data: cplSeries },
+    cpvl:              { key: "cpvl",              label: "CPVL",               unit: "currency",   data: cpvlSeries },
+    cpql:              { key: "cpql",              label: "CPQL",               unit: "currency",   data: cpqlSeries },
+    verificationRate:  { key: "verificationRate",  label: "Verification Rate",  unit: "percentage", data: verifRate },
+    qualificationRate: { key: "qualificationRate", label: "Qualification Rate", unit: "percentage", data: qualRate },
+    ctr:               { key: "ctr",               label: "CTR",                unit: "percentage", data: ctrSeries },
+    connectRate:       { key: "connectRate",       label: "Connect Rate",       unit: "percentage", data: connectSeries },
+  };
 }
 
 export default function DashboardPage() {
@@ -162,9 +266,51 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const selectedChartDefs = selectedMetrics.map((k) => dashboardTrends[k]).filter(Boolean);
-  const m = getMetrics(dateRange);
+  // Recompute metrics + chart series whenever the date range changes.
+  // Both are pure derivations from the workspace daily series — cheap,
+  // and memoising here means the MetricCard / MetricChart props are
+  // referentially stable when the range is unchanged (selectedMetrics
+  // toggling shouldn't reshape the underlying series).
+  const m  = useMemo(() => buildMetricSet(dateRange), [dateRange]);
+  const trends = useMemo(() => buildTrendDefs(dateRange), [dateRange]);
   const pl = getPrevLabel(dateRange);
+
+  // Date labels for the chart x-axis — one per day in the window, in
+  // "Jun 6" form. The chart's data array length has to match this, so
+  // we drive both off the same RangeWindow.
+  const dates = useMemo(() => {
+    const win = rangeWindowFromPreset(dateRange);
+    const today = new Date();
+    const out: string[] = [];
+    // Today is the last day in the series; older days walk backwards.
+    const daysBackFromToday = (SERIES_LENGTH - 1) - win.endIndex;
+    for (let i = 0; i < win.days; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - daysBackFromToday - (win.days - 1 - i));
+      out.push(d.toLocaleDateString("en-IN", { month: "short", day: "numeric" }));
+    }
+    return out;
+  }, [dateRange]);
+
+  // The metric picker shows "current value" beside each metric so the
+  // user can pick by reading the live number. Derive these from the
+  // same metric set so the picker doesn't lie about today's values.
+  const allAvailableMetrics: MetricOption[] = useMemo(() => ([
+    { key: "activeCampaigns",   label: "Active Campaigns",   category: "Overview", currentValue: String(m.activeCampaigns.value) },
+    { key: "spends",            label: "Spends",             category: "Overview", currentValue: m.spends.value },
+    { key: "totalLeads",        label: "Total Leads",        category: "Leads",    currentValue: String(m.totalLeads.value) },
+    { key: "verifiedLeads",     label: "Verified Leads",     category: "Leads",    currentValue: String(m.verifiedLeads.value) },
+    { key: "qualifiedLeads",    label: "Qualified Leads",    category: "Leads",    currentValue: String(m.qualifiedLeads.value) },
+    { key: "cpl",               label: "CPL",                category: "Cost",     currentValue: m.cpl.value },
+    { key: "cpvl",              label: "CPVL",               category: "Cost",     currentValue: m.cpvl.value },
+    { key: "cpql",              label: "CPQL",               category: "Cost",     currentValue: m.cpql.value },
+    { key: "verificationRate",  label: "Verification Rate",  category: "Rates",    currentValue: m.verifiedLeads.rate },
+    { key: "qualificationRate", label: "Qualification Rate", category: "Rates",    currentValue: m.qualifiedLeads.rate },
+    { key: "ctr",               label: "CTR",                category: "Rates",    currentValue: "2.1%" },
+    { key: "connectRate",       label: "Voice Connect Rate", category: "Rates",    currentValue: `${(trends.connectRate.data.reduce((a, b) => a + b, 0) / Math.max(1, trends.connectRate.data.length)).toFixed(1)}%` },
+  ]), [m, trends]);
+
+  const selectedChartDefs = selectedMetrics.map((k) => trends[k]).filter(Boolean);
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">

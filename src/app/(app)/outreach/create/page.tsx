@@ -577,6 +577,32 @@ function CreateOutreachInner() {
   }, [presetProjectId]);
   const [name, setName]               = useState("");
   const [agent, setAgent]             = useState("");
+
+  // Agent hand-off from /agents-mvp/create. When the user clicks
+  // "Save & use in outreach" there, the agent id is encoded in the
+  // URL and the agent name is stashed in sessionStorage. We pluck
+  // both, prepend a synthetic entry to the agent picker list, and
+  // auto-select it so the user lands on Step 1 with the voice agent
+  // already filled in.
+  const presetAgentId = searchParams?.get("agent") ?? "";
+  const [justCreatedAgent, setJustCreatedAgent] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (!presetAgentId) return;
+    setAgent(presetAgentId);
+    try {
+      const raw = sessionStorage.getItem("just_created_agent");
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data?.id === presetAgentId && data?.name) {
+          setJustCreatedAgent(data);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [presetAgentId]);
+  // Merge the just-created agent (if any) onto the static list.
+  const agentsForPicker = justCreatedAgent
+    ? [justCreatedAgent, ...voiceAgents.filter((va) => va.id !== justCreatedAgent.id)]
+    : voiceAgents;
   // Schedule moved per-file in Step 2 (each uploaded CSV owns its own
   // start time). The launch handler computes the outreach-level
   // startMode/startDate/startTime from the files at submit time.
@@ -623,7 +649,7 @@ function CreateOutreachInner() {
   const totalContacts    = csvFiles.reduce((s, f) => s + f.validRows, 0);
   const totalRowsScanned = csvFiles.reduce((s, f) => s + f.totalRows, 0);
   const totalSkipped     = totalRowsScanned - totalContacts;
-  const selectedAgent    = voiceAgents.find(va => va.id === agent);
+  const selectedAgent    = agentsForPicker.find(va => va.id === agent);
   const selectedProject  = projectsList.find(p => p.id === projectId);
 
   const toggleDay = (day: string) =>
@@ -785,7 +811,10 @@ function CreateOutreachInner() {
   // would surprise the user ("I dropped two files but only one is live?").
   const anyUploading = csvFiles.some(f => f.status === "uploading");
   const canAdvance = () => {
-    if (step === 1) return name.trim() !== "" && agent !== "" && projectId !== "";
+    // Project removed from Step 1 — outreach create no longer
+    // requires a manual project pick. The deep-link param still
+    // carries one through if present, but it's not a gating field.
+    if (step === 1) return name.trim() !== "" && agent !== "";
     if (step === 2) return totalContacts > 0 && !anyUploading;
     return true;
   };
@@ -915,7 +944,7 @@ function CreateOutreachInner() {
                   <Section
                     eyebrow="The basics"
                     title="What are we calling about?"
-                    subtitle="Give your outreach a name, link it to a project so it inherits the brief and goals, then pick the voice that'll be on the line."
+                    subtitle="Give your outreach a name, then pick the voice that'll be on the line."
                     icon={Sparkles}
                   >
                     <div className="grid grid-cols-1 gap-y-4">
@@ -929,31 +958,19 @@ function CreateOutreachInner() {
                         />
                       </Field>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-4">
-                        <Field label="Project" required hint="Outreaches roll up to a project.">
-                          {presetProjectId && selectedProject ? (
-                            <div className="inline-flex items-center gap-2 h-10 px-3 rounded-input border border-border bg-surface-page/70 text-[13px] text-text-primary">
-                              <FolderKanban size={14} strokeWidth={1.5} className="text-text-secondary" />
-                              <span className="font-medium">{selectedProject.name.split(" · ")[0]}</span>
-                              <span className="text-text-tertiary text-[11.5px]">· locked from project</span>
-                            </div>
-                          ) : (
-                            <ProjectPicker
-                              projects={projectsList}
-                              value={projectId}
-                              onChange={setProjectId}
-                            />
-                          )}
-                        </Field>
-
-                        <Field label="Voice agent" required hint="The voice that'll dial the leads.">
-                          <AgentPicker
-                            agents={voiceAgents}
-                            value={agent}
-                            onChange={setAgent}
-                          />
-                        </Field>
-                      </div>
+                      {/* Project picker removed at the user's request —
+                          outreach create no longer requires linking to a
+                          project. The data layer still carries the
+                          presetProjectId from a ?project=<id> deep-link
+                          (so coming from a project page still attaches
+                          the outreach), but there's no manual picker. */}
+                      <Field label="Voice agent" required hint="The voice that'll dial the leads.">
+                        <AgentPicker
+                          agents={agentsForPicker}
+                          value={agent}
+                          onChange={setAgent}
+                        />
+                      </Field>
                     </div>
 
                     {/* MAX CHURN — simplified to a single inline sentence:
@@ -1778,7 +1795,7 @@ function CreateOutreachInner() {
                       circle so the moment feels earned without overdoing
                       it. Title names the outreach explicitly so the user
                       sees their own input echoed back. */}
-                  <div className="px-8 pt-9 pb-7 text-center">
+                  <div className="px-8 pt-9 pb-5 text-center">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#F0FDF4] text-[#15803D] mb-4">
                       <Check size={20} strokeWidth={2.25} />
                     </div>
@@ -1789,9 +1806,68 @@ function CreateOutreachInner() {
                       <span className="font-medium text-text-primary">
                         {name.trim() || "Untitled outreach"}
                       </span>{" "}
-                      is saved with {selectedAgent?.name ?? "your agent"} as the voice.
-                      Add an audience to start calling, or come back when you&apos;re ready.
+                      is saved. Review the setup below, then add an audience to start calling.
                     </p>
+                  </div>
+
+                  {/* Summary card — compact recap of the basic fields
+                      the user just configured. Reads as a receipt: each
+                      row is a label + value pair, no chrome around it.
+                      Helps the user verify they set things up correctly
+                      before committing to adding an audience or
+                      stashing for later. */}
+                  <div className="mx-8 mb-6 rounded-[8px] bg-surface-page border border-border-subtle px-4 py-3 space-y-2.5 text-left">
+                    {/* Project row removed — outreach create no longer
+                        prompts for a project, so the review block
+                        should not list one. If a project came in via
+                        the deep-link param it's still attached at
+                        save time; the review just doesn't surface it
+                        as a primary identity field. */}
+                    <div className="grid grid-cols-[110px_1fr] gap-3 items-center text-[12.5px]">
+                      <span className="inline-flex items-center gap-1.5 text-text-tertiary">
+                        <Bot size={11} strokeWidth={1.75} />
+                        Voice agent
+                      </span>
+                      <span className="text-text-primary font-medium truncate">
+                        {selectedAgent?.name ?? "—"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr] gap-3 items-center text-[12.5px]">
+                      <span className="inline-flex items-center gap-1.5 text-text-tertiary">
+                        <Calendar size={11} strokeWidth={1.75} />
+                        Calling days
+                      </span>
+                      <span className="text-text-primary font-medium truncate">
+                        {activeDays.length === 7
+                          ? "Every day"
+                          : activeDays.length === 6 && !activeDays.includes("Sun")
+                            ? "Mon – Sat"
+                            : activeDays.length === 5 && !activeDays.includes("Sat") && !activeDays.includes("Sun")
+                              ? "Mon – Fri"
+                              : activeDays.join(", ")}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr] gap-3 items-center text-[12.5px]">
+                      <span className="inline-flex items-center gap-1.5 text-text-tertiary">
+                        <Clock size={11} strokeWidth={1.75} />
+                        Calling hours
+                      </span>
+                      <span className="text-text-primary font-medium tabular-nums">
+                        {callStart} – {callEnd}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr] gap-3 items-center text-[12.5px]">
+                      <span className="inline-flex items-center gap-1.5 text-text-tertiary">
+                        <Phone size={11} strokeWidth={1.75} />
+                        Max churn
+                      </span>
+                      <span className="text-text-primary font-medium tabular-nums">
+                        {maxRetries} attempt{maxRetries === "1" ? "" : "s"}
+                        <span className="text-text-tertiary font-normal ml-1.5">
+                          · {retryInterval} {retryIntervalUnit === "min" ? `minute${retryInterval === "1" ? "" : "s"}` : retryIntervalUnit === "hours" ? `hour${retryInterval === "1" ? "" : "s"}` : `day${retryInterval === "1" ? "" : "s"}`} apart
+                        </span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* CTAs — primary leads to the audience flow, secondary
@@ -1809,17 +1885,17 @@ function CreateOutreachInner() {
                       type="button"
                       onClick={() => {
                         // Save the outreach with no audience yet. The
-                        // listing will pick it up via sessionStorage and
-                        // show it as scheduled (status === "scheduled"
-                        // with 0 contacts) — the user can return later
-                        // and add an audience to start dialing.
+                        // listing picks it up via sessionStorage and
+                        // shows it as draft (status === "draft" with
+                        // 0 contacts) — the user can return later and
+                        // add an audience to start dialing.
                         const launched = {
                           id: `out-new-${Date.now()}`,
                           projectId,
                           name: name.trim() || "Untitled outreach",
                           voiceAgent: selectedAgent?.name ?? "—",
                           totalContacts: 0,
-                          status: "scheduled" as const,
+                          status: "draft" as const,
                           createdAt: new Date().toISOString().slice(0, 10),
                           needsAudience: true,
                         };
@@ -1904,13 +1980,20 @@ function CreateOutreachInner() {
                       });
                     const anyScheduled = scheduled.length > 0;
                     const earliest = scheduled[0];
+                    // Once audience is provided, the outreach is
+                    // running — startDate/startTime still describe
+                    // when dialing will actually kick off, but the
+                    // status itself is "in_progress" rather than the
+                    // separate "scheduled" state that used to exist.
+                    // "draft" is reserved for the no-audience case
+                    // (handled in the other branch of this submit).
                     const launched = {
                       id: `out-new-${Date.now()}`,
                       projectId,
                       name: name.trim() || "Untitled outreach",
                       voiceAgent: selectedAgent?.name ?? "—",
                       totalContacts,
-                      status: anyScheduled ? "scheduled" : "in_progress",
+                      status: "in_progress" as const,
                       createdAt: new Date().toISOString().slice(0, 10),
                       startMode: anyScheduled ? "schedule" as const : "immediately" as const,
                       startDate: earliest?.startDate ?? "",

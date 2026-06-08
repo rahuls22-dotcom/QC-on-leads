@@ -1,18 +1,19 @@
+"use client";
+
+/**
+ * Billing settings — owns the money story for the org: billing-mode
+ * toggle (prepaid/postpaid), usage in real units, spend hero,
+ * products table, utilization-over-time charts, invoices.
+ *
+ * The wallet page at /settings/wallet handles the balance + recharge
+ * story (prepaid orgs only). Both routes share the same component
+ * implementation but render different sections via the `view` prop,
+ * so the page identity stays distinct even though the data layer
+ * is shared.
+ */
+
+import WalletSettingsPage from "../wallet/page";
+
 export default function BillingSettingsPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-[16px] font-semibold text-text-primary">Billing</h2>
-        <p className="text-[12.5px] text-text-secondary mt-0.5">
-          Invoices, payment methods, and subscription plan.
-        </p>
-      </div>
-      <div className="bg-white border border-border rounded-[8px] px-6 py-10 max-w-md text-center">
-        <div className="text-[13.5px] font-semibold text-text-primary">Coming soon</div>
-        <div className="text-[12px] text-text-secondary mt-1">
-          Billing and invoices will live here.
-        </div>
-      </div>
-    </div>
-  );
+  return <WalletSettingsPage view="billing" />;
 }

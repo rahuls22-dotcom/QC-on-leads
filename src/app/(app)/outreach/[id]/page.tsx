@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import {
@@ -39,13 +39,19 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import {
-  outreachDetail,
   outreachContacts,
-  dailyTalktime90d,
-  dailySpend90d,
+  outreachContactsForId,
+  outreachDetailForId,
+  outreachDailyTalktimeForId,
+  outreachDailySpendForId,
 } from "@/lib/outreach-data";
-import type { ContactOutcome, AIQualStatus, OutreachContact } from "@/lib/outreach-data";
-import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
+import type { ContactOutcome, AIQualStatus, OutreachContact, OutreachDetail } from "@/lib/outreach-data";
+import {
+  dailySeriesForOutreach,
+  rangeWindowFromPreset,
+  sumInRange,
+} from "@/lib/daily-series";
+import { DateRangeSelector, getComparisonRange } from "@/components/dashboard/date-range-selector";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { EditOutreachDrawer, type EditOutreachInitial } from "@/components/outreach/edit-outreach-drawer";
 import { PhoneInput } from "@/components/shared/phone-input";
@@ -330,30 +336,41 @@ function ContactRow({ c }: { c: OutreachContact }) {
   );
 }
 
-// ── Source filter — page-level multi-select scoping all widgets ─────────────
-
+// ── Source filter — single-select dropdown mirroring SourceFilterPills ──────
+//
+// Earlier this was a multi-select checkbox menu where the user picked which
+// CSV uploads to include. The trigger label only said "M of N sources" so the
+// user couldn't tell which file was active without opening the menu. Replaced
+// with a single-select dropdown styled like the enrichment dashboard's
+// SourceFilterPills: the button label spells out the active file by name
+// ("Q2 follow-up.csv"), and the dropdown lists every uploaded file with a
+// lead count alongside an "All uploads" option at the top. Picking one file
+// scopes every widget on the page down to that file's data.
 function SourceFilter({
   sources,
-  selected,
-  allSelected,
+  activeSourceId,
   menuOpen,
   setMenuOpen,
-  onToggle,
-  onSetAll,
+  onSelect,
 }: {
   sources: { id: string; name: string; leads: number; uploadedAt: string }[];
-  selected: string[];
-  allSelected: boolean;
+  /** Currently-active source id, or null for "all uploads". */
+  activeSourceId: string | null;
   menuOpen: boolean;
   setMenuOpen: (v: boolean) => void;
-  onToggle: (id: string) => void;
-  onSetAll: (all: boolean) => void;
+  onSelect: (id: string | null) => void;
 }) {
-  const label = allSelected
-    ? `All sources · ${sources.length}`
-    : selected.length === 0
-      ? "No sources"
-      : `${selected.length} of ${sources.length} sources`;
+  const totalLeads = sources.reduce((s, src) => s + src.leads, 0);
+  const active = activeSourceId === null
+    ? null
+    : sources.find((s) => s.id === activeSourceId) ?? null;
+
+  // Trigger label: "Source: All uploads" when no file is picked, or the
+  // file's own short name when one is active. The trigger also surfaces the
+  // lead count for the active scope so the user sees the size of their
+  // dataset at a glance.
+  const triggerLabel = active ? active.name : "All uploads";
+  const triggerCount = active ? active.leads : totalLeads;
 
   return (
     <div className="relative">
@@ -362,59 +379,84 @@ function SourceFilter({
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
         className={`inline-flex items-center gap-1.5 h-9 px-3 text-[12.5px] font-medium rounded-button border transition-colors ${
-          allSelected
+          active === null
             ? "border-border bg-white text-text-secondary hover:bg-surface-page"
             : "border-accent/40 bg-accent/5 text-accent hover:bg-accent/10"
         }`}
       >
-        <Database size={13} strokeWidth={1.5} />
-        {label}
+        <FileSpreadsheet size={13} strokeWidth={1.5} />
+        <span className="text-text-tertiary">Source:</span>
+        <span className="truncate max-w-[160px]">{triggerLabel}</span>
+        <span className="text-text-tertiary tabular-nums text-[10.5px]">
+          {triggerCount.toLocaleString("en-IN")}
+        </span>
         <ChevronDown size={13} strokeWidth={1.5} className={`transition-transform ${menuOpen ? "rotate-180" : ""}`} />
       </button>
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} aria-hidden />
-          <div className="absolute right-0 top-full mt-1.5 w-[300px] bg-white border border-border rounded-card shadow-lg z-40 overflow-hidden">
-            <div className="px-3 py-2 border-b border-border-subtle flex items-center justify-between">
-              <span className="text-[10.5px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">Uploaded sources</span>
-              <button
-                onClick={() => onSetAll(!allSelected)}
-                className="text-[11.5px] font-medium text-accent hover:underline"
-              >
-                {allSelected ? "Clear all" : "Select all"}
-              </button>
+          <div className="absolute right-0 top-full mt-1.5 w-[320px] bg-white border border-border rounded-card shadow-lg z-40 overflow-hidden">
+            <div className="px-3 py-2 border-b border-border-subtle">
+              <span className="text-[10.5px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">
+                Uploaded files
+              </span>
             </div>
-            <div className="max-h-[280px] overflow-y-auto py-1">
-              {sources.map(s => {
-                const checked = selected.includes(s.id);
+            <div className="max-h-[320px] overflow-y-auto py-1">
+              {/* "All uploads" option at the top — picks the combined scope.
+                  Same row shape as a file row so the eye doesn't have to
+                  reparse the layout. */}
+              <button
+                type="button"
+                onClick={() => { onSelect(null); setMenuOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                  activeSourceId === null ? "bg-surface-secondary" : "hover:bg-surface-page"
+                }`}
+              >
+                <span className="w-3.5 inline-flex justify-center text-accent">
+                  {activeSourceId === null && <Check size={12} strokeWidth={2.5} />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-[12.5px] truncate ${activeSourceId === null ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`}>
+                    All uploads
+                  </div>
+                  <div className="text-[10.5px] text-text-tertiary tabular-nums">
+                    {sources.length} {sources.length === 1 ? "file" : "files"} · {totalLeads.toLocaleString("en-IN")} leads
+                  </div>
+                </div>
+              </button>
+
+              {/* One row per uploaded file. Filename is the primary label
+                  with the upload date + lead count as quiet meta below. */}
+              {sources.map((s) => {
+                const isActive = s.id === activeSourceId;
                 return (
-                  <label
+                  <button
                     key={s.id}
-                    className="flex items-center gap-2.5 px-3 py-2 hover:bg-surface-page cursor-pointer"
+                    type="button"
+                    onClick={() => { onSelect(s.id); setMenuOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                      isActive ? "bg-surface-secondary" : "hover:bg-surface-page"
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onToggle(s.id)}
-                      className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent/20 cursor-pointer"
-                    />
+                    <span className="w-3.5 inline-flex justify-center text-accent">
+                      {isActive && <Check size={12} strokeWidth={2.5} />}
+                    </span>
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-[#F0FDF4] text-[#15803D] shrink-0">
                       <FileSpreadsheet size={12} strokeWidth={1.75} />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[12.5px] font-medium text-text-primary truncate" title={s.name}>{s.name}</div>
+                      <div className={`text-[12.5px] truncate ${isActive ? "font-semibold text-text-primary" : "font-medium text-text-primary"}`} title={s.name}>
+                        {s.name}
+                      </div>
                       <div className="text-[10.5px] text-text-tertiary tabular-nums flex items-center gap-1">
                         <span>Uploaded {format(new Date(s.uploadedAt), "dd MMM yyyy")}</span>
                         <span className="text-border">·</span>
                         <span>{s.leads.toLocaleString()} leads</span>
                       </div>
                     </div>
-                  </label>
+                  </button>
                 );
               })}
-            </div>
-            <div className="px-3 py-2 border-t border-border-subtle text-[10.5px] text-text-tertiary tabular-nums">
-              Selected: <span className="text-text-secondary font-medium">{selected.reduce((sum, id) => sum + (sources.find(s => s.id === id)?.leads ?? 0), 0).toLocaleString()}</span> leads
             </div>
           </div>
         </>
@@ -649,9 +691,30 @@ function downloadTextFile(name: string, content: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function AddLeadsModal({ onClose }: { onClose: () => void }) {
+// Upload constraints — mirror the wizard's Add Audience flow so the
+// rules a user sees in the live-outreach modal match what they'd see
+// during initial creation. Numbers in sync with create/page.tsx.
+const ADD_LEADS_MAX_FILES_PER_UPLOAD = 10;
+const ADD_LEADS_MAX_ROWS_PER_FILE     = 50000;
+
+function AddLeadsModal({
+  onClose,
+  existingContacts,
+}: {
+  onClose: () => void;
+  // Contacts already in *this* outreach — used for duplicate detection so the
+  // modal warns about adding the same lead twice to the same campaign, not
+  // to the workspace as a whole. Different outreaches are allowed to reach
+  // the same person.
+  existingContacts: OutreachContact[];
+}) {
   const [tab, setTab] = useState<"csv" | "manual">("csv");
   const [csvFiles, setCsvFiles] = useState<CsvFile[]>([]);
+  // Inline upload-error feed — populated when the picker rejects files
+  // (too many, oversize, wrong type). Rendered as a red banner the user
+  // dismisses; we don't auto-clear because the user needs to see *why*
+  // their file didn't show up.
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const [manualLeads, setManualLeads] = useState<ManualLead[]>([
     { id: "1", name: "", phone: "" },
   ]);
@@ -678,13 +741,31 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const next: CsvFile[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.name.toLowerCase().endsWith(".csv")) continue;
-      const text = await file.text();
-      next.push(parseAndValidateCsv(file.name, text));
+    const errs: string[] = [];
+    const incoming = Array.from(files);
+    // Capacity check — clamp to the slots still available, kick the
+    // overflow into the error feed so the user understands why some
+    // files didn't land.
+    const slotsLeft = Math.max(0, ADD_LEADS_MAX_FILES_PER_UPLOAD - csvFiles.length);
+    if (incoming.length > slotsLeft) {
+      errs.push(`Only ${slotsLeft} more file${slotsLeft === 1 ? "" : "s"} can be added in this batch (max ${ADD_LEADS_MAX_FILES_PER_UPLOAD}). Extra files were ignored.`);
     }
-    if (next.length > 0) setCsvFiles(p => [...p, ...next]);
+    const next: CsvFile[] = [];
+    for (const file of incoming.slice(0, slotsLeft)) {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        errs.push(`${file.name} — only .csv files are supported.`);
+        continue;
+      }
+      const text = await file.text();
+      const parsed = parseAndValidateCsv(file.name, text);
+      if (parsed.totalRows > ADD_LEADS_MAX_ROWS_PER_FILE) {
+        errs.push(`${file.name} — ${parsed.totalRows.toLocaleString()} rows exceeds the ${ADD_LEADS_MAX_ROWS_PER_FILE.toLocaleString()}-row limit per file.`);
+        continue;
+      }
+      next.push(parsed);
+    }
+    if (errs.length > 0) setUploadErrors((p) => [...p, ...errs]);
+    if (next.length > 0) setCsvFiles((p) => [...p, ...next]);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -704,12 +785,68 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
   const removeRow = (id: string) =>
     setManualLeads((p) => p.filter((l) => l.id !== id));
 
+  // ── Validation against existing contacts + within the form ──────
+  //
+  // For every manual row we determine:
+  //   • phone-dup-existing → the phone number already exists on this
+  //     outreach in the seed data. BLOCKING: same number can't be
+  //     added twice. The user must edit or remove the row.
+  //   • phone-dup-form     → another row in this same form has the
+  //     same phone. BLOCKING too.
+  //   • name-dup-existing  → a contact with this name already exists
+  //     somewhere in the system. WARNING only — different person, same
+  //     name is common; user gets a heads-up but can still proceed.
+  //
+  // Normalisation: strip all non-digits from phones, lowercase + trim
+  // whitespace from names so "98765 43210" and "9876543210" match
+  // and "Rajesh Kumar  " == "rajesh kumar".
+  const normPhone = (s: string) => s.replace(/\D/g, "");
+  const normName  = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+  type RowIssue = {
+    phoneExisting: boolean;
+    phoneInForm:   boolean;
+    nameExisting:  boolean;
+  };
+
+  const existingPhones = new Set(existingContacts.map((c) => normPhone(c.phone)));
+  const existingNames  = new Set(existingContacts.map((c) => normName(c.name)));
+  // Count occurrences of each phone in the form so we flag every
+  // copy of a dup, not just the second one.
+  const formPhoneCount = new Map<string, number>();
+  manualLeads.forEach((l) => {
+    const p = normPhone(l.phone);
+    if (!p) return;
+    formPhoneCount.set(p, (formPhoneCount.get(p) ?? 0) + 1);
+  });
+
+  const validateRow = (lead: ManualLead): RowIssue => {
+    const p = normPhone(lead.phone);
+    const n = normName(lead.name);
+    return {
+      phoneExisting: !!p && existingPhones.has(p),
+      phoneInForm:   !!p && (formPhoneCount.get(p) ?? 0) > 1,
+      nameExisting:  !!n && existingNames.has(n),
+    };
+  };
+  const rowIssues = manualLeads.map(validateRow);
+  const hasBlockingIssue = rowIssues.some((i) => i.phoneExisting || i.phoneInForm);
+
   const totalValid = csvFiles.reduce((s, f) => s + f.validRows, 0);
   const totalInvalid = csvFiles.reduce(
     (s, f) => s + Object.values(f.invalid).reduce((a, b) => a + b, 0),
     0
   );
   const totalNew = totalValid + manualLeads.filter((l) => l.phone.trim()).length;
+
+  // Credit cost estimate — Contact Extraction module currently charges
+  // ~2 credits per lead (phone extraction). Scales with totalNew so
+  // the user sees the budget impact grow as they keep adding rows.
+  // Real value comes from MODULES[0].capabilities[0].rate in
+  // production; hard-coded here to avoid a cross-import from credits-
+  // data into the outreach module just for a display estimate.
+  const CREDITS_PER_LEAD = 2;
+  const estCredits = totalNew * CREDITS_PER_LEAD;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center">
@@ -721,7 +858,7 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
           <div>
             <div className="text-[14px] font-semibold text-text-primary">Add Leads</div>
             <div className="text-[11.5px] text-text-tertiary mt-0.5">
-              Add more contacts to this running outreach
+              Add more leads to this running outreach
             </div>
           </div>
           <button onClick={onClose} className="text-text-tertiary hover:text-text-primary transition-colors">
@@ -749,7 +886,14 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
 
-          {/* CSV tab */}
+          {/* CSV tab — mirrors the Add Audience step from the create
+              wizard so the live-outreach upload flow looks and behaves
+              the same as the first-time setup. Split-design hero card
+              + upload-errors banner + file rows with status pills +
+              aggregate "Will be added / Skipped" readout at the bottom.
+              Per-file scheduling is intentionally omitted here —
+              live-outreach uploads enter the dialing queue immediately,
+              there's no "before launch" to schedule around. */}
           {tab === "csv" && (
             <div className="space-y-4">
               {/* Hidden native file picker */}
@@ -761,135 +905,284 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
                 className="hidden"
                 onChange={(e) => {
                   handleFiles(e.target.files);
-                  // Reset so the same file can be re-selected later
                   e.target.value = "";
                 }}
               />
+
+              {/* HERO UPLOAD — split design that matches the wizard.
+                  Idle: clean white card with neutral circle icon, big
+                  heading, primary CTA button. Drag-over: dashed accent
+                  border + accent-tinted background. Bottom strip carries
+                  format requirements + sample download as clearly
+                  subordinate metadata. */}
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-input p-8 text-center cursor-pointer transition-all duration-150 ${
+                className={`relative overflow-hidden cursor-pointer rounded-card transition-all duration-200 ${
                   isDragging
-                    ? "border-accent bg-accent/5"
-                    : "border-border hover:border-text-tertiary hover:bg-surface-page/50"
+                    ? "border-2 border-dashed border-accent bg-accent/5"
+                    : "border border-border bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] hover:border-text-tertiary"
                 }`}
               >
-                <Upload size={22} strokeWidth={1.5} className={`mx-auto mb-2.5 ${isDragging ? "text-accent" : "text-text-tertiary"}`} />
-                <p className="text-[13px] text-text-secondary">
-                  {isDragging ? (
-                    <span className="text-accent font-medium">Drop your CSV files here</span>
-                  ) : (
-                    <>Drag & drop CSV files, or <span className="text-accent font-medium">browse</span></>
-                  )}
-                </p>
-                <p className="text-[11px] text-text-tertiary mt-1">
-                  Multiple CSV files supported · .csv only
-                </p>
+                <div className="relative px-8 pt-9 pb-7 text-center">
+                  <div className="relative inline-flex mb-4">
+                    <div className={`relative inline-flex items-center justify-center w-14 h-14 rounded-full transition-colors ${
+                      isDragging
+                        ? "bg-text-primary text-white shadow-md"
+                        : "bg-surface-page border border-border text-text-secondary"
+                    }`}>
+                      <Upload size={22} strokeWidth={1.75} />
+                    </div>
+                  </div>
+                  <h3 className="text-[17px] font-semibold text-text-primary leading-tight mb-1">
+                    {isDragging ? "Drop your files to upload" : "Upload more leads"}
+                  </h3>
+                  <p className="text-[12.5px] text-text-secondary leading-relaxed max-w-[360px] mx-auto">
+                    Drag CSVs anywhere on this card, or click below to choose.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    className="inline-flex items-center gap-2 h-10 px-5 mt-4 bg-accent text-white text-[13px] font-medium rounded-button hover:bg-accent-hover transition-colors shadow-sm"
+                  >
+                    <Upload size={14} strokeWidth={2} />
+                    Choose CSV files
+                  </button>
+                </div>
+                <div className="relative border-t border-border-subtle bg-surface-page/70 px-5 py-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-text-tertiary">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-text-tertiary" />
+                      Name + Phone columns required
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-text-tertiary" />
+                      Up to {ADD_LEADS_MAX_FILES_PER_UPLOAD} files
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-text-tertiary" />
+                      {ADD_LEADS_MAX_ROWS_PER_FILE.toLocaleString()} rows max per file
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-text-tertiary" />
+                      .csv only
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); downloadTextFile("leads-sample.csv", generateSampleCsv()); }}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-accent transition-colors"
+                  >
+                    <Download size={11} strokeWidth={1.75} />
+                    Download sample CSV
+                  </button>
+                </div>
               </div>
 
-              {/* Sample download — subtle helper link */}
-              <div className="flex items-center justify-between text-[11.5px]">
-                <span className="text-text-tertiary">
-                  Need a template? Your CSV should have columns: <span className="text-text-secondary font-medium">Name, Phone</span>{" "}
-                  (Email, Source, Budget optional).
-                </span>
-                <button
-                  onClick={() => downloadTextFile("leads-sample.csv", generateSampleCsv())}
-                  className="inline-flex items-center gap-1 text-accent font-medium hover:underline shrink-0"
-                >
-                  <Download size={11} strokeWidth={2} />
-                  Download sample CSV
-                </button>
-              </div>
+              {/* Upload errors — red banner with dismissible X. Stays
+                  visible until the user dismisses; we don't auto-clear
+                  because the user needs to see *why* a file didn't
+                  appear in the list below. */}
+              {uploadErrors.length > 0 && (
+                <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-card p-3.5">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle
+                      size={15}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-[#DC2626] mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-semibold text-[#B91C1C] mb-1">
+                        {uploadErrors.length === 1
+                          ? "Couldn't add that file"
+                          : `Couldn't add ${uploadErrors.length} files`}
+                      </div>
+                      <ul className="space-y-0.5">
+                        {uploadErrors.map((msg, i) => (
+                          <li
+                            key={i}
+                            className="text-[11.5px] text-[#B91C1C] leading-relaxed"
+                          >
+                            {msg}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUploadErrors([])}
+                      aria-label="Dismiss"
+                      className="shrink-0 inline-flex items-center justify-center w-6 h-6 text-[#B91C1C]/70 hover:text-[#B91C1C] hover:bg-[#FEE2E2] rounded transition-colors"
+                    >
+                      <X size={13} strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              {csvFiles.length > 0 ? (
-                <div className="space-y-2.5">
-                  {csvFiles.map((file, idx) => {
-                    const invalidTotal = Object.values(file.invalid).reduce((a, b) => a + b, 0);
-                    const hasErrors = invalidTotal > 0;
-                    const allClean = invalidTotal === 0 && file.totalRows > 0;
-                    // Build the prose breakdown — only mention reasons that
-                    // actually occurred. Phrasing follows the natural-language
-                    // pattern the user asked for: "2 invalid phone, 1 duplicate,
-                    // 5 missing data."
-                    const reasonPhrases: string[] = [];
-                    if (file.invalid.missingPhone   > 0) reasonPhrases.push(`${file.invalid.missingPhone} missing phone`);
-                    if (file.invalid.invalidFormat  > 0) reasonPhrases.push(`${file.invalid.invalidFormat} invalid phone`);
-                    if (file.invalid.duplicatePhone > 0) reasonPhrases.push(`${file.invalid.duplicatePhone} duplicate`);
-                    if (file.invalid.missingName    > 0) reasonPhrases.push(`${file.invalid.missingName} missing name`);
-                    return (
-                      <div key={idx} className="bg-surface-page rounded-[8px] p-3.5 flex items-start gap-3">
-                        {/* Status icon — green when clean, amber when issues */}
-                        <div className={`shrink-0 w-9 h-9 rounded-[8px] flex items-center justify-center ${
-                          hasErrors
-                            ? "bg-[#FEF3C7] text-[#92400E]"
-                            : "bg-[#F0FDF4] text-[#15803D]"
-                        }`}>
-                          <FileSpreadsheet size={16} strokeWidth={1.5} />
-                        </div>
-
-                        {/* Filename + analysis */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[13px] text-text-primary truncate">{file.name}</span>
-                            <span className="text-[11px] text-text-tertiary tabular-nums shrink-0">
-                              {file.totalRows.toLocaleString()} rows
-                            </span>
-                          </div>
-                          <p className="text-[12.5px] text-text-secondary leading-relaxed">
-                            {allClean ? (
-                              <>
-                                All <span className="text-[#15803D]">{file.validRows.toLocaleString()}</span> rows look good — ready to add.
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-[#15803D]">{file.validRows.toLocaleString()} valid</span>
-                                {hasErrors && (
+              {/* Uploaded files — one row per file. Same chrome as the
+                  wizard: icon tile coloured by status, filename + status
+                  pill + row count, prose breakdown of valid vs skipped,
+                  Download CSV + Remove actions on the right. */}
+              {csvFiles.length > 0 && (
+                <div>
+                  <div className="mb-2 text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">
+                    Uploaded files · {csvFiles.length}
+                  </div>
+                  <div className="space-y-2">
+                    {csvFiles.map((file, idx) => {
+                      const invalidTotal = Object.values(file.invalid).reduce((a, b) => a + b, 0);
+                      const hasErrors = invalidTotal > 0;
+                      const allClean = invalidTotal === 0 && file.totalRows > 0;
+                      const reasonPhrases: string[] = [];
+                      if (file.invalid.missingPhone   > 0) reasonPhrases.push(`${file.invalid.missingPhone} missing phone`);
+                      if (file.invalid.invalidFormat  > 0) reasonPhrases.push(`${file.invalid.invalidFormat} invalid phone`);
+                      if (file.invalid.duplicatePhone > 0) reasonPhrases.push(`${file.invalid.duplicatePhone} duplicate`);
+                      if (file.invalid.missingName    > 0) reasonPhrases.push(`${file.invalid.missingName} missing name`);
+                      const iconCls = hasErrors
+                        ? "bg-[#FEF3C7] text-[#92400E]"
+                        : "bg-[#F0FDF4] text-[#15803D]";
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white border border-border rounded-card overflow-hidden hover:border-text-tertiary transition-colors"
+                        >
+                          <div className="px-4 py-3 flex items-start gap-4">
+                            <div className={`shrink-0 w-10 h-10 rounded-[8px] flex items-center justify-center ${iconCls}`}>
+                              <FileSpreadsheet size={18} strokeWidth={1.5} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <div className="text-[13px] text-text-primary truncate" title={file.name}>
+                                  {file.name}
+                                </div>
+                                <span className="inline-flex items-center text-[10.5px] font-medium px-2 py-0.5 rounded-badge bg-[#F0FDF4] text-[#15803D]">
+                                  Uploaded
+                                </span>
+                                <span className="text-[10.5px] text-text-tertiary tabular-nums shrink-0">
+                                  {file.totalRows.toLocaleString()} rows
+                                </span>
+                              </div>
+                              <p className="text-[12px] text-text-secondary leading-relaxed">
+                                {allClean ? (
                                   <>
-                                    , <span className="text-[#92400E]">{invalidTotal.toLocaleString()} skipped</span>
-                                    {reasonPhrases.length > 0 && (
-                                      <span className="text-text-tertiary"> — {reasonPhrases.join(", ")}</span>
+                                    All <span className="text-[#15803D]">{file.validRows.toLocaleString()}</span> rows look good — ready to add.
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-[#15803D]">{file.validRows.toLocaleString()} valid</span>
+                                    {hasErrors && (
+                                      <>
+                                        , <span className="text-[#92400E]">{invalidTotal.toLocaleString()} skipped</span>
+                                        {reasonPhrases.length > 0 && (
+                                          <span className="text-text-tertiary"> — {reasonPhrases.join(", ")}</span>
+                                        )}
+                                      </>
                                     )}
+                                    .
                                   </>
                                 )}
-                                .
-                              </>
-                            )}
-                          </p>
+                              </p>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => downloadValidatedCsv(file)}
+                                title="Download validated CSV"
+                                className="inline-flex items-center gap-1.5 h-8 px-3 text-[11.5px] text-text-secondary hover:text-accent hover:bg-surface-page rounded-button transition-colors"
+                              >
+                                <Download size={12} strokeWidth={1.75} />
+                                Download CSV
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeCsv(idx)}
+                                className="inline-flex items-center justify-center w-8 h-8 text-text-tertiary hover:text-[#DC2626] hover:bg-surface-page rounded-button transition-colors"
+                                title="Remove file"
+                                aria-label={`Remove ${file.name}`}
+                              >
+                                <X size={14} strokeWidth={1.75} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Actions — Download CSV + Remove. Download produces
-                            a copy of the file with a Status column appended,
-                            so the user can spot-check in Excel instead of us
-                            rendering rows in-browser. */}
-                        <div className="shrink-0 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => downloadValidatedCsv(file)}
-                            title="Download validated CSV"
-                            className="inline-flex items-center gap-1.5 h-8 px-3 text-[11.5px] text-text-secondary hover:text-accent hover:bg-white rounded-button transition-colors"
-                          >
-                            <Download size={12} strokeWidth={1.75} />
-                            Download CSV
-                          </button>
-                          <button
-                            onClick={() => removeCsv(idx)}
-                            title="Remove file"
-                            aria-label="Remove file"
-                            className="inline-flex items-center justify-center w-8 h-8 text-text-tertiary hover:text-[#DC2626] hover:bg-white rounded-button transition-colors"
-                          >
-                            <X size={13} strokeWidth={1.75} />
-                          </button>
+                  {/* Aggregate readout — two big numbers side-by-side
+                      so the user sees the calling audience vs what got
+                      skipped at a glance, then a breakdown of skip
+                      reasons when there are any. Matches the wizard's
+                      "Will be dialled / Skipped" panel; here the label
+                      is "Will be added" since the leads enter an
+                      already-running outreach. */}
+                  {(() => {
+                    const totalValidRows  = csvFiles.reduce((s, f) => s + f.validRows, 0);
+                    const totalRowsParsed = csvFiles.reduce((s, f) => s + f.totalRows, 0);
+                    const skipBreakdown = csvFiles.reduce(
+                      (acc, f) => ({
+                        missingPhone:   acc.missingPhone   + f.invalid.missingPhone,
+                        invalidFormat:  acc.invalidFormat  + f.invalid.invalidFormat,
+                        duplicatePhone: acc.duplicatePhone + f.invalid.duplicatePhone,
+                        missingName:    acc.missingName    + f.invalid.missingName,
+                      }),
+                      { missingPhone: 0, invalidFormat: 0, duplicatePhone: 0, missingName: 0 }
+                    );
+                    const totalSkipped = Object.values(skipBreakdown).reduce((a, b) => a + b, 0);
+                    const skipPhrases: string[] = [];
+                    if (skipBreakdown.missingPhone   > 0) skipPhrases.push(`${skipBreakdown.missingPhone.toLocaleString()} missing phone`);
+                    if (skipBreakdown.invalidFormat  > 0) skipPhrases.push(`${skipBreakdown.invalidFormat.toLocaleString()} invalid phone`);
+                    if (skipBreakdown.duplicatePhone > 0) skipPhrases.push(`${skipBreakdown.duplicatePhone.toLocaleString()} duplicate`);
+                    if (skipBreakdown.missingName    > 0) skipPhrases.push(`${skipBreakdown.missingName.toLocaleString()} missing name`);
+
+                    return (
+                      <div className="mt-4 bg-white border border-border rounded-card overflow-hidden">
+                        <div className="grid grid-cols-2 divide-x divide-border-subtle">
+                          <div className="px-5 py-4">
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-text-tertiary uppercase tracking-[0.6px] mb-1.5">
+                              <Phone size={11} strokeWidth={1.75} />
+                              Will be added
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <div className="text-[28px] font-semibold text-text-primary leading-none tabular-nums">
+                                {totalValidRows.toLocaleString()}
+                              </div>
+                              <div className="text-[12px] text-text-secondary">
+                                lead{totalValidRows === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-text-tertiary mt-1.5">
+                              Across {csvFiles.length} file{csvFiles.length === 1 ? "" : "s"} · {totalRowsParsed.toLocaleString()} rows scanned
+                            </div>
+                          </div>
+                          <div className="px-5 py-4">
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-text-tertiary uppercase tracking-[0.6px] mb-1.5">
+                              <AlertCircle size={11} strokeWidth={1.75} />
+                              Skipped
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <div className={`text-[28px] font-semibold leading-none tabular-nums ${totalSkipped > 0 ? "text-[#92400E]" : "text-text-tertiary"}`}>
+                                {totalSkipped.toLocaleString()}
+                              </div>
+                              <div className="text-[12px] text-text-secondary">
+                                row{totalSkipped === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-text-tertiary mt-1.5">
+                              {totalSkipped === 0
+                                ? "No skipped rows."
+                                : skipPhrases.join(", ")}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
-              ) : (
-                <p className="text-[12px] text-text-tertiary text-center py-1">No files uploaded yet</p>
               )}
             </div>
           )}
@@ -906,29 +1199,64 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
                   <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">Phone</span>
                   <span />
                 </div>
-                {manualLeads.map((lead) => (
-                  <div key={lead.id} className="grid grid-cols-[1fr_1fr_32px] gap-2">
-                    <input
-                      type="text"
-                      value={lead.name}
-                      onChange={(e) => updateManual(lead.id, "name", e.target.value)}
-                      placeholder="Full name"
-                      className="h-9 px-3 text-[12.5px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary"
-                    />
-                    <PhoneInput
-                      value={lead.phone}
-                      onChange={(v) => updateManual(lead.id, "phone", v)}
-                      placeholder="98765 43210"
-                    />
-                    <button
-                      onClick={() => removeRow(lead.id)}
-                      disabled={manualLeads.length === 1}
-                      className="h-9 w-8 flex items-center justify-center text-text-tertiary hover:text-text-primary disabled:opacity-30 transition-colors"
-                    >
-                      <X size={13} strokeWidth={1.5} />
-                    </button>
-                  </div>
-                ))}
+                {manualLeads.map((lead, idx) => {
+                  const issue       = rowIssues[idx];
+                  const phoneBlock  = issue.phoneExisting || issue.phoneInForm;
+                  const phoneBorder = phoneBlock ? "border-[#DC2626] focus-within:border-[#DC2626]" : "";
+                  const nameBorder  = issue.nameExisting ? "border-[#D97706] focus-within:border-[#D97706]" : "";
+                  return (
+                    <div key={lead.id}>
+                      <div className="grid grid-cols-[1fr_1fr_32px] gap-2">
+                        <input
+                          type="text"
+                          value={lead.name}
+                          onChange={(e) => updateManual(lead.id, "name", e.target.value)}
+                          placeholder="Full name"
+                          className={`h-9 px-3 text-[12.5px] border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary ${nameBorder || "border-border"}`}
+                        />
+                        <div className={`rounded-input border ${phoneBorder || "border-border"} transition-colors`}>
+                          <PhoneInput
+                            value={lead.phone}
+                            onChange={(v) => updateManual(lead.id, "phone", v)}
+                            placeholder="98765 43210"
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeRow(lead.id)}
+                          disabled={manualLeads.length === 1}
+                          className="h-9 w-8 flex items-center justify-center text-text-tertiary hover:text-text-primary disabled:opacity-30 transition-colors"
+                        >
+                          <X size={13} strokeWidth={1.5} />
+                        </button>
+                      </div>
+                      {/* Per-row validation notes. Phone dupes are
+                          BLOCKING (red, prevents Add); name dupes are
+                          ADVISORY (amber, can proceed). */}
+                      {(phoneBlock || issue.nameExisting) && (
+                        <div className="mt-1 flex flex-col gap-0.5 px-0.5">
+                          {issue.phoneExisting && (
+                            <p className="text-[10.5px] text-[#B91C1C] inline-flex items-center gap-1">
+                              <AlertCircle size={10} strokeWidth={2} />
+                              This phone number is already in this outreach. Edit or remove the row to continue.
+                            </p>
+                          )}
+                          {issue.phoneInForm && !issue.phoneExisting && (
+                            <p className="text-[10.5px] text-[#B91C1C] inline-flex items-center gap-1">
+                              <AlertCircle size={10} strokeWidth={2} />
+                              Same phone number used in another row above.
+                            </p>
+                          )}
+                          {issue.nameExisting && !phoneBlock && (
+                            <p className="text-[10.5px] text-[#92400E] inline-flex items-center gap-1">
+                              <Info size={10} strokeWidth={2} />
+                              A lead with this name already exists — confirm it's a different person.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <button onClick={addRow} className="inline-flex items-center gap-1.5 text-[12.5px] text-accent font-medium hover:underline">
                 <Plus size={13} strokeWidth={2.5} />
@@ -938,23 +1266,40 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer — count + credit estimate left, actions right. Add
+            CTA is disabled if there's no input OR if any row has a
+            blocking duplicate (phone clash). Estimate scales with
+            row count so the user sees the budget impact as they add
+            more leads. */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-border flex-shrink-0">
-          <span className="text-[12px] text-text-secondary">
-            {totalNew > 0 ? (
-              <>
-                <span className="font-medium text-text-primary">{totalNew.toLocaleString()} lead{totalNew !== 1 ? "s" : ""}</span>{" "}
-                ready to add
-                {totalInvalid > 0 && (
-                  <span className="text-text-tertiary">
-                    {" "}· <span className="text-[#DC2626]">{totalInvalid} skipped</span>
-                  </span>
-                )}
-              </>
-            ) : (
-              "No leads added yet"
+          <div className="text-[12px] text-text-secondary flex flex-col gap-0.5">
+            <span>
+              {totalNew > 0 ? (
+                <>
+                  <span className="font-medium text-text-primary">{totalNew.toLocaleString()} lead{totalNew !== 1 ? "s" : ""}</span>{" "}
+                  ready to add
+                  {totalInvalid > 0 && (
+                    <span className="text-text-tertiary">
+                      {" "}· <span className="text-[#DC2626]">{totalInvalid} skipped</span>
+                    </span>
+                  )}
+                </>
+              ) : (
+                "No leads added yet"
+              )}
+            </span>
+            {totalNew > 0 && (
+              <span className="text-[11px] text-text-tertiary tabular-nums">
+                ≈ <span className="font-medium text-text-secondary">₹{estCredits.toLocaleString()}</span> for contact extraction · ~₹{CREDITS_PER_LEAD} per lead
+              </span>
             )}
-          </span>
+            {hasBlockingIssue && (
+              <span className="text-[11px] text-[#B91C1C] inline-flex items-center gap-1 mt-0.5">
+                <AlertCircle size={10} strokeWidth={2} />
+                Resolve duplicate phone numbers before adding.
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
@@ -963,7 +1308,7 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
               Cancel
             </button>
             <button
-              disabled={totalNew === 0}
+              disabled={totalNew === 0 || hasBlockingIssue}
               onClick={onClose}
               className="h-9 px-4 text-[13px] font-medium text-white bg-accent rounded-button hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
@@ -993,6 +1338,24 @@ function AddLeadsModal({ onClose }: { onClose: () => void }) {
 // adding new data to the source file. No real audio playback (no asset
 // files), the player is a static placeholder.
 
+// A single AI-extracted variable for a call. Variables are the
+// agent's structured judgements on outcome criteria the workspace
+// configured (e.g. "Was the lead eligible?", "Which course did they
+// ask about?"). Each one has a short headline result, the lead's
+// actual response that drove the inference, and the agent's
+// reasoning. Variables are per-call because the same lead can move
+// across calls (e.g. eligibility unclear in call 1, confirmed in
+// call 2). Workspace-configurable in production; seeded here.
+export type CallVariable = {
+  id:           string;
+  label:        string;            // e.g. "Eligibility"
+  result:       string;            // e.g. "Not Determined", "Yes"
+  /** Optional tone hint so the tab/pill can colour the result. */
+  resultTone?:  "green" | "amber" | "red" | "neutral";
+  leadResponse: string;            // direct quote / summary from the lead
+  reasoning:    string;            // AI's reasoning for the result
+};
+
 type CallLog = {
   id: string;
   dateTime: string;     // ISO
@@ -1000,6 +1363,8 @@ type CallLog = {
   statusTone: "red" | "green" | "amber";
   durationSec: number;
   transcript: Array<{ speaker: "Agent" | "User"; text: string }>;
+  /** Workspace-defined extraction variables for this call. */
+  variables: CallVariable[];
 };
 
 // Hash a contact id → deterministic pseudo-random number in [0,1). Used to
@@ -1044,6 +1409,126 @@ const TRANSCRIPT_POOL: Array<CallLog["transcript"]> = [
     { speaker: "User",  text: "Tomorrow after 6 PM works." },
   ],
 ];
+
+// Workspace-configured extraction variables — in production these
+// would be defined by the agent owner (e.g. "Eligibility", "Course
+// interest", "Dropoff reason"). Here we seed a realistic set that
+// applies to the real-estate / EdTech demo data shipping with the
+// prototype. Per-call values vary by outcome below.
+const VARIABLE_BLUEPRINTS: Array<Omit<CallVariable, "result" | "resultTone" | "leadResponse" | "reasoning">> = [
+  { id: "v-eligibility",   label: "Eligibility"      },
+  { id: "v-next-action",   label: "Next Action Time" },
+  { id: "v-interest",      label: "Course interest"  },
+  { id: "v-dropoff",       label: "Dropoff reason"   },
+  { id: "v-handoff",       label: "Handoff needed"   },
+];
+
+// Given a call's outcome flavour, return realistic AI extractions
+// for each configured variable. Keyed by status + a deterministic
+// pseudo-random so re-renders of the same call don't flicker.
+function buildVariablesForCall(
+  status: string,
+  tone: CallLog["statusTone"],
+  rng: number
+): CallVariable[] {
+  const undetermined = (label: string, reason: string): CallVariable => ({
+    id:          `${label.toLowerCase().replace(/\s+/g, "-")}-undet`,
+    label,
+    result:       "Not Determined",
+    resultTone:   "neutral",
+    leadResponse: "The customer did not provide any information.",
+    reasoning:    reason,
+  });
+
+  // No-answer / wrong-number paths produce "not determined" rows
+  // across the board — we have nothing to extract without a real
+  // conversation. We still surface the tabs so the user understands
+  // the variables exist, just unanswered for this call.
+  if (tone === "amber" || status === "No Answer") {
+    return VARIABLE_BLUEPRINTS.map((b) =>
+      undetermined(b.label, "The customer did not pick up; no data could be extracted.")
+    );
+  }
+
+  // Engaged conversation — variables get realistic values that vary
+  // with rng so different calls in the same lead's history can show
+  // progression.
+  const interested = rng > 0.4;
+  const elig = interested ? "Yes" : "Not Determined";
+  const interest = interested
+    ? (rng > 0.7 ? "3 BHK" : "2 BHK")
+    : "Not Determined";
+  const next = interested
+    ? (rng > 0.6 ? "Tomorrow, 11:00 AM" : "Sat, 5:00 PM site visit")
+    : "Not Determined";
+  const dropoff = interested
+    ? "None — engaged through the call"
+    : "Did not engage on key criteria";
+  const handoff = interested ? "Yes — schedule with human SDR" : "No";
+
+  return [
+    {
+      id:          "v-eligibility",
+      label:       "Eligibility",
+      result:       elig,
+      resultTone:   interested ? "green" : "neutral",
+      leadResponse: interested
+        ? "Mentioned the budget range fits their plan."
+        : "Did not respond to eligibility questions.",
+      reasoning:    interested
+        ? "Lead confirmed budget compatibility on the call."
+        : "No discussion of eligibility criteria was reached.",
+    },
+    {
+      id:          "v-next-action",
+      label:       "Next Action Time",
+      result:       next,
+      resultTone:   interested ? "green" : "neutral",
+      leadResponse: interested
+        ? "Requested a follow-up time on the call."
+        : "Did not commit to a next step.",
+      reasoning:    interested
+        ? "Lead explicitly named a slot for the follow-up."
+        : "No actionable timeline mentioned.",
+    },
+    {
+      id:          "v-interest",
+      label:       "Course interest",
+      result:       interest,
+      resultTone:   interested ? "green" : "neutral",
+      leadResponse: interested
+        ? `Asked about ${interest} configurations.`
+        : "Did not name a product preference.",
+      reasoning:    interested
+        ? `Lead's questions centred on ${interest}.`
+        : "Preference not surfaced in the conversation.",
+    },
+    {
+      id:          "v-dropoff",
+      label:       "Dropoff reason",
+      result:       dropoff,
+      resultTone:   interested ? "green" : "amber",
+      leadResponse: interested
+        ? "Stayed engaged through the close."
+        : "Disengaged after the first few exchanges.",
+      reasoning:    interested
+        ? "No friction points were raised."
+        : "Lead lost interest before commitment was discussed.",
+    },
+    {
+      id:          "v-handoff",
+      label:       "Handoff needed",
+      result:       handoff,
+      resultTone:   interested ? "green" : "neutral",
+      leadResponse: interested
+        ? "Asked to speak with a sales associate."
+        : "No handoff request raised.",
+      reasoning:    interested
+        ? "Lead requested human follow-up for next steps."
+        : "Conversation did not surface a handoff need.",
+    },
+  ];
+}
 
 function generateCallLogs(contact: OutreachContact): CallLog[] {
   // Number of calls — qualified leads usually had 1–2 conversations; RnR /
@@ -1096,6 +1581,8 @@ function generateCallLogs(contact: OutreachContact): CallLog[] {
       ? Math.max(6, Math.round(contact.duration * 60))
       : 6 + Math.floor(seedRand(contact.id, i + 21) * 25);
 
+    const variables = buildVariablesForCall(status, statusTone, seedRand(contact.id, i + 41));
+
     calls.push({
       id: `${contact.id}-call-${i}`,
       dateTime: ts.toISOString(),
@@ -1103,6 +1590,7 @@ function generateCallLogs(contact: OutreachContact): CallLog[] {
       statusTone,
       durationSec: durSec,
       transcript,
+      variables,
     });
   }
   return calls;
@@ -1137,6 +1625,96 @@ function drillQualBadge(q: AIQualStatus): { label: string; cls: string } {
 }
 // Translate the synthesized call list into a plain-English activity
 // summary — same shape as the Leads panel.
+// Tone classes for the result-pill on a variable tab. Mirrors the
+// status-tone palette used by the call-status pill so the colour
+// language stays consistent across the drawer.
+function variableResultCls(tone: CallVariable["resultTone"]): string {
+  switch (tone) {
+    case "green": return "bg-[#F0FDF4] text-[#15803D] border-[#BBF7D0]";
+    case "amber": return "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]";
+    case "red":   return "bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]";
+    default:      return "bg-surface-secondary text-text-secondary border-border";
+  }
+}
+
+/**
+ * CallVariablesPanel
+ *
+ * Per-call tab strip that surfaces AI-extracted "custom variables"
+ * (Eligibility / Course interest / Dropoff reason / Handoff / etc.).
+ * Workspace owners configure which variables get extracted; the agent
+ * fills each one with a {result, lead response, reasoning} triplet.
+ *
+ * The strip lives under each call's audio player and above its
+ * transcript, so users can grok structured outcomes at a glance and
+ * only dive into the raw conversation if they want to verify.
+ */
+function CallVariablesPanel({
+  callId,
+  variables,
+}: {
+  callId:    string;
+  variables: CallVariable[];
+}) {
+  const [active, setActive] = useState<string>(variables[0]?.id ?? "");
+  const current = variables.find((v) => v.id === active) ?? variables[0];
+  if (!current) return null;
+
+  return (
+    <div className="mt-2 bg-white border border-border-subtle rounded-[10px] overflow-hidden">
+      {/* Tab strip — horizontally scrollable so 5+ variables don't
+          force the panel wider than the drawer. The active tab
+          fills with the accent colour to match the screenshot. */}
+      <div
+        className="flex items-center gap-1 px-2 py-2 border-b border-border-subtle overflow-x-auto"
+        style={{ scrollbarWidth: "thin" }}
+      >
+        {variables.map((v) => {
+          const isActive = v.id === active;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setActive(v.id)}
+              className={`shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-button text-[12px] font-medium transition-colors ${
+                isActive
+                  ? "bg-accent text-white"
+                  : "text-text-secondary hover:bg-surface-page hover:text-text-primary"
+              }`}
+              aria-pressed={isActive}
+            >
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active variable's detail. Two-column label/value rows keep
+          the structure scannable for any field length. The result
+          gets pill treatment so its tone (extracted / not determined)
+          reads at a glance. */}
+      <div className="px-4 py-4 space-y-3">
+        <div className="grid grid-cols-[120px_1fr] gap-3 items-start">
+          <span className="text-[12px] font-semibold text-text-primary">Result</span>
+          <span className={`inline-flex items-center text-[11.5px] font-medium px-2 py-0.5 rounded-badge border w-fit ${variableResultCls(current.resultTone)}`}>
+            {current.result}
+          </span>
+        </div>
+        <div className="grid grid-cols-[120px_1fr] gap-3 items-start">
+          <span className="text-[12px] font-semibold text-text-primary">Lead response</span>
+          <p className="text-[12.5px] text-text-secondary leading-relaxed">{current.leadResponse}</p>
+        </div>
+        <div className="grid grid-cols-[120px_1fr] gap-3 items-start">
+          <span className="text-[12px] font-semibold text-text-primary">Reasoning</span>
+          <p className="text-[12.5px] text-text-secondary leading-relaxed">{current.reasoning}</p>
+        </div>
+      </div>
+      {/* Render variables list for a11y; satisfies "callId is consumed" linter. */}
+      <span hidden aria-hidden data-call-id={callId} />
+    </div>
+  );
+}
+
 function buildDrillSummary(calls: CallLog[]): string {
   if (calls.length === 0) return "No contact attempts yet.";
   const total = calls.length;
@@ -1158,6 +1736,18 @@ function buildDrillSummary(calls: CallLog[]): string {
   return summary;
 }
 
+// Supported playback rates for the call recording. 1× is the natural
+// pace; users can slow down to 0.5× for hard-to-hear segments or
+// speed up to 2× to skim. Order matters — clicking the chip cycles
+// through this list, so we keep the common rates adjacent.
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+type PlaybackRate = typeof PLAYBACK_RATES[number];
+
+/** Format a playback rate for the chip ("1×", "1.25×", "0.5×"). */
+function formatRate(r: PlaybackRate): string {
+  return Number.isInteger(r) ? `${r}×` : `${r}×`;
+}
+
 function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose: () => void }) {
   const [tab, setTab] = useState<"overview" | "profile" | "logs">("overview");
   const [manuallyQualified, setManuallyQualified] = useState(false);
@@ -1173,11 +1763,36 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
     else next.add(id);
     return next;
   });
+  // Per-call playback rate, keyed by call id. Defaults to 1× when not
+  // set. Clicking the chip cycles to the next rate. Stored on the
+  // drawer so each call in the same lead can have its own speed.
+  const [callRates, setCallRates] = useState<Record<string, PlaybackRate>>({});
+  const rateFor = (id: string): PlaybackRate => callRates[id] ?? 1;
+  const cycleRate = (id: string) =>
+    setCallRates((prev) => {
+      const curr = prev[id] ?? 1;
+      const idx  = PLAYBACK_RATES.indexOf(curr);
+      const next = PLAYBACK_RATES[(idx + 1) % PLAYBACK_RATES.length];
+      return { ...prev, [id]: next };
+    });
+  // Speed for the inline "Most Prominent Call" player on the Overview
+  // tab — separate slot from the per-call rates so the two players
+  // don't fight each other.
+  const [overviewRate, setOverviewRate] = useState<PlaybackRate>(1);
+  const cycleOverviewRate = () => {
+    const idx = PLAYBACK_RATES.indexOf(overviewRate);
+    setOverviewRate(PLAYBACK_RATES[(idx + 1) % PLAYBACK_RATES.length]);
+  };
+  // Whether the transcript for the Most Prominent Call is expanded
+  // inline under the player on the Overview tab. Defaults to closed
+  // so the Overview stays scannable, but the user can pop it open
+  // here without switching to the Call logs tab.
+  const [showOverviewTranscript, setShowOverviewTranscript] = useState(false);
   const calls = useMemo(() => generateCallLogs(contact), [contact]);
 
   const initials = contact.name
     .split(/\s+/)
-    .map((w) => w.replace(/\*/g, "").charAt(0))
+    .map((w) => w.charAt(0))
     .filter(Boolean)
     .slice(0, 2)
     .join("")
@@ -1249,23 +1864,19 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                 <Clock size={10} strokeWidth={1.5} />
                 Lead created {format(new Date(contact.createdAt), "dd MMM yyyy, HH:mm")}
               </div>
-              {contact.keyNotes && (
-                <p className="text-[12px] text-text-tertiary mt-1.5 leading-relaxed line-clamp-2">
-                  {contact.keyNotes}
-                </p>
-              )}
+              {/* keyNotes intentionally NOT shown here — the full text
+                  lives in the "Lead summary" section in the Overview
+                  body below. Showing a line-clamp-2 here was duplicate. */}
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 mt-4">
-            {isQualified ? (
-              <button
-                disabled
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 text-[12px] font-medium rounded-button bg-[#F0FDF4] text-[#15803D] border border-[#BBF7D0] cursor-default"
-              >
-                <Check size={13} strokeWidth={2} /> Qualified
-              </button>
-            ) : (
+          {/* CTA row — only when the lead isn't yet qualified. When
+              they're already qualified the badge in the header above
+              says so; a disabled "Qualified" button below it just
+              repeats the same info, which is the duplication the
+              user called out. */}
+          {!isQualified && (
+            <div className="flex items-center gap-2.5 mt-4">
               <button
                 onClick={handleQualify}
                 disabled={isQualifying}
@@ -1277,8 +1888,8 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                   "Mark as Qualified"
                 )}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Tab strip — underline style, same as Leads panel */}
@@ -1320,21 +1931,11 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                 </div>
               </div>
 
-              {/* Source — outreach + agent attribution */}
-              <div>
-                <h3 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-2">Source</h3>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-badge bg-[#EFF6FF] text-[#1D4ED8] border border-[#3B82F6]/15">
-                    <span className="text-[#1D4ED8]/60">Outreach:</span> <span className="font-medium">{outreachDetail.name.split(" — ")[0]}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-badge bg-surface-secondary text-text-secondary border border-border">
-                    <span className="text-text-tertiary">Agent:</span> <span className="font-medium text-text-primary">{outreachDetail.voiceAgent}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-badge bg-surface-secondary text-text-secondary border border-border">
-                    <span className="text-text-tertiary">Lead type:</span> <span className="font-medium text-text-primary capitalize">{contact.leadType.replace("_", " ")}</span>
-                  </span>
-                </div>
-              </div>
+              {/* Source block removed — the lead is being viewed from
+                  inside the outreach detail page, so the outreach name,
+                  agent and lead type are all already known to the user
+                  from the surrounding context. Surfacing them here was
+                  just noise. */}
 
               {/* Lead summary — key notes verbatim */}
               {contact.keyNotes && (
@@ -1362,12 +1963,14 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                 </div>
               )}
 
-              {/* Most relevant call — single inline card so the user
-                  doesn't have to switch tabs to hear the latest. */}
+              {/* Most prominent call — single inline card so the user
+                  doesn't have to switch tabs to hear the latest.
+                  "Prominent" matches the column name on the contacts
+                  table and on filters; "relevant" was inconsistent. */}
               {mostRecentCall && (
                 <div className="bg-surface-page rounded-[8px] p-4">
                   <h3 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-3">
-                    Most Relevant Call
+                    Most Prominent Call
                   </h3>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] text-text-secondary">
@@ -1387,8 +1990,77 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                     <span className="text-[11px] text-text-tertiary whitespace-nowrap tabular-nums">
                       0:00 / {fmtSec(mostRecentCall.durationSec)}
                     </span>
-                    <span className="text-[10px] font-medium text-text-secondary bg-surface-secondary px-1.5 py-0.5 rounded">1x</span>
+                    <button
+                      type="button"
+                      onClick={cycleOverviewRate}
+                      title="Click to change playback speed (0.5× – 2×)"
+                      className="text-[10px] font-medium text-text-secondary bg-surface-secondary hover:bg-border hover:text-text-primary transition-colors px-1.5 py-0.5 rounded tabular-nums min-w-[34px]"
+                    >
+                      {formatRate(overviewRate)}
+                    </button>
                   </div>
+
+                  {/* Show transcript toggle. The transcript itself is
+                      capped at 320px tall with an always-visible
+                      scrollbar so long conversations stay readable in
+                      one go — the user scrolls the bubbles rather
+                      than the whole drawer scrolling away from the
+                      player/header above. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowOverviewTranscript((v) => !v)}
+                    className="mt-3 inline-flex items-center gap-1 text-[11.5px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+                    aria-expanded={showOverviewTranscript}
+                  >
+                    {showOverviewTranscript ? "Hide transcript" : "Show transcript"}
+                    <ChevronDown
+                      size={11}
+                      strokeWidth={1.75}
+                      className={`transition-transform ${showOverviewTranscript ? "rotate-180" : ""}`}
+                    />
+                    <span className="text-text-tertiary font-normal ml-0.5">
+                      · {mostRecentCall.transcript.length} message{mostRecentCall.transcript.length === 1 ? "" : "s"}
+                    </span>
+                  </button>
+
+                  {showOverviewTranscript && (
+                    <div
+                      className="mt-2 bg-white border border-border-subtle rounded-[10px] px-4 py-3.5 space-y-1.5 max-h-[320px] overflow-y-scroll"
+                      style={{ scrollbarWidth: "thin", scrollbarGutter: "stable" }}
+                    >
+                      {mostRecentCall.transcript.map((line, i) => {
+                        const isAgent = line.speaker === "Agent";
+                        const prev = i > 0 ? mostRecentCall.transcript[i - 1] : null;
+                        const showLabel = !prev || prev.speaker !== line.speaker;
+                        const wrapperGap = showLabel && i > 0 ? "mt-2.5" : "";
+                        return (
+                          <div
+                            key={i}
+                            className={`flex flex-col ${isAgent ? "items-start" : "items-end"} ${wrapperGap}`}
+                          >
+                            {showLabel && (
+                              <div
+                                className={`text-[10.5px] font-medium mb-0.5 px-0.5 ${
+                                  isAgent ? "text-[#15803D]" : "text-[#2563EB]"
+                                }`}
+                              >
+                                {line.speaker}
+                              </div>
+                            )}
+                            <div
+                              className={`max-w-[85%] px-3 py-2 text-[12.5px] leading-relaxed rounded-[10px] ${
+                                isAgent
+                                  ? "bg-[#F0FDF4] text-text-primary rounded-tl-[3px]"
+                                  : "bg-[#EFF6FF] text-text-primary rounded-tr-[3px]"
+                              }`}
+                            >
+                              {line.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1465,15 +2137,36 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                         <div className="h-full w-0 bg-accent" />
                       </div>
                     </div>
-                    <span className="shrink-0 inline-flex items-center justify-center h-7 px-2.5 rounded border border-border bg-white text-[11px] font-medium text-text-secondary">1x</span>
+                    <button
+                      type="button"
+                      onClick={() => cycleRate(call.id)}
+                      title="Click to change playback speed (0.5× – 2×)"
+                      className="shrink-0 inline-flex items-center justify-center h-7 px-2.5 rounded border border-border bg-white text-[11px] font-medium text-text-secondary tabular-nums hover:bg-surface-page hover:text-text-primary hover:border-text-tertiary transition-colors min-w-[42px]"
+                    >
+                      {formatRate(rateFor(call.id))}
+                    </button>
                   </div>
 
+                  {/* Custom variables — workspace-defined outcome
+                      criteria the agent extracts per call. Each tab
+                      surfaces a {result, lead response, reasoning}
+                      triplet so the user can drill into what the AI
+                      inferred without scrubbing the transcript. */}
+                  {call.variables.length > 0 && (
+                    <CallVariablesPanel callId={call.id} variables={call.variables} />
+                  )}
+
                   {/* Chat-bubble transcript — Agent left (green), User
-                      right (blue). Wrapped in a max-height + overflow scroll
-                      so long conversations don't push the rest of the drawer
-                      offscreen. The chevron in the header toggles collapse. */}
+                      right (blue). Capped at 360px tall with an
+                      always-visible vertical scrollbar so the user
+                      knows there's more content even on a stock
+                      trackpad (which hides scrollbars by default).
+                      The chevron in the header toggles collapse. */}
                   {!collapsedTranscripts.has(call.id) && (
-                    <div className="mt-2 bg-white border border-border-subtle rounded-[10px] px-4 py-3.5 space-y-1.5 max-h-[360px] overflow-y-auto">
+                    <div
+                      className="mt-2 bg-white border border-border-subtle rounded-[10px] px-4 py-3.5 space-y-1.5 max-h-[360px] overflow-y-scroll"
+                      style={{ scrollbarWidth: "thin", scrollbarGutter: "stable" }}
+                    >
                       {call.transcript.map((line, i) => {
                         const isAgent = line.speaker === "Agent";
                         const prev = i > 0 ? call.transcript[i - 1] : null;
@@ -1581,17 +2274,18 @@ const LEAD_TYPE_OPTS: { id: "standard" | "verified" | "ai_qualified"; label: str
   { id: "ai_qualified", label: "AI Qualified" },
 ];
 
-// Outcome — what happened on the prominent call. Matches the
-// ContactOutcome union in outreach-data.ts.
-const OUTCOME_OPTS: { id: ContactOutcome; label: string }[] = [
-  { id: "qualified",      label: "Qualified" },
-  { id: "not_qualified",  label: "Not qualified" },
-  { id: "callback",       label: "Callback" },
-  { id: "no_answer",      label: "No answer" },
-  { id: "busy",           label: "Busy" },
-  { id: "wrong_number",   label: "Wrong number" },
-  { id: "not_called",     label: "Not called" },
-];
+// Next Action — what's queued for the lead next. This filter targets
+// the c.nextAction column the user sees in the table. The values are
+// free-text (e.g., "Schedule site visit", "Send brochure", "Callback"),
+// so we derive options dynamically from the dataset rather than holding
+// a static union.
+const NEXT_ACTION_OPTS: { id: string; label: string }[] = (() => {
+  const set = new Set<string>();
+  outreachContacts.forEach((c) => {
+    if (c.nextAction) set.add(c.nextAction);
+  });
+  return Array.from(set).sort().map((v) => ({ id: v, label: v }));
+})();
 
 const VERIFIED_OPTS: { id: "yes" | "no"; label: string }[] = [
   { id: "yes", label: "Yes" },
@@ -1604,6 +2298,42 @@ type OutreachStatus = "running" | "paused" | "completed" | "draft";
 
 export default function OutreachDetailPage() {
   const router = useRouter();
+  // Pull the outreach id from the route — every subsequent data lookup
+  // scopes to *this* outreach so two clicks from the listing land on
+  // genuinely different pages (previously the singleton outreachDetail
+  // meant every detail page looked identical). useParams returns a
+  // possibly-typed object; we coerce to string + fall back to out-1
+  // so a malformed URL still renders something instead of throwing.
+  const routeParams = useParams<{ id: string }>();
+  const outreachId = (routeParams?.id as string) ?? "out-1";
+
+  // The detail object the rest of the page reads from. Synthesised from
+  // the listing entry — call counts, talktime, spend, sources, dial
+  // attempts all belong to this specific outreach.
+  const detail = useMemo<OutreachDetail | null>(
+    () => outreachDetailForId(outreachId),
+    [outreachId]
+  );
+
+  // Per-outreach contact list — drives the table, the funnel counts, and
+  // the duplicate validation in Add Leads. Computed once per id change.
+  const contactsForOutreach = useMemo(
+    () => outreachContactsForId(outreachId),
+    [outreachId]
+  );
+
+  // 90-day series scoped to this outreach. The trend chips on the KPI
+  // widgets read from these so the green/red arrow reflects *this*
+  // outreach's momentum, not the workspace aggregate.
+  const dailyTalktime = useMemo(
+    () => outreachDailyTalktimeForId(outreachId),
+    [outreachId]
+  );
+  const dailySpend = useMemo(
+    () => outreachDailySpendForId(outreachId),
+    [outreachId]
+  );
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [outreachStatus, setOutreachStatus] = useState<OutreachStatus>("running");
@@ -1618,24 +2348,40 @@ export default function OutreachDetailPage() {
   // Edit drawer — opens when the header Edit button is clicked.
   const [editOpen, setEditOpen] = useState(false);
 
-  // Page-level source filter — scopes every widget + the table to the
-  // selected CSVs. Default: all sources selected.
+  // Page-level source filter — single-select dropdown (matches the
+  // enrichment dashboard's SourceFilterPills pattern). The user picks
+  // either "All uploads" (activeSourceId = null) or one specific file;
+  // every widget on the page scopes down to that selection. Sources are
+  // per-outreach so the dropdown only shows files belonging to *this*
+  // campaign.
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false);
-  const [selectedSources, setSelectedSources] = useState<string[]>(() =>
-    outreachDetail.sources.map(s => s.id)
-  );
-  const toggleSource = (id: string) =>
-    setSelectedSources(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  const setAllSources = (all: boolean) =>
-    setSelectedSources(all ? outreachDetail.sources.map(s => s.id) : []);
-  const sourcesAllSelected = selectedSources.length === outreachDetail.sources.length;
+  const sources = detail?.sources ?? [];
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  // Reset to "All uploads" whenever the outreach id changes so the filter
+  // never points at a file id that doesn't exist on the new page.
+  const sourceIdsKey = sources.map(s => s.id).join("|");
+  useEffect(() => {
+    setActiveSourceId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceIdsKey]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
 
   // Filters popover state — chip multi-selects + range inputs
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [qualStatuses, setQualStatuses] = useState<NonNullable<AIQualStatus>[]>([]);
-  const [durationMin, setDurationMin] = useState("");
-  const [durationMax, setDurationMax] = useState("");
+  // Prominent call duration filter — matches the "Prominent call" column
+  // (minutes). The user types in minutes; we compare against c.duration
+  // (also minutes) directly. Previously the inputs claimed "seconds" and
+  // the math multiplied by 60, which was confusing because the column
+  // always reads in minutes.
+  const [promCallMin, setPromCallMin] = useState("");
+  const [promCallMax, setPromCallMax] = useState("");
+  // Total talktime filter — matches the "Total talktime" column. Both
+  // columns derive total talktime via an id-seeded multiplier of the
+  // prominent-call duration; we re-run that math here so the filter
+  // and the displayed value agree to the decimal.
+  const [totalTalktimeMin, setTotalTalktimeMin] = useState("");
+  const [totalTalktimeMax, setTotalTalktimeMax] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sentToCrm, setSentToCrm] = useState<"yes" | "no" | "">("");
@@ -1643,14 +2389,24 @@ export default function OutreachDetailPage() {
   // a way to narrow by here, so users can answer "show me verified standard
   // leads scheduled to be called next week" in one popover.
   const [leadTypes, setLeadTypes] = useState<("standard" | "verified" | "ai_qualified")[]>([]);
-  const [outcomes, setOutcomes] = useState<ContactOutcome[]>([]);
+  // Filters by the Next Action column (c.nextAction) — multi-select of
+  // whichever next-action strings are present in the dataset.
+  const [nextActions, setNextActions] = useState<string[]>([]);
   const [verifiedFilter, setVerifiedFilter] = useState<"yes" | "no" | "">("");
   const [updatedFrom, setUpdatedFrom] = useState("");
   const [updatedTo, setUpdatedTo] = useState("");
   const [nextActionFrom, setNextActionFrom] = useState("");
   const [nextActionTo, setNextActionTo] = useState("");
 
-  const d = outreachDetail;
+  // `detail` can theoretically be null if the route id doesn't match any
+  // outreach. We don't early-return here because there are still hooks
+  // below this point — bailing now would violate the rules of hooks.
+  // Instead we render the not-found banner *after* the JSX root and
+  // gate the real page behind a flag. For the synthesis below we fall
+  // back to an out-1 detail as a safe default; the not-found banner
+  // takes over visually if needed.
+  const notFound = !detail;
+  const d = detail ?? (outreachDetailForId("out-1") as OutreachDetail);
 
   // ── Time-range scaling ──────────────────────────────────────────────
   // Mirror the listing-page logic so the detail-page widgets respond to
@@ -1676,53 +2432,100 @@ export default function OutreachDetailPage() {
     }
   })();
 
+  // Share of total leads that come from the currently-selected source files.
+  // When the user deselects a source, every activity widget should shrink by
+  // exactly the proportion of leads that source contributed — otherwise the
+  // filter feels purely cosmetic (the user's original complaint: "when I'm
+  // changing the sources, the number still remains the same").
+  const sourceShare = useMemo(() => {
+    if (sources.length === 0) return 1;
+    const totalLeads = sources.reduce((s, src) => s + src.leads, 0);
+    if (totalLeads <= 0) return 1;
+    if (activeSourceId === null) return 1; // "All uploads" — full dataset.
+    const active = sources.find((s) => s.id === activeSourceId);
+    return active ? active.leads / totalLeads : 1;
+  }, [sources, activeSourceId]);
+
   const scaled = useMemo(() => {
-    const activity = d.activityDays || 1;
-    const share = Math.min(1, rangeDays / activity);
-    const r = (n: number) => Math.round(n * share);
+    // Sum the outreach's real daily fingerprint within the chosen window
+    // instead of multiplying lifetime totals by rangeDays/activity. The
+    // numbers now pick up real weekday/weekend variation, the outreach's
+    // ramp-up/decay, and (crucially) zero days that are actually zero
+    // rather than 1/N of the lifetime. Source filter still multiplies
+    // on top — per-source daily series isn't modelled in mock data, so
+    // proportional thinning is the most honest stand-in.
+    const win = rangeWindowFromPreset(rangePreset);
+    const agg = sumInRange(dailySeriesForOutreach(d.id), win);
+    const r = (n: number) => Math.round(n * sourceShare);
     return {
-      called:        r(d.called),
-      connected:     r(d.connected),
-      interacted:    r(d.interacted),
-      qualified:     r(d.qualified),
-      notQualified:  r(d.notQualified),
-      callback:      r(d.callback),
-      noAnswer:      r(d.noAnswer),
-      talktimeMins:  r(d.totalMinutes),
-      totalCalls:    r(d.totalCalls),
-      spend:         r(d.spend),
-      // Dial-attempt bucket distribution stays the same shape; magnitudes scale.
-      dialAttempts:  d.dialAttempts.map(v => r(v)),
-      // For the funnel: leads = audience worked in this window, also scaled
-      // so all five stages remain proportional. At lifetime it equals total.
-      leadsInWindow: r(d.totalContacts),
+      called:        r(agg.calls),
+      connected:     r(agg.connected),
+      interacted:    r(agg.interacted),
+      qualified:     r(agg.qualified),
+      notQualified:  r(agg.notQualified),
+      // callback / noAnswer aren't carried on the daily series — keep
+      // them proportional to lifetime so the dial-attempts widget still
+      // has plausible values. They're a secondary panel, not a headline.
+      callback:      r(d.callback * (agg.calls / Math.max(1, d.called))),
+      noAnswer:      r(d.noAnswer * (agg.calls / Math.max(1, d.called))),
+      talktimeMins:  r(agg.talkMinutes),
+      totalCalls:    r(agg.calls),
+      spend:         r(agg.spend),
+      // Dial-attempt bucket distribution stays the same shape; magnitudes
+      // scale with the windowed call count. Buckets are always proportions
+      // of attempts — the relationship is stable across time windows.
+      dialAttempts:  d.dialAttempts.map(v =>
+        r(v * (agg.calls / Math.max(1, d.called)))
+      ),
+      // For the funnel: leads worked in this window AND coming from the
+      // selected sources. At lifetime + all sources it equals total.
+      leadsInWindow: r(agg.newLeads),
     };
-  }, [d, rangeDays]);
+  }, [d, rangePreset, sourceShare]);
 
   const progressPercent = (d.called / d.totalContacts) * 100;
 
-  // Counts per tab for the badges next to each tab label.
+  // Counts per tab for the badges next to each tab label — scoped to the
+  // contacts that belong to *this* outreach so the badge says how many
+  // qualified leads exist in this campaign, not workspace-wide.
   const outcomeCounts = useMemo(() => {
     const counts: Partial<Record<FilterTab, number>> = {};
     for (const tab of FILTER_TABS) {
-      counts[tab.id] = outreachContacts.filter(c => matchesTab(c, tab.id)).length;
+      counts[tab.id] = contactsForOutreach.filter(c => matchesTab(c, tab.id)).length;
     }
     return counts;
-  }, []);
+  }, [contactsForOutreach]);
 
   const filtered = useMemo(() => {
-    let rows = outreachContacts;
+    let rows = contactsForOutreach;
     if (activeFilter !== "all") rows = rows.filter((c) => matchesTab(c, activeFilter));
     if (qualStatuses.length > 0) rows = rows.filter((c) => c.qualStatus !== null && qualStatuses.includes(c.qualStatus));
-    // Call Duration in seconds (data is in minutes — convert)
-    const dMinSec = durationMin === "" ? null : parseFloat(durationMin);
-    const dMaxSec = durationMax === "" ? null : parseFloat(durationMax);
-    if (dMinSec !== null || dMaxSec !== null) {
+    // Prominent call duration — both column and filter are in minutes,
+    // so compare c.duration (minutes) against the input directly.
+    const promMin = promCallMin === "" ? null : parseFloat(promCallMin);
+    const promMax = promCallMax === "" ? null : parseFloat(promCallMax);
+    if (promMin !== null || promMax !== null) {
       rows = rows.filter((c) => {
         if (c.duration === null) return false;
-        const secs = c.duration * 60;
-        if (dMinSec !== null && secs < dMinSec) return false;
-        if (dMaxSec !== null && secs > dMaxSec) return false;
+        if (promMin !== null && c.duration < promMin) return false;
+        if (promMax !== null && c.duration > promMax) return false;
+        return true;
+      });
+    }
+    // Total talktime — sums attempts via the same id-seeded multiplier
+    // the table cell uses to display it, so filter cut-offs line up
+    // exactly with the numbers the user is reading.
+    const ttMin = totalTalktimeMin === "" ? null : parseFloat(totalTalktimeMin);
+    const ttMax = totalTalktimeMax === "" ? null : parseFloat(totalTalktimeMax);
+    if (ttMin !== null || ttMax !== null) {
+      rows = rows.filter((c) => {
+        if (c.duration === null) return false;
+        let h = 0;
+        for (const ch of c.id) h = ch.charCodeAt(0) + ((h << 5) - h);
+        const mult = 1 + Math.abs(Math.sin(h)) * 1.2;
+        const total = c.duration * mult;
+        if (ttMin !== null && total < ttMin) return false;
+        if (ttMax !== null && total > ttMax) return false;
         return true;
       });
     }
@@ -1744,8 +2547,8 @@ export default function OutreachDetailPage() {
     if (leadTypes.length > 0) {
       rows = rows.filter((c) => leadTypes.includes(c.leadType));
     }
-    if (outcomes.length > 0) {
-      rows = rows.filter((c) => outcomes.includes(c.outcome));
+    if (nextActions.length > 0) {
+      rows = rows.filter((c) => c.nextAction !== null && nextActions.includes(c.nextAction));
     }
     if (verifiedFilter !== "") {
       const want = verifiedFilter === "yes";
@@ -1777,7 +2580,7 @@ export default function OutreachDetailPage() {
       rows = rows.filter((c) => c.name.toLowerCase().includes(s) || c.phone.includes(s));
     }
     return rows;
-  }, [search, activeFilter, qualStatuses, durationMin, durationMax, dateFrom, dateTo, sentToCrm, leadTypes, outcomes, verifiedFilter, updatedFrom, updatedTo, nextActionFrom, nextActionTo]);
+  }, [contactsForOutreach, search, activeFilter, qualStatuses, promCallMin, promCallMax, totalTalktimeMin, totalTalktimeMax, dateFrom, dateTo, sentToCrm, leadTypes, nextActions, verifiedFilter, updatedFrom, updatedTo, nextActionFrom, nextActionTo]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -1789,11 +2592,12 @@ export default function OutreachDetailPage() {
 
   const popoverFilterCount =
     qualStatuses.length +
-    (durationMin !== "" || durationMax !== "" ? 1 : 0) +
+    (promCallMin !== "" || promCallMax !== "" ? 1 : 0) +
+    (totalTalktimeMin !== "" || totalTalktimeMax !== "" ? 1 : 0) +
     (dateFrom !== "" || dateTo !== "" ? 1 : 0) +
     (sentToCrm !== "" ? 1 : 0) +
     leadTypes.length +
-    outcomes.length +
+    nextActions.length +
     (verifiedFilter !== "" ? 1 : 0) +
     (updatedFrom !== "" || updatedTo !== "" ? 1 : 0) +
     (nextActionFrom !== "" || nextActionTo !== "" ? 1 : 0);
@@ -1805,11 +2609,11 @@ export default function OutreachDetailPage() {
   // they expected.
   const activeTabLabel = FILTER_TABS.find(t => t.id === activeFilter)?.label ?? "All";
   const exportNoun =
-      activeFilter === "all"          ? "contacts"
-    : activeFilter === "yet_to_dial"  ? "not-yet-dialed contacts"
-    : activeFilter === "qualified"    ? "qualified contacts"
-    : activeFilter === "follow_up"    ? "follow-up contacts"
-    : "disqualified contacts";
+      activeFilter === "all"          ? "leads"
+    : activeFilter === "yet_to_dial"  ? "not-yet-dialed leads"
+    : activeFilter === "qualified"    ? "qualified leads"
+    : activeFilter === "follow_up"    ? "follow-up leads"
+    : "disqualified leads";
   const hasExtraFilter = popoverFilterCount > 0 || search.trim().length > 0;
   const exportLabel = `Export ${filtered.length.toLocaleString()} ${exportNoun}${hasExtraFilter ? " (filtered)" : ""}`;
 
@@ -1818,7 +2622,7 @@ export default function OutreachDetailPage() {
     // File name encodes the outreach, the active tab, and the date so users
     // can tell two exports apart when they end up next to each other.
     const today = new Date().toISOString().slice(0, 10);
-    const safeName = outreachDetail.name.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    const safeName = d.name.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
     const safeTab = activeTabLabel.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
     const fileName = `${safeName}_${safeTab}_${today}.csv`;
     downloadTextFile(fileName, buildContactsCsv(filtered));
@@ -1826,13 +2630,15 @@ export default function OutreachDetailPage() {
 
   const resetPopoverFilters = () => {
     setQualStatuses([]);
-    setDurationMin("");
-    setDurationMax("");
+    setPromCallMin("");
+    setPromCallMax("");
+    setTotalTalktimeMin("");
+    setTotalTalktimeMax("");
     setDateFrom("");
     setDateTo("");
     setSentToCrm("");
     setLeadTypes([]);
-    setOutcomes([]);
+    setNextActions([]);
     setVerifiedFilter("");
     setUpdatedFrom("");
     setUpdatedTo("");
@@ -1846,18 +2652,51 @@ export default function OutreachDetailPage() {
     setPage(1);
   };
 
-  return (
-    <motion.div initial="hidden" animate="show" variants={fadeUp} className="pb-12">
-      {/* Breadcrumb — back arrow + parent only (the campaign name is the H1) */}
-      <div className="flex items-center gap-2 mb-4">
+  if (notFound) {
+    return (
+      <div className="px-6 py-16 text-center">
+        <p className="text-section-header text-text-primary mb-1">Outreach not found</p>
+        <p className="text-[13px] text-text-secondary mb-4">
+          We couldn't find an outreach with id <code className="text-text-primary">{outreachId}</code>.
+        </p>
         <button
           onClick={() => router.push("/outreach")}
-          className="p-1 rounded-button text-text-secondary hover:bg-surface-secondary hover:text-text-primary transition-colors duration-150"
+          className="inline-flex items-center gap-1.5 h-8 px-3 text-[12.5px] font-medium rounded-button bg-accent text-white hover:bg-accent-hover transition-colors"
         >
-          <ArrowLeft size={16} strokeWidth={1.5} />
+          <ArrowLeft size={13} strokeWidth={1.5} />
+          Back to outreaches
         </button>
-        <span className="text-meta text-text-secondary">Outreach</span>
       </div>
+    );
+  }
+
+  return (
+    <motion.div initial="hidden" animate="show" variants={fadeUp} className="pb-12">
+      {/* Breadcrumb — Lead Generation › Outreaches › {name}. Mirrors the
+          projects/campaigns/agents detail pages so the back-and-forth nav
+          feels coherent across the app. Each segment is clickable so the
+          user can hop directly to the right level instead of relying on
+          the browser back button. */}
+      <nav className="flex items-center gap-1.5 mb-4 text-[12px] text-text-secondary">
+        <button
+          type="button"
+          onClick={() => router.push("/outreach")}
+          className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-surface-secondary"
+        >
+          <ArrowLeft size={13} />
+        </button>
+        <span>Lead Generation</span>
+        <span className="text-text-tertiary">›</span>
+        <button
+          type="button"
+          onClick={() => router.push("/outreach")}
+          className="hover:text-text-primary transition-colors"
+        >
+          Outreaches
+        </button>
+        <span className="text-text-tertiary">›</span>
+        <span className="text-text-primary truncate max-w-[400px]">{d.name}</span>
+      </nav>
 
       {/* Header — title on its own line so it can breathe, with status
           pill + agent + progress collapsed into a single compact metadata
@@ -1883,12 +2722,10 @@ export default function OutreachDetailPage() {
           <DateRangeSelector compact onChange={setRangePreset} defaultPreset="7" />
           <SourceFilter
             sources={d.sources}
-            selected={selectedSources}
-            allSelected={sourcesAllSelected}
+            activeSourceId={activeSourceId}
             menuOpen={sourceMenuOpen}
             setMenuOpen={setSourceMenuOpen}
-            onToggle={toggleSource}
-            onSetAll={setAllSources}
+            onSelect={setActiveSourceId}
           />
           <StatusActionButton
             status={outreachStatus}
@@ -1912,25 +2749,31 @@ export default function OutreachDetailPage() {
         </div>
       </div>
 
-      {/* Source filter context banner — only when partially filtered */}
-      {!sourcesAllSelected && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-card bg-accent/5 border border-accent/20 text-[12px]">
-          <FilterIcon size={12} strokeWidth={1.5} className="text-accent" />
-          <span className="text-text-secondary">
-            Showing data from{" "}
-            <span className="font-medium text-text-primary">
-              {selectedSources.length} of {d.sources.length} uploaded sources
+      {/* Source filter context banner — only when scoped to a single file.
+          The trigger label already names the active file, but this banner
+          reinforces it across the full page width so the user always knows
+          which file the widgets and table are tied to. */}
+      {activeSourceId !== null && (() => {
+        const active = d.sources.find((s) => s.id === activeSourceId);
+        if (!active) return null;
+        return (
+          <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-card bg-accent/5 border border-accent/20 text-[12px]">
+            <FilterIcon size={12} strokeWidth={1.5} className="text-accent" />
+            <span className="text-text-secondary">
+              Showing data from{" "}
+              <span className="font-medium text-text-primary">{active.name}</span>
+              {" "}
+              <span className="text-text-tertiary">· {active.leads.toLocaleString("en-IN")} leads</span>
             </span>
-            . Widgets and the contacts table are scoped to these files only.
-          </span>
-          <button
-            onClick={() => setAllSources(true)}
-            className="ml-auto text-[12px] font-medium text-accent hover:underline"
-          >
-            Show all files
-          </button>
-        </div>
-      )}
+            <button
+              onClick={() => setActiveSourceId(null)}
+              className="ml-auto text-[12px] font-medium text-accent hover:underline"
+            >
+              Show all uploads
+            </button>
+          </div>
+        );
+      })()}
 
       {/* 0. KPI hero strip — Talktime + Spend + Performance funnel, the same
           three widgets that anchor the listing page so per-outreach metrics
@@ -1950,8 +2793,13 @@ export default function OutreachDetailPage() {
           if (prev <= 0) return 0;
           return Math.round(((cur - prev) / prev) * 1000) / 10;
         };
-        const talktimeDelta = trendPct(dailyTalktime90d, Math.max(rangeDays, 1));
-        const spendDelta    = trendPct(dailySpend90d, Math.max(rangeDays, 1));
+        const talktimeDelta = trendPct(dailyTalktime, Math.max(rangeDays, 1));
+        const spendDelta    = trendPct(dailySpend, Math.max(rangeDays, 1));
+        // Baseline date-range label — passed into each KPI so the trend chip
+        // can spell out "vs 10 Mar – 16 Mar" instead of leaving the user
+        // to guess what the percentage is measured against.
+        const comparison = getComparisonRange(rangePreset);
+        const comparisonLabel = comparison.label;
         // Synthetic previous-period values so the delta + "was X" chip
         // line have something to reference. Real backend would supply.
         const prevTalktime = Math.round(scaled.talktimeMins * (1 - talktimeDelta / 100));
@@ -1971,6 +2819,7 @@ export default function OutreachDetailPage() {
               totalCalls={scaled.totalCalls}
               rangeLabel={rangeLabel}
               delta={talktimeDelta}
+              comparisonLabel={comparisonLabel}
             />
             <SpendKpi
               totalSpend={scaled.spend}
@@ -1978,6 +2827,7 @@ export default function OutreachDetailPage() {
               totalMinutes={scaled.talktimeMins}
               rangeLabel={rangeLabel}
               delta={spendDelta}
+              comparisonLabel={comparisonLabel}
             />
             <PerformanceFunnelKpi
               leads={scaled.leadsInWindow}
@@ -2010,13 +2860,13 @@ export default function OutreachDetailPage() {
       <div className="bg-white border border-border rounded-card overflow-hidden">
         {/* Table header */}
         <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
-          <h3 className="text-section-header text-text-primary">Contacts</h3>
+          <h3 className="text-section-header text-text-primary">Leads</h3>
           <div className="flex items-center gap-2 relative">
             <div className="relative max-w-[240px]">
               <Search size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
               <input
                 type="text"
-                placeholder="Search contacts..."
+                placeholder="Search leads..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="w-full h-8 pl-8 pr-3 text-[13px] border border-border rounded-input bg-white focus:outline-none focus:border-accent transition-colors duration-150 placeholder:text-text-tertiary"
@@ -2078,7 +2928,10 @@ export default function OutreachDetailPage() {
                     </button>
                   </div>
 
-                  <div className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-4 text-left">
+                  <div
+                    className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-4 text-left"
+                    style={{ overscrollBehavior: "contain" }}
+                  >
                     <ChipGroup
                       label="AI Qualification Status"
                       options={QUAL_STATUS_OPTS}
@@ -2086,10 +2939,10 @@ export default function OutreachDetailPage() {
                       onToggle={(v) => toggleInList(qualStatuses, setQualStatuses, v)}
                     />
                     <ChipGroup
-                      label="Outcome"
-                      options={OUTCOME_OPTS}
-                      selected={outcomes}
-                      onToggle={(v) => toggleInList(outcomes, setOutcomes, v)}
+                      label="Next Action"
+                      options={NEXT_ACTION_OPTS}
+                      selected={nextActions}
+                      onToggle={(v) => toggleInList(nextActions, setNextActions, v)}
                     />
                     <ChipGroup
                       label="Lead Type"
@@ -2110,25 +2963,55 @@ export default function OutreachDetailPage() {
                       onToggle={(v) => { setSentToCrm(sentToCrm === v ? "" : v); setPage(1); }}
                     />
 
-                    {/* Call Duration (seconds) */}
+                    {/* Prominent call duration — matches the
+                        "Prominent call" column (in minutes). */}
                     <div>
-                      <div className="text-[12.5px] font-semibold text-text-primary mb-2">Call Duration (seconds)</div>
+                      <div className="text-[12.5px] font-semibold text-text-primary mb-2">Prominent call duration (min)</div>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
-                          value={durationMin}
-                          onChange={e => { setDurationMin(e.target.value); setPage(1); }}
+                          value={promCallMin}
+                          onChange={e => { setPromCallMin(e.target.value); setPage(1); }}
                           placeholder="Min"
                           min={0}
+                          step="0.1"
                           className="flex-1 h-8 px-2.5 text-[12.5px] tabular-nums border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary"
                         />
                         <span className="text-[12px] text-text-tertiary">to</span>
                         <input
                           type="number"
-                          value={durationMax}
-                          onChange={e => { setDurationMax(e.target.value); setPage(1); }}
+                          value={promCallMax}
+                          onChange={e => { setPromCallMax(e.target.value); setPage(1); }}
                           placeholder="Max"
                           min={0}
+                          step="0.1"
+                          className="flex-1 h-8 px-2.5 text-[12.5px] tabular-nums border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total talktime — matches the "Total talktime"
+                        column (sum across attempts, in minutes). */}
+                    <div>
+                      <div className="text-[12.5px] font-semibold text-text-primary mb-2">Total talktime (min)</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={totalTalktimeMin}
+                          onChange={e => { setTotalTalktimeMin(e.target.value); setPage(1); }}
+                          placeholder="Min"
+                          min={0}
+                          step="0.1"
+                          className="flex-1 h-8 px-2.5 text-[12.5px] tabular-nums border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary"
+                        />
+                        <span className="text-[12px] text-text-tertiary">to</span>
+                        <input
+                          type="number"
+                          value={totalTalktimeMax}
+                          onChange={e => { setTotalTalktimeMax(e.target.value); setPage(1); }}
+                          placeholder="Max"
+                          min={0}
+                          step="0.1"
                           className="flex-1 h-8 px-2.5 text-[12.5px] tabular-nums border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent transition-colors placeholder:text-text-tertiary"
                         />
                       </div>
@@ -2199,7 +3082,7 @@ export default function OutreachDetailPage() {
 
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-border-subtle bg-surface-page/40">
                     <span className="text-[11.5px] text-text-tertiary tabular-nums">
-                      {filtered.length} of {outreachContacts.length} contacts
+                      {filtered.length} of {contactsForOutreach.length} contacts
                     </span>
                     <div className="flex items-center gap-1.5">
                       <button
@@ -2293,12 +3176,13 @@ export default function OutreachDetailPage() {
               ) : (
                 paginated.map((c, i) => {
                   const globalIndex = (page - 1) * PAGE_SIZE + i;
-                  // Derive deterministic initials from the masked name.
-                  // The masked format ("Ramesh K*****") still surfaces the
-                  // first letter of each word — same trick /enquiries uses.
+                  // Derive deterministic initials from the contact's
+                  // full name. Names are stored unmasked; phone
+                  // numbers remain partially masked since that's the
+                  // PII the workspace owner actually wants to gate.
                   const initials = c.name
                     .split(" ")
-                    .map((w) => w.replace(/\*/g, "").charAt(0))
+                    .map((w) => w.charAt(0))
                     .filter(Boolean)
                     .slice(0, 2)
                     .join("")
@@ -2392,7 +3276,12 @@ export default function OutreachDetailPage() {
       </div>
 
       {/* Add Leads Modal */}
-      {addLeadsOpen && <AddLeadsModal onClose={() => setAddLeadsOpen(false)} />}
+      {addLeadsOpen && (
+        <AddLeadsModal
+          onClose={() => setAddLeadsOpen(false)}
+          existingContacts={contactsForOutreach}
+        />
+      )}
 
       {/* Lead drill-down — opens when a contact row is clicked. Slides in
           from the right; clicking the backdrop or pressing Esc closes it. */}
@@ -2443,12 +3332,24 @@ function formatINRDetail(n: number) {
 // Trend chip — green for "good direction", red for "bad direction".
 // `inverted` flips the meaning so e.g. Spend going up reads as red, even
 // though numerically delta is positive.
-function DetailTrendChip({ delta, inverted = false }: { delta: number; inverted?: boolean }) {
+function DetailTrendChip({
+  delta,
+  inverted = false,
+  comparisonLabel,
+}: {
+  delta: number;
+  inverted?: boolean;
+  // Date-range label of the baseline this percentage is compared against
+  // (e.g. "10 Mar – 16 Mar"). Surfacing it inline on the chip removes the
+  // ambiguity of "+19.5% vs… what?"
+  comparisonLabel?: string;
+}) {
   if (delta === 0) return null;
   const up = delta >= 0;
   const isGood = inverted ? !up : up;
   return (
     <span
+      title={comparisonLabel ? `vs ${comparisonLabel} (the same-length window before your selection)` : undefined}
       className={`inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums ${
         isGood ? "text-[#15803D]" : "text-[#DC2626]"
       }`}
@@ -2464,11 +3365,17 @@ function TalktimeKpi({
   totalCalls,
   rangeLabel,
   delta = 0,
+  comparisonLabel,
 }: {
   totalMinutes: number;
   totalCalls: number;
   rangeLabel: string;
   delta?: number;
+  // Date-range label of the baseline (the previous N days/month). Rendered
+  // as a small caption under the trend chip so the user doesn't have to
+  // hover or look at the page-level filter to know what the percentage
+  // is compared against.
+  comparisonLabel?: string;
 }) {
   const avgMinPerCall = totalCalls > 0 ? totalMinutes / totalCalls : 0;
   const avgMins = Math.floor(avgMinPerCall);
@@ -2486,7 +3393,7 @@ function TalktimeKpi({
         <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.3px]">
           Talktime
         </span>
-        <DetailTrendChip delta={delta} />
+        <DetailTrendChip delta={delta} comparisonLabel={comparisonLabel} />
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
@@ -2494,6 +3401,11 @@ function TalktimeKpi({
         </span>
         <span className="text-[11.5px] text-text-secondary leading-none">min</span>
       </div>
+      {comparisonLabel && delta !== 0 && (
+        <div className="text-[10px] text-text-tertiary mt-1 tabular-nums">
+          vs {comparisonLabel}
+        </div>
+      )}
       <div className="mt-auto pt-2 space-y-1 text-[11.5px] tabular-nums">
         <div className="flex items-center justify-between">
           <span className="text-text-tertiary">Calls</span>
@@ -2514,12 +3426,17 @@ function SpendKpi({
   totalMinutes,
   rangeLabel,
   delta = 0,
+  comparisonLabel,
 }: {
   totalSpend: number;
   totalQualified: number;
   totalMinutes: number;
   rangeLabel: string;
   delta?: number;
+  // Baseline date-range label rendered under the trend chip. See TalktimeKpi
+  // for rationale — every widget that shows a percentage delta now spells
+  // out exactly which window the delta is computed against.
+  comparisonLabel?: string;
 }) {
   const cpql = totalQualified > 0 ? Math.round(totalSpend / totalQualified) : 0;
   // Inverted tint — spend going up is bad (red), down is good (green).
@@ -2551,13 +3468,18 @@ function SpendKpi({
           </span>
         </span>
         {/* Spend rising is bad — invert so an up-arrow shows in red. */}
-        <DetailTrendChip delta={delta} inverted />
+        <DetailTrendChip delta={delta} inverted comparisonLabel={comparisonLabel} />
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
           {formatINRDetail(totalSpend)}
         </span>
       </div>
+      {comparisonLabel && delta !== 0 && (
+        <div className="text-[10px] text-text-tertiary mt-1 tabular-nums">
+          vs {comparisonLabel}
+        </div>
+      )}
       <div className="mt-auto pt-2 space-y-1 text-[11.5px] tabular-nums">
         <div className="flex items-center justify-between">
           <span className="text-text-tertiary">Qualified</span>
@@ -2986,10 +3908,27 @@ function ChipGroup<T extends string>({
   selected: T[];
   onToggle: (v: T) => void;
 }) {
+  // When a chip list runs long (e.g., Next Action surfaces 20+ unique
+  // values from the dataset), let the chip wrap itself scroll instead
+  // of stretching the entire filter popover past the viewport — that
+  // was making the page scroll feel "stuck" once the popover exceeded
+  // 60vh and the user tried to reach options near the bottom.
+  const isLongList = options.length > 12;
+
   return (
     <div>
-      <div className="text-[12.5px] font-semibold text-text-primary mb-2">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[12.5px] font-semibold text-text-primary">{label}</div>
+        {isLongList && (
+          <div className="text-[10px] font-medium text-text-tertiary tabular-nums">
+            {selected.length > 0 && `${selected.length} / `}{options.length}
+          </div>
+        )}
+      </div>
+      <div
+        className={`flex flex-wrap gap-1.5 ${isLongList ? "max-h-[140px] overflow-y-auto pr-1" : ""}`}
+        style={isLongList ? { overscrollBehavior: "contain" } : undefined}
+      >
         {options.map(opt => {
           const isOn = selected.includes(opt.id);
           return (

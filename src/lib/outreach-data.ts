@@ -1,6 +1,15 @@
 // Outreach mock data — voice agent CSV calling campaigns
 
-export type OutreachStatus = "in_progress" | "completed" | "paused" | "scheduled";
+// Status lifecycle:
+//   draft       → outreach created, no audience uploaded yet (and so no
+//                 dialing can happen). This replaces the old "scheduled"
+//                 state — there's no longer a separate "queued but
+//                 starting later" status; an outreach is either still
+//                 being set up (draft) or actually running.
+//   in_progress → dialing is happening (or about to, immediately).
+//   paused      → was running, user (or system) paused it.
+//   completed   → the entire audience has been processed.
+export type OutreachStatus = "in_progress" | "completed" | "paused" | "draft";
 export type ContactOutcome =
   | "qualified"
   | "not_qualified"
@@ -103,7 +112,7 @@ export const outreachList: OutreachListItem[] = [
     notQualified: 0,
     callback: 0,
     noAnswer: 0,
-    status: "scheduled",
+    status: "draft",
     progress: 0,
     createdAt: "2026-03-22",
     updatedAt: "2026-03-22",
@@ -191,7 +200,7 @@ export const outreachList: OutreachListItem[] = [
     notQualified: 0,
     callback: 0,
     noAnswer: 0,
-    status: "scheduled",
+    status: "draft",
     progress: 0,
     createdAt: "2026-04-22",
     updatedAt: "2026-04-22",
@@ -282,7 +291,7 @@ export const outreachList: OutreachListItem[] = [
     name: "Godrej Banerghatta — Investor calls",
     voiceAgent: "Atlas",
     totalContacts: 76, called: 0, connected: 0, interacted: 0, qualified: 0, notQualified: 0, callback: 0, noAnswer: 0,
-    status: "scheduled", progress: 0, createdAt: "2026-05-26", updatedAt: "2026-05-26",
+    status: "draft", progress: 0, createdAt: "2026-05-26", updatedAt: "2026-05-26",
     activityDays: 0, talktimeMins: 0, spend: 0,
     createdBy: { name: "Priya Mehra", initials: "PM", color: "#6366F1" },
   },
@@ -297,21 +306,10 @@ export function outreachesForProject(projectId: string): OutreachListItem[] {
   return outreachList.filter(o => o.projectId === projectId);
 }
 
-// 90 days of daily aggregates — one entry per day, oldest → newest. Used to
-// power the time-range filter on the Outreach list. Generated deterministically
-// at module-load so SSR and client get identical values.
-export const dailyTalktime90d: number[] = (() => {
-  const out: number[] = [];
-  for (let i = 0; i < 90; i++) {
-    // Gentle upward trend + sinusoidal weekly variation, clamped to >= 60.
-    const v = 200 + i * 4.5 + Math.sin(i * 0.6) * 80 + Math.cos(i * 0.25) * 40;
-    out.push(Math.max(60, Math.round(v)));
-  }
-  return out;
-})();
-
-// Spend tracks talktime at ~₹20 / min (Gupshup-equivalent voice rate).
-export const dailySpend90d: number[] = dailyTalktime90d.map((m) => m * 20);
+// dailyTalktime90d / dailySpend90d used to live here. They now derive
+// from the unified daily-series module (see ./daily-series.ts) so that
+// the workspace trend chip always agrees with what each row contributes.
+// Import them from "@/lib/daily-series" instead.
 
 export const voiceAgents = [
   { id: "va-1", name: "Vox" },
@@ -404,11 +402,16 @@ export type AIQualStatus =
 
 export interface OutreachContact {
   id: string;
+  // Foreign-key back to the outreach this contact belongs to. Without this
+  // a click into any outreach detail showed the same flat list of 60 — every
+  // outreach looked identical. We assign outreachId in the build step below
+  // so the seed entries themselves don't need to be touched.
+  outreachId: string;
   name: string;
   phone: string;
   outcome: ContactOutcome;
   duration: number | null;
-  qualification: "qualified" | "not_qualified" | "pending" | null;
+  qualification: "qualified" | "not_qualified" | null;
   verified: boolean;
   keyNotes: string;
   calledAt: string | null;
@@ -422,10 +425,14 @@ export interface OutreachContact {
   updatedAt: string;
 }
 
-export const outreachContacts: OutreachContact[] = [
+// Raw seed list — written before per-outreach scoping existed, so the entries
+// don't carry an outreachId. The exported `outreachContacts` (further down)
+// stitches that on by index, which keeps this block readable and avoids 60
+// rote edits.
+const _rawContacts: Omit<OutreachContact, "outreachId">[] = [
   {
     id: "oc-1",
-    name: "R***** K*****",
+    name: "Rajesh Kumar",
     phone: "98XXX XX123",
     outcome: "qualified",
     duration: 4.2,
@@ -444,7 +451,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-2",
-    name: "S***** P*****",
+    name: "Suresh Patil",
     phone: "90XXX XX456",
     outcome: "qualified",
     duration: 3.5,
@@ -463,7 +470,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-3",
-    name: "V***** S*****",
+    name: "Vivek Sharma",
     phone: "87XXX XX789",
     outcome: "not_qualified",
     duration: 2.1,
@@ -482,7 +489,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-4",
-    name: "A***** R*****",
+    name: "Anjali Rao",
     phone: "91XXX XX234",
     outcome: "callback",
     duration: 0.8,
@@ -501,7 +508,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-5",
-    name: "D***** M*****",
+    name: "Deepa Mehta",
     phone: "80XXX XX567",
     outcome: "no_answer",
     duration: null,
@@ -520,7 +527,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-6",
-    name: "K***** L*****",
+    name: "Kunal Lal",
     phone: "99XXX XX890",
     outcome: "qualified",
     duration: 5.1,
@@ -539,7 +546,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-7",
-    name: "P***** G*****",
+    name: "Priya Gupta",
     phone: "96XXX XX345",
     outcome: "not_qualified",
     duration: 1.8,
@@ -558,7 +565,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-8",
-    name: "M***** T*****",
+    name: "Manoj Tiwari",
     phone: "88XXX XX678",
     outcome: "not_qualified",
     duration: 2.4,
@@ -577,7 +584,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-9",
-    name: "A***** V*****",
+    name: "Aarav Verma",
     phone: "70XXX XX901",
     outcome: "wrong_number",
     duration: 0.3,
@@ -596,7 +603,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-10",
-    name: "L***** N*****",
+    name: "Lakshmi Nair",
     phone: "85XXX XX012",
     outcome: "not_called",
     duration: null,
@@ -616,7 +623,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── Additional contacts to demonstrate pagination ──────────────────────────
   {
     id: "oc-11",
-    name: "A***** K*****",
+    name: "Aditya Khanna",
     phone: "98XXX XX201",
     outcome: "qualified",
     duration: 5.1,
@@ -635,7 +642,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-12",
-    name: "B***** S*****",
+    name: "Bhavna Singh",
     phone: "97XXX XX202",
     outcome: "qualified",
     duration: 3.8,
@@ -654,7 +661,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-13",
-    name: "C***** P*****",
+    name: "Chetan Patel",
     phone: "96XXX XX203",
     outcome: "qualified",
     duration: 4.5,
@@ -673,7 +680,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-14",
-    name: "D***** R*****",
+    name: "Divya Raman",
     phone: "95XXX XX204",
     outcome: "qualified",
     duration: 6.2,
@@ -692,7 +699,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-15",
-    name: "E***** M*****",
+    name: "Esha Mathur",
     phone: "94XXX XX205",
     outcome: "qualified",
     duration: 3.4,
@@ -711,7 +718,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-16",
-    name: "F***** N*****",
+    name: "Farhan Nazir",
     phone: "93XXX XX206",
     outcome: "qualified",
     duration: 4.9,
@@ -730,7 +737,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-17",
-    name: "G***** T*****",
+    name: "Gaurav Tandon",
     phone: "92XXX XX207",
     outcome: "qualified",
     duration: 5.8,
@@ -749,7 +756,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-18",
-    name: "H***** V*****",
+    name: "Hema Vyas",
     phone: "91XXX XX208",
     outcome: "qualified",
     duration: 4.1,
@@ -768,7 +775,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-19",
-    name: "I***** B*****",
+    name: "Imran Bose",
     phone: "90XXX XX209",
     outcome: "qualified",
     duration: 3.6,
@@ -787,7 +794,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-20",
-    name: "J***** O*****",
+    name: "Jyoti Oza",
     phone: "98XXX XX210",
     outcome: "qualified",
     duration: 5.3,
@@ -806,7 +813,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-21",
-    name: "K***** A*****",
+    name: "Karan Apte",
     phone: "97XXX XX211",
     outcome: "qualified",
     duration: 4.7,
@@ -825,7 +832,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-22",
-    name: "L***** D*****",
+    name: "Lalit Desai",
     phone: "96XXX XX212",
     outcome: "qualified",
     duration: 3.9,
@@ -844,7 +851,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-23",
-    name: "M***** I*****",
+    name: "Mahesh Iyer",
     phone: "95XXX XX213",
     outcome: "qualified",
     duration: 5.0,
@@ -864,7 +871,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── intent_qualified (verified intent, qualification pending) ──
   {
     id: "oc-24",
-    name: "N***** J*****",
+    name: "Neha Joshi",
     phone: "94XXX XX214",
     outcome: "callback",
     duration: 2.8,
@@ -883,7 +890,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-25",
-    name: "O***** F*****",
+    name: "Omar Faruq",
     phone: "93XXX XX215",
     outcome: "callback",
     duration: 3.2,
@@ -902,7 +909,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-26",
-    name: "P***** Q*****",
+    name: "Pooja Quadri",
     phone: "92XXX XX216",
     outcome: "callback",
     duration: 4.0,
@@ -921,7 +928,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-27",
-    name: "Q***** L*****",
+    name: "Qadir Lateef",
     phone: "91XXX XX217",
     outcome: "callback",
     duration: 2.5,
@@ -940,7 +947,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-28",
-    name: "R***** Z*****",
+    name: "Rahul Zaveri",
     phone: "90XXX XX218",
     outcome: "callback",
     duration: 3.6,
@@ -960,7 +967,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── customer_followup ──
   {
     id: "oc-29",
-    name: "S***** W*****",
+    name: "Sneha Walia",
     phone: "98XXX XX219",
     outcome: "callback",
     duration: 4.4,
@@ -979,7 +986,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-30",
-    name: "T***** U*****",
+    name: "Tarun Uppal",
     phone: "97XXX XX220",
     outcome: "callback",
     duration: 3.7,
@@ -998,7 +1005,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-31",
-    name: "U***** C*****",
+    name: "Uma Chopra",
     phone: "96XXX XX221",
     outcome: "callback",
     duration: 4.1,
@@ -1017,7 +1024,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-32",
-    name: "V***** X*****",
+    name: "Varun Xavier",
     phone: "95XXX XX222",
     outcome: "callback",
     duration: 3.3,
@@ -1036,7 +1043,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-33",
-    name: "W***** Y*****",
+    name: "Wasim Yusuf",
     phone: "94XXX XX223",
     outcome: "callback",
     duration: 4.9,
@@ -1056,7 +1063,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── disqualified ──
   {
     id: "oc-34",
-    name: "X***** E*****",
+    name: "Xavier Eapen",
     phone: "93XXX XX224",
     outcome: "not_qualified",
     duration: 2.1,
@@ -1075,7 +1082,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-35",
-    name: "Y***** H*****",
+    name: "Yash Hegde",
     phone: "92XXX XX225",
     outcome: "not_qualified",
     duration: 1.8,
@@ -1094,7 +1101,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-36",
-    name: "Z***** G*****",
+    name: "Zara Gandhi",
     phone: "91XXX XX226",
     outcome: "not_qualified",
     duration: 2.4,
@@ -1113,7 +1120,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-37",
-    name: "A***** F*****",
+    name: "Arnav Fernandes",
     phone: "90XXX XX227",
     outcome: "not_qualified",
     duration: 1.5,
@@ -1132,7 +1139,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-38",
-    name: "B***** M*****",
+    name: "Bharti Mishra",
     phone: "98XXX XX228",
     outcome: "not_qualified",
     duration: 2.0,
@@ -1151,7 +1158,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-39",
-    name: "C***** N*****",
+    name: "Charu Nanda",
     phone: "97XXX XX229",
     outcome: "not_qualified",
     duration: 2.7,
@@ -1170,7 +1177,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-40",
-    name: "D***** O*****",
+    name: "Dilip Ohri",
     phone: "96XXX XX230",
     outcome: "not_qualified",
     duration: 1.9,
@@ -1189,7 +1196,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-41",
-    name: "E***** P*****",
+    name: "Eshan Pillai",
     phone: "95XXX XX231",
     outcome: "not_qualified",
     duration: 2.3,
@@ -1209,7 +1216,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── rnr (ring no response) ──
   {
     id: "oc-42",
-    name: "F***** Q*****",
+    name: "Fatima Qureshi",
     phone: "94XXX XX232",
     outcome: "no_answer",
     duration: 0.3,
@@ -1228,7 +1235,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-43",
-    name: "G***** R*****",
+    name: "Gopal Reddy",
     phone: "93XXX XX233",
     outcome: "no_answer",
     duration: 0.2,
@@ -1247,7 +1254,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-44",
-    name: "H***** S*****",
+    name: "Harish Sastry",
     phone: "92XXX XX234",
     outcome: "busy",
     duration: 0.1,
@@ -1266,7 +1273,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-45",
-    name: "I***** T*****",
+    name: "Indira Tagore",
     phone: "91XXX XX235",
     outcome: "no_answer",
     duration: 0.3,
@@ -1285,7 +1292,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-46",
-    name: "J***** U*****",
+    name: "Jaya Unnikrishnan",
     phone: "90XXX XX236",
     outcome: "wrong_number",
     duration: 0.4,
@@ -1305,7 +1312,7 @@ export const outreachContacts: OutreachContact[] = [
   // ── not yet dialled (qualStatus null, outcome not_called) ──
   {
     id: "oc-47",
-    name: "K***** V*****",
+    name: "Kabir Vohra",
     phone: "98XXX XX237",
     outcome: "not_called",
     duration: null,
@@ -1324,7 +1331,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-48",
-    name: "L***** W*****",
+    name: "Lila Walia",
     phone: "97XXX XX238",
     outcome: "not_called",
     duration: null,
@@ -1343,7 +1350,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-49",
-    name: "M***** X*****",
+    name: "Madhuri Xerxes",
     phone: "96XXX XX239",
     outcome: "not_called",
     duration: null,
@@ -1362,7 +1369,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-50",
-    name: "N***** Y*****",
+    name: "Nidhi Yagnik",
     phone: "95XXX XX240",
     outcome: "not_called",
     duration: null,
@@ -1381,7 +1388,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-51",
-    name: "O***** Z*****",
+    name: "Om Zaveri",
     phone: "94XXX XX241",
     outcome: "not_called",
     duration: null,
@@ -1400,7 +1407,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-52",
-    name: "P***** A*****",
+    name: "Prerna Anand",
     phone: "93XXX XX242",
     outcome: "not_called",
     duration: null,
@@ -1419,7 +1426,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-53",
-    name: "Q***** B*****",
+    name: "Qasim Bhatia",
     phone: "92XXX XX243",
     outcome: "not_called",
     duration: null,
@@ -1438,7 +1445,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-54",
-    name: "R***** C*****",
+    name: "Ravi Chandra",
     phone: "91XXX XX244",
     outcome: "not_called",
     duration: null,
@@ -1457,7 +1464,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-55",
-    name: "S***** D*****",
+    name: "Sumit Das",
     phone: "90XXX XX245",
     outcome: "not_called",
     duration: null,
@@ -1476,7 +1483,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-56",
-    name: "T***** E*****",
+    name: "Tara Eswaran",
     phone: "98XXX XX246",
     outcome: "not_called",
     duration: null,
@@ -1495,7 +1502,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-57",
-    name: "U***** F*****",
+    name: "Uday Furtado",
     phone: "97XXX XX247",
     outcome: "not_called",
     duration: null,
@@ -1514,7 +1521,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-58",
-    name: "V***** G*****",
+    name: "Vikram Gokhale",
     phone: "96XXX XX248",
     outcome: "not_called",
     duration: null,
@@ -1533,7 +1540,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-59",
-    name: "W***** H*****",
+    name: "Wasim Hashmi",
     phone: "95XXX XX249",
     outcome: "not_called",
     duration: null,
@@ -1552,7 +1559,7 @@ export const outreachContacts: OutreachContact[] = [
   },
   {
     id: "oc-60",
-    name: "X***** I*****",
+    name: "Xander Inamdar",
     phone: "94XXX XX250",
     outcome: "not_called",
     duration: null,
@@ -1570,6 +1577,268 @@ export const outreachContacts: OutreachContact[] = [
     updatedAt: "2026-03-21T11:12:00",
   },
 ];
+
+// Per-outreach contact distribution — index ranges into _rawContacts.
+// The Reflections (out-1) outreach keeps the diverse demo set intact;
+// the rest get smaller, status-appropriate slices so each detail page
+// reflects its own audience rather than echoing the same 60 names.
+// Scheduled outreaches (out-3 / out-7 / out-15) intentionally get nothing
+// — they haven't called anyone yet, so an empty contact list is honest.
+const _contactDistribution: { id: string; start: number; end: number }[] = [
+  { id: "out-1",  start: 0,  end: 30 }, // 30 — the rich demo dataset
+  { id: "out-2",  start: 30, end: 34 }, // 4
+  { id: "out-4",  start: 34, end: 37 }, // 3
+  { id: "out-5",  start: 37, end: 42 }, // 5
+  { id: "out-6",  start: 42, end: 45 }, // 3
+  { id: "out-8",  start: 45, end: 48 }, // 3
+  { id: "out-9",  start: 48, end: 50 }, // 2
+  { id: "out-10", start: 50, end: 54 }, // 4
+  { id: "out-11", start: 54, end: 56 }, // 2
+  { id: "out-12", start: 56, end: 58 }, // 2
+  { id: "out-13", start: 58, end: 59 }, // 1
+  { id: "out-14", start: 59, end: 60 }, // 1
+];
+
+// Build the exported contact list with outreachId attached. Index falls
+// through the distribution table — any contact whose index isn't covered
+// (shouldn't happen given the ranges above sum to 60) gets pinned to
+// out-1 as a safe default so it still renders somewhere.
+function _outreachIdForIndex(idx: number): string {
+  for (const { id, start, end } of _contactDistribution) {
+    if (idx >= start && idx < end) return id;
+  }
+  return "out-1";
+}
+
+export const outreachContacts: OutreachContact[] = _rawContacts.map((c, i) => ({
+  ...c,
+  outreachId: _outreachIdForIndex(i),
+}));
+
+// All contacts that belong to a given outreach. Used by the detail page to
+// drive every widget — funnel counts, the table, search/filter scoping —
+// so the per-outreach numbers actually match what the user is looking at.
+export function outreachContactsForId(id: string): OutreachContact[] {
+  return outreachContacts.filter(c => c.outreachId === id);
+}
+
+// ── Per-outreach detail synthesis ────────────────────────────────────
+// The original `outreachDetail` was a single hand-written object for out-1.
+// That made every detail page render with out-1's data regardless of which
+// outreach the user clicked. We now synthesize the detail shape on demand
+// from the listing entry, which already has the authoritative call counts,
+// activity window, talktime, and spend for each outreach.
+
+export interface OutreachDetail {
+  id: string;
+  name: string;
+  voiceAgent: string;
+  purpose: string;
+  status: OutreachStatus;
+  totalContacts: number;
+  called: number;
+  connected: number;
+  interacted: number;
+  qualified: number;
+  notQualified: number;
+  callback: number;
+  noAnswer: number;
+  busy: number;
+  wrongNumber: number;
+  remaining: number;
+  avgDuration: number;
+  totalCalls: number;
+  totalMinutes: number;
+  spend: number;
+  activityDays: number;
+  sources: { id: string; name: string; uploadedAt: string; leads: number }[];
+  createdAt: string;
+  windowStart: string;
+  windowEnd: string;
+  dialAttempts: number[];
+  schedule: {
+    dailyLimit: number;
+    callingHours: string;
+    days: string;
+    retryEnabled: boolean;
+    maxRetries: number;
+    retryInterval: string;
+  };
+}
+
+// Stable hash from an id string — lets every derivation below be
+// deterministic per outreach without needing per-row seed data.
+function _seed(id: string): number {
+  let h = 0;
+  for (const ch of id) h = ch.charCodeAt(0) + ((h << 5) - h);
+  return Math.abs(h);
+}
+
+// Split `total` into `buckets` parts where the first bucket gets the
+// most weight and each subsequent one falls off — mirrors how real
+// dial-attempt distributions look (most leads answer on attempt 1,
+// fewer on attempt 2, etc.). The shape is seeded per outreach so two
+// outreaches with similar totals still draw different curves.
+function _dialAttemptBuckets(called: number, id: string): number[] {
+  if (called <= 0) return [0, 0, 0, 0, 0];
+  const s = _seed(id);
+  const ratios = [0.41, 0.23, 0.18, 0.12, 0.06].map((r, i) => {
+    // ±15% wiggle per bucket, seeded.
+    const jitter = 1 + (((s >> (i * 3)) & 0xff) / 0xff - 0.5) * 0.3;
+    return r * jitter;
+  });
+  const sum = ratios.reduce((a, b) => a + b, 0);
+  const norm = ratios.map(r => r / sum);
+  const buckets = norm.map(r => Math.round(called * r));
+  // Force exact sum to match `called` by fixing the largest bucket.
+  const diff = called - buckets.reduce((a, b) => a + b, 0);
+  let maxIdx = 0;
+  for (let i = 1; i < buckets.length; i++) if (buckets[i] > buckets[maxIdx]) maxIdx = i;
+  buckets[maxIdx] += diff;
+  return buckets;
+}
+
+// Source CSV files for this outreach — names follow the upload convention
+// (snake_case) and lead counts add up to totalContacts so the Source filter
+// math doesn't lie. The list length varies by outreach so the dropdown
+// doesn't feel templated.
+function _synthSources(o: OutreachListItem): OutreachDetail["sources"] {
+  const sourceLibrary = [
+    "meta_leads_q1.csv",
+    "google_search_intent.csv",
+    "website_inbound.csv",
+    "channel_partner_referrals.csv",
+    "broker_network.csv",
+    "exhibition_signups.csv",
+    "whatsapp_campaign.csv",
+    "cold_database.csv",
+  ];
+  const s = _seed(o.id);
+  const count = 2 + (s % 3); // 2-4 sources
+  const startOffset = s % sourceLibrary.length;
+  const picked: string[] = [];
+  for (let i = 0; i < count; i++) {
+    picked.push(sourceLibrary[(startOffset + i) % sourceLibrary.length]);
+  }
+  // Weighted split — first source dominates, rest split the remainder.
+  const weights = picked.map((_, i) => 1 / (i + 1));
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  const leads = weights.map(w => Math.round((w / wsum) * o.totalContacts));
+  // Fix rounding so the sum lands exactly.
+  const diff = o.totalContacts - leads.reduce((a, b) => a + b, 0);
+  leads[0] += diff;
+  const created = new Date(o.createdAt);
+  return picked.map((name, i) => {
+    const uploaded = new Date(created);
+    uploaded.setDate(uploaded.getDate() + i);
+    return {
+      id: `${o.id}-src-${i + 1}`,
+      name,
+      uploadedAt: uploaded.toISOString().slice(0, 10),
+      leads: leads[i],
+    };
+  });
+}
+
+// Pull the human-readable purpose out of the outreach name. We name outreaches
+// `<Project> — <Purpose>` so a substring match is reliable; fall back to
+// "Lead Qualification" for anything quirky.
+function _purposeFromName(name: string): string {
+  const m = name.match(/—\s*(.+)$/);
+  if (m) return m[1].trim();
+  return "Lead Qualification";
+}
+
+// Synthesise the full detail object for any outreach id. Mostly a lookup
+// + a handful of derivations (totalCalls, avgDuration, source list, dial
+// attempt buckets) so every widget on the detail page has real data tied
+// to *this* outreach — not a hardcoded singleton.
+export function outreachDetailForId(id: string): OutreachDetail | null {
+  const o = outreachList.find(x => x.id === id);
+  if (!o) return null;
+
+  // Total dial attempts are usually higher than unique leads called —
+  // some leads needed 2–5 attempts. The 1.5× multiplier is a rough
+  // industry average; outreaches with no calls naturally stay at zero.
+  const totalCalls = o.called > 0 ? Math.round(o.called * 1.55) : 0;
+  const totalMinutes = o.talktimeMins;
+  const avgDuration = totalCalls > 0
+    ? Math.round((totalMinutes / totalCalls) * 10) / 10
+    : 0;
+  // Small failure modes — not big enough to dominate the funnel, but
+  // present so the Profile tab has something to show.
+  const busy = Math.round(o.called * 0.03);
+  const wrongNumber = Math.round(o.called * 0.02);
+  const remaining = Math.max(0, o.totalContacts - o.called);
+
+  // Schedule + window — common defaults for the prototype. Editing in
+  // EditOutreachDrawer overrides this; we just provide a sensible base.
+  const created = new Date(o.createdAt);
+  const windowEnd = new Date(created);
+  windowEnd.setDate(windowEnd.getDate() + 90);
+
+  return {
+    id: o.id,
+    name: o.name,
+    voiceAgent: o.voiceAgent,
+    purpose: _purposeFromName(o.name),
+    status: o.status,
+    totalContacts: o.totalContacts,
+    called: o.called,
+    connected: o.connected,
+    interacted: o.interacted,
+    qualified: o.qualified,
+    notQualified: o.notQualified,
+    callback: o.callback,
+    noAnswer: o.noAnswer,
+    busy,
+    wrongNumber,
+    remaining,
+    avgDuration,
+    totalCalls,
+    totalMinutes,
+    spend: o.spend,
+    activityDays: o.activityDays,
+    sources: _synthSources(o),
+    createdAt: o.createdAt,
+    windowStart: o.createdAt,
+    windowEnd: windowEnd.toISOString().slice(0, 10),
+    dialAttempts: _dialAttemptBuckets(o.called, o.id),
+    schedule: {
+      dailyLimit: 200,
+      callingHours: "10:00 AM – 7:00 PM",
+      days: "Mon–Sat",
+      retryEnabled: true,
+      maxRetries: 4,
+      retryInterval: "4 hours",
+    },
+  };
+}
+
+// 90-day per-outreach activity series, used by the KPI widgets on the
+// Per-outreach sparkline series. Both functions now derive from the
+// unified daily-series module — talktime and spend are independent fields
+// on each day's fingerprint, so the spend curve no longer has to be an
+// exact ₹20 × talktime multiple. That removes a tell that real call-centre
+// data wouldn't have (some calls connect but barely talk, etc.) and means
+// the spend trend chip can move differently from the talktime one.
+export function outreachDailyTalktimeForId(id: string): number[] {
+  return outreachDailySeriesForIdInternal(id).map((d) => d.talkMinutes);
+}
+
+export function outreachDailySpendForId(id: string): number[] {
+  return outreachDailySeriesForIdInternal(id).map((d) => d.spend);
+}
+
+// Lazy delegation so the import cycle between daily-series.ts and this
+// file resolves cleanly — daily-series needs OutreachListItem, and
+// outreach-data is the canonical home for the legacy talktime/spend
+// shape exporters. Keeps both modules cycle-safe.
+function outreachDailySeriesForIdInternal(id: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { dailySeriesForOutreach } = require("./daily-series") as typeof import("./daily-series");
+  return dailySeriesForOutreach(id);
+}
 
 // CSV preview mock
 export const csvPreviewHeaders = ["Name", "Phone", "Email", "Source", "Budget"];
