@@ -418,21 +418,19 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
       </div>
 
       {/* ── Utilization route ──────────────────────────────────────────
-          Utilization only makes sense for prepaid customers — it's
-          the "balance + how much of it you've consumed" story.
-          Postpaid customers have no prepaid balance to track against,
-          so the Utilization page renders an empty-state pointer to
-          the Billing page where their spend lives.
+          Utilization tracks consumption — "how much of each product
+          have I used over this time period, in real units?" — and
+          it applies to both prepaid and postpaid customers. The
+          numbers are the same either way; the only mode-specific
+          element is the prepaid balance hero, which obviously can't
+          render for postpaid (no balance to draw down).
 
-          Prepaid layout:
-            1. Balance hero (or empty hero if balance is drained)
-            2. Per-product utilization (in real units, same flat
-               tree shape as the Billing Products table)
-            3. Utilization over time chart
+          Layout:
+            1. Balance hero — prepaid only (skipped for postpaid).
+            2. Per-product utilization table — always (universal flat
+               tree, units only).
+            3. Utilization over time chart — always.
       */}
-      {v === "utilization" && billingMode === "postpaid" && (
-        <PostpaidUtilizationEmpty />
-      )}
       {v === "utilization" && billingMode === "prepaid" && isBalanceBlocking(billingMode, balanceState) && (
         <PrepaidEmptyHero
           balance={balanceState}
@@ -448,7 +446,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           periodLabel={periodLabel}
         />
       )}
-      {v === "utilization" && billingMode === "prepaid" && (
+      {v === "utilization" && (
         <UtilizationByProductTable rangeDays={range} />
       )}
 
@@ -507,7 +505,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           and its own inline date filter. Lives only on the
           Utilization page because it visualises consumption rather
           than money. */}
-      {v === "utilization" && billingMode === "prepaid" && <WalletUsageChart />}
+      {v === "utilization" && <WalletUsageChart />}
 
       {/* ── Activity / invoices footer ────────────────────────────────
           Lives only on the Billing route. The wallet route is the
