@@ -7,10 +7,11 @@ import { Building2, Sparkles, BarChart3, CreditCard, Plug } from "lucide-react";
 const ACCOUNT_NAV = [
   { name: "Agency", href: "/settings/agency", icon: Building2 },
   { name: "Workspace", href: "/settings/workspace", icon: Sparkles },
-  // "Utilization" is the home for balance + consumption. The route is
-  // /settings/utilization so the URL matches the label; the legacy
-  // /settings/wallet route still works but isn't surfaced in the nav.
-  { name: "Utilization", href: "/settings/utilization", icon: BarChart3 },
+  // "Usage" is the home for the consumption story (units only — calls,
+  // mins, lookups). Was previously labelled "Utilization" but the user
+  // asked for plainer language. URL stays /settings/utilization to avoid
+  // breaking bookmarks and any deep-links already in the wild.
+  { name: "Usage", href: "/settings/utilization", icon: BarChart3 },
   { name: "Billing", href: "/settings/billing", icon: CreditCard },
 ];
 

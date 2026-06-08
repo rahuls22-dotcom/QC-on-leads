@@ -468,7 +468,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <h2 className="text-[16px] font-semibold text-text-primary">
-            {v === "utilization" ? "Utilization" : "Billing"}
+            {v === "utilization" ? "Usage" : "Billing"}
           </h2>
           {/* Subtitle removed — the section title is self-explanatory
               and the supporting copy was just restating it. The page
@@ -511,16 +511,26 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
         </div>
       </div>
 
-      {/* Billing-mode switch — lives on both routes now so the user
-          can flip between prepaid/postpaid to see how the page
-          changes. On Utilization the switch matters because the
-          balance hero only renders for prepaid; on Billing it
-          drives the entire spend layout. */}
-      <div className="flex items-center gap-6 flex-wrap">
-        <BillingModeSwitch />
-        {billingMode === "prepaid" && <PrepaidPlanTypeSwitch />}
-        {billingMode === "prepaid" && <BalanceStateDemoSwitch />}
-      </div>
+      {/* Demo controls — billing mode + plan type + balance state.
+          These are prototype scaffolding (they let a reviewer flip
+          between prepaid/postpaid, subscription/pure, healthy/empty
+          to see every state of the page) and they don't belong in
+          the production reading order. Hidden behind a tiny "Demo
+          controls" disclosure so the page header reads as production
+          UI by default but the toggles are one click away when we
+          want to demo a different state. */}
+      <details className="group">
+        <summary className="inline-flex items-center gap-1.5 px-2 h-6 rounded-badge text-[11px] font-medium text-text-tertiary cursor-pointer hover:text-text-secondary hover:bg-surface-secondary transition-colors duration-150 list-none [&::-webkit-details-marker]:hidden">
+          <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary/40 group-open:bg-accent" />
+          Demo controls
+          <ChevronDown size={11} strokeWidth={2} className="transition-transform duration-150 group-open:rotate-180" />
+        </summary>
+        <div className="mt-3 flex items-center gap-6 flex-wrap">
+          <BillingModeSwitch />
+          {billingMode === "prepaid" && <PrepaidPlanTypeSwitch />}
+          {billingMode === "prepaid" && <BalanceStateDemoSwitch />}
+        </div>
+      </details>
 
       {/* ── Utilization route ──────────────────────────────────────────
           Utilization is the consumption story — "how much of each
@@ -737,7 +747,7 @@ function WalletUtilizationSection({ rangeDays }: { rangeDays: number }) {
           ("in real units") was jargon; this is plain English. */}
       <div className="flex items-center gap-2 mb-1">
         <BarChart3 size={14} strokeWidth={1.6} className="text-text-tertiary" />
-        <h3 className="text-[14px] font-semibold text-text-primary">Utilization by product</h3>
+        <h3 className="text-[14px] font-semibold text-text-primary">Usage by product</h3>
       </div>
       <p className="text-[12px] text-text-secondary mb-3">
         How much each product was used in the last {rangeDays} days. Numbers reflect successful actions only.
@@ -1037,7 +1047,7 @@ function WalletUsageChart() {
         <div className="min-w-0">
           <h3 className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
             <TrendingUp size={13} strokeWidth={1.6} className="text-text-tertiary" />
-            Utilization over time
+            Usage over time
           </h3>
           <p className="text-[11.5px] text-text-secondary mt-0.5">
             {unitWord} consumption in units for one product at a time. Switch products via the tabs below.
@@ -1600,7 +1610,15 @@ function PrepaidBalanceHero({
   const topupBalance = planType === "subscription"
     ? Math.round(pool.totalCredits * 0.2)
     : pool.totalCredits;
-  const totalAvailable = planBaseline + topupBalance;
+  // Carried forward — unused balance from the previous cycle that rolls
+  // over to this cycle. Only meaningful for Subscription orgs (Pure
+  // prepaid never resets, so there's no "last cycle" to carry from —
+  // the wallet just runs continuously). Sized as ~7.5% of the plan for
+  // a credible "we underused a bit last month" number.
+  const carriedForward = planType === "subscription"
+    ? Math.round(pool.totalCredits * 0.075)
+    : 0;
+  const totalAvailable = planBaseline + topupBalance + carriedForward;
 
   // Used + remaining are computed off the combined available pool so
   // the math ties out: used + remaining = totalAvailable.
@@ -1628,12 +1646,16 @@ function PrepaidBalanceHero({
         </span>
       </div>
 
-      {/* Four-column breakdown for subscription, two-column for pure
-          prepaid. The whole row tells the budget story in one read:
-          how much money came in (plan + top-ups), how much went out
-          (used), and what's left. */}
+      {/* Five-column breakdown for subscription, two-column for pure
+          prepaid. The whole row tells the budget story left-to-right:
+          how much money came in (plan + top-ups + carried forward),
+          how much went out (used), and what's left.
+          Carried forward = unused balance from the previous cycle that
+          rolled over — Subscription orgs accumulate it; the plan
+          baseline still resets each cycle, but the unused tail doesn't
+          get clawed back. */}
       {planType === "subscription" ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-5 mb-4">
           <div>
             <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
               Monthly plan
@@ -1643,6 +1665,17 @@ function PrepaidBalanceHero({
             </p>
             <p className="text-[11px] text-text-tertiary mt-1.5">
               charged on cycle start
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+              Carried forward
+            </p>
+            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
+              {carriedForward > 0 ? `+ ${formatAmount(carriedForward, "INR")}` : formatAmount(0, "INR")}
+            </p>
+            <p className="text-[11px] text-text-tertiary mt-1.5">
+              unused from last cycle
             </p>
           </div>
           <div>
@@ -1893,10 +1926,10 @@ function PostpaidUtilizationEmpty() {
         <BarChart3 size={20} strokeWidth={1.5} className="text-text-tertiary" />
       </div>
       <h3 className="text-[14px] font-semibold text-text-primary">
-        Utilization isn&apos;t applicable for postpaid
+        Usage isn&apos;t applicable for postpaid
       </h3>
       <p className="text-[12.5px] text-text-secondary mt-1.5 max-w-[420px] mx-auto leading-snug">
-        Utilization tracks how much of a prepaid balance you&apos;ve consumed.
+        Usage tracks how much of a prepaid balance you&apos;ve consumed.
         Your workspace is on postpaid — you&apos;re invoiced at the end of the
         cycle for exactly what you use, with no balance to draw down.
       </p>
@@ -1947,7 +1980,7 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
     <div className="bg-white border border-border rounded-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
-        <h3 className="text-[13px] font-semibold text-text-primary">Utilization by product</h3>
+        <h3 className="text-[13px] font-semibold text-text-primary">Usage by product</h3>
         <span className="text-[11px] text-text-tertiary">
           Last {rangeDays} days · successful actions only
         </span>
