@@ -229,7 +229,13 @@ const { start: PERIOD_START, end: PERIOD_END } = currentPeriod();
 // level — Vercel, OpenAI, ElevenLabs all expose a single usage figure
 // even when the spend breaks down across features.
 export const CREDIT_POOL = {
-  totalCredits: 50000,
+  // ₹2 lakh per cycle — matches the agency-scale example the prototype
+  // is modelled on (a typical mid-sized real-estate agency runs a few
+  // outreaches a week, a handful of voice-agent flows, and consumes
+  // around this much in voice + enrichment + workflow credits per
+  // month). ₹50K used to live here; it read as too small once the
+  // dashboard + outreach pages started showing six-figure spend.
+  totalCredits: 200000,
   // Sum of every module's `utilized` below — derived rather than
   // hand-rolled so the hero and the modules can't drift out of sync.
   // Computed lazily after MODULES is declared (see below).
@@ -261,18 +267,18 @@ export const MODULES: Module[] = [
     border:      "#D9E0EA",
     gradient:    "linear-gradient(135deg, #EEF2F7 0%, #D9E0EA 100%)",
     chartColor:  "#7B8FA8", // muted slate-blue
-    utilized:     1500 + 2400,
+    // Scaled to match the ₹2L pool budget. At a 70% target utilization
+    // for the month, this module accounts for ~₹45K of the spend — the
+    // high-volume, low-per-action bucket of the three.
+    utilized:     18000 + 27000,
     capabilities: [
       {
         id:         "phone-extract",
         label:      "Phone extraction",
         icon:       Phone,
-        // 2 credits each × 750 phones = 1,500 credits. Unit count
-        // bumped from the old 300 because the workspace is paying the
-        // discounted contract rate, so the same credit envelope buys
-        // 2.5× the work.
-        creditsUsed: 1500,
-        unitCount:   750,
+        // 2 credits each × 9,000 phones = ₹18,000.
+        creditsUsed: 18000,
+        unitCount:   9000,
         unitLabel:   "phone",
         rate:        2,
       },
@@ -280,15 +286,16 @@ export const MODULES: Module[] = [
         id:         "email-extract",
         label:      "Email extraction",
         icon:       Mail,
-        creditsUsed: 2400,
-        unitCount:   1600,
+        // 1.5 credits each × 18,000 emails = ₹27,000.
+        creditsUsed: 27000,
+        unitCount:   18000,
         unitLabel:   "email",
         rate:        1.5,
       },
     ],
     periodStart:  PERIOD_START,
     periodEnd:    PERIOD_END,
-    daily:        generateDailySeries(130, 80, 1),
+    daily:        generateDailySeries(1500, 750, 1),
   },
   {
     // ── Enrichment ─────────────────────────────────────────────────
@@ -307,12 +314,13 @@ export const MODULES: Module[] = [
     border:      "#E8DFD2",
     gradient:    "linear-gradient(135deg, #F6F2EE 0%, #E8DFD2 100%)",
     chartColor:  "#B59B82", // muted warm taupe
-    utilized:     2000 + 1600,
-    // Vendor-imposed throttle. Even if there are 50K credits in the
-    // pool, the enrichment provider only honours 5K record lookups
-    // per day — surfaced here so users hit a clear daily ceiling
+    // ~₹40K of the month's spend. Premium per-action cost means smaller
+    // volume than Contact Extraction, but pricier per lookup.
+    utilized:     22000 + 18000,
+    // Vendor-imposed throttle. The enrichment provider honours 6K record
+    // lookups per day — surfaced here so users hit a clear daily ceiling
     // instead of a confusing API error.
-    dailyLimit:  { count: 5000, unit: "record", used: 1250 },
+    dailyLimit:  { count: 6000, unit: "record", used: 2400 },
     capabilities: [
       {
         id:         "profile",
@@ -323,8 +331,9 @@ export const MODULES: Module[] = [
         // too and we no longer want "lookup" anywhere).
         label:      "Professional enrichment",
         icon:       UserIcon,
-        creditsUsed: 2000,
-        unitCount:   400,
+        // 5 credits each × 4,400 lookups = ₹22,000.
+        creditsUsed: 22000,
+        unitCount:   4400,
         unitLabel:   "enrichment",
         rate:        5,
       },
@@ -332,15 +341,16 @@ export const MODULES: Module[] = [
         id:         "financial",
         label:      "Financial enrichment",
         icon:       BadgeDollarSign,
-        creditsUsed: 1600,
-        unitCount:   200,
+        // 8 credits each × 2,250 lookups = ₹18,000.
+        creditsUsed: 18000,
+        unitCount:   2250,
         unitLabel:   "enrichment",
         rate:        8,
       },
     ],
     periodStart:  PERIOD_START,
     periodEnd:    PERIOD_END,
-    daily:        generateDailySeries(100, 70, 4),
+    daily:        generateDailySeries(1300, 650, 4),
   },
   {
     // ── AI Calling ─────────────────────────────────────────────────
@@ -358,14 +368,20 @@ export const MODULES: Module[] = [
     border:      "#DAE3DD",
     gradient:    "linear-gradient(135deg, #EFF3F0 0%, #DAE3DD 100%)",
     chartColor:  "#8AA395", // muted sage
-    utilized:     2660,
+    // ~₹55K of the month's spend — biggest of the three. Voice minutes
+    // are the headline consumable for the agency, so this is where most
+    // of the ₹2L gets spent.
+    utilized:     55000,
     capabilities: [
       {
         id:         "talktime",
         label:      "Talk time",
         icon:       PhoneCall,
-        creditsUsed: 2660,
-        unitCount:   665,
+        // ₹4 per minute × 13,750 minutes ≈ ₹55,000 — roughly 220 hours
+        // of agent talktime across the month, in line with what the
+        // outreach pages report.
+        creditsUsed: 55000,
+        unitCount:   13750,
         unitLabel:   "min",
         rate:        4,
       },
@@ -383,7 +399,7 @@ export const MODULES: Module[] = [
     ],
     periodStart:  PERIOD_START,
     periodEnd:    PERIOD_END,
-    daily:        generateDailySeries(90, 60, 2),
+    daily:        generateDailySeries(1800, 900, 2),
   },
 ];
 

@@ -1474,10 +1474,14 @@ function PrepaidBalanceHero({
   // stay consistent with the rest of the page.
   // - Subscription: planBaseline = the fixed monthly fee (treat the
   //   existing totalCredits as the subscription amount).
-  //   topupBalance = additional credits the org added mid-cycle.
+  //   topupBalance = additional credits the org added mid-cycle. Sized
+  //   as ~20% of the plan so the demo reads as "a meaningful recharge
+  //   on top of the plan" rather than rounding error.
   // - Pure: planBaseline = 0; topupBalance = total deposited so far.
   const planBaseline = planType === "subscription" ? pool.totalCredits : 0;
-  const topupBalance = planType === "subscription" ? 20000 : pool.totalCredits;
+  const topupBalance = planType === "subscription"
+    ? Math.round(pool.totalCredits * 0.2)
+    : pool.totalCredits;
   const totalAvailable = planBaseline + topupBalance;
 
   // Used + remaining are computed off the combined available pool so
