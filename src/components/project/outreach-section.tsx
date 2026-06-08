@@ -22,7 +22,7 @@ function StatusPill({ status }: { status: OutreachStatus }) {
     in_progress: { label: "Running",   cls: "bg-[#F0FDF4] text-[#15803D]" },
     completed:   { label: "Completed", cls: "bg-surface-secondary text-text-secondary" },
     paused:      { label: "Paused",    cls: "bg-[#FEF3C7] text-[#92400E]" },
-    scheduled:   { label: "Scheduled", cls: "bg-[#EFF6FF] text-[#1D4ED8]" },
+    draft:       { label: "Draft",     cls: "bg-surface-secondary text-text-tertiary" },
   };
   const { label, cls } = cfg[status];
   return (

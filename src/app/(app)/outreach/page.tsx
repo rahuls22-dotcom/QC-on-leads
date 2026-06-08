@@ -80,7 +80,12 @@ function StatusPill({ status }: { status: OutreachStatus }) {
     in_progress: { label: "Running",   cls: "bg-[#F0FDF4] text-[#15803D]" },
     completed:   { label: "Completed", cls: "bg-surface-secondary text-text-secondary" },
     paused:      { label: "Paused",    cls: "bg-[#FEF3C7] text-[#92400E]" },
-    scheduled:   { label: "Scheduled", cls: "bg-[#EFF6FF] text-[#1D4ED8]" },
+    // "Draft" replaces the old "Scheduled" pill. A draft outreach is
+    // one that's been created but doesn't have an audience yet, so it
+    // cannot run. Visually demoted (subtle slate) to read as
+    // unfinished work rather than something that's queued and about
+    // to start.
+    draft:       { label: "Draft",     cls: "bg-surface-secondary text-text-tertiary" },
   };
   const { label, cls } = cfg[status];
   return (
@@ -320,10 +325,10 @@ function PerformanceFunnel({
 
 // ── Status multi-select filter ──────────────────────────────────────────────
 const STATUS_OPTS: { value: OutreachStatus; label: string; dot: string }[] = [
+  { value: "draft",       label: "Draft",     dot: "#94A3B8" },
   { value: "in_progress", label: "Running",   dot: "#22C55E" },
   { value: "paused",      label: "Paused",    dot: "#F59E0B" },
   { value: "completed",   label: "Completed", dot: "#3B82F6" },
-  { value: "scheduled",   label: "Scheduled", dot: "#A855F7" },
 ];
 
 // Status filter — three useful states only: all selected, multi-select,
@@ -549,18 +554,37 @@ function OutreachRow({
       <td className="px-3 py-3">
         <StatusPill status={o.status} />
       </td>
+      {/* Leads — top of the funnel, no rate beside it (it IS the
+          baseline that everything else divides by). */}
       <td className="px-3 py-3 text-right text-[13px] tabular-nums text-text-primary">
         {o.totalContacts.toLocaleString()}
       </td>
-      <td className="px-3 py-3 text-right text-[13px] tabular-nums text-text-primary">
-        {o.qualified.toLocaleString()}
+      {/* Funnel stages — number + "% of leads" rendered inline on a
+          single line. Stacking the percentage below the number read
+          as visual noise; pushing it beside the number keeps each
+          cell to one line and lets the column scan vertically as
+          plain numbers. Rates are all vs. the top of the funnel
+          (Leads), not stage-over-stage — each column reads "how
+          many of my leads made it this far?". */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[13px] text-text-primary">{o.called.toLocaleString()}</span>
+        <span className="text-[11px] text-text-tertiary ml-1.5">{pct(o.called, o.totalContacts)}%</span>
       </td>
-      {/* Qual rate — the headline metric. Bolder so the eye lands on the
-          answer to "how is this outreach performing?". */}
-      <td className="px-3 py-3 text-right">
-        <span className="text-[14px] font-semibold tabular-nums text-text-primary">
-          {qualRate}%
-        </span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[13px] text-text-primary">{o.connected.toLocaleString()}</span>
+        <span className="text-[11px] text-text-tertiary ml-1.5">{pct(o.connected, o.totalContacts)}%</span>
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[13px] text-text-primary">{o.interacted.toLocaleString()}</span>
+        <span className="text-[11px] text-text-tertiary ml-1.5">{pct(o.interacted, o.totalContacts)}%</span>
+      </td>
+      {/* Qualified — bottom of the funnel and the headline metric.
+          The count gets the bolder treatment so the eye lands on
+          the answer to "how is this outreach performing?"; the
+          percentage stays quiet. */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
+        <span className="text-[14px] font-semibold text-text-primary">{o.qualified.toLocaleString()}</span>
+        <span className="text-[11px] text-text-tertiary ml-1.5">{qualRate}%</span>
       </td>
       {/* Dates trail to the right — useful metadata but not the headline.
           Created / Updated sit together so the user can read them as a
@@ -898,10 +922,10 @@ function PopulatedOutreach({
   const statusCounts = useMemo(() => {
     const counts: Record<OutreachStatus | "all", number> = {
       all:         allOutreach.length,
+      draft:       0,
       in_progress: 0,
       completed:   0,
       paused:      0,
-      scheduled:   0,
     };
     for (const o of allOutreach) counts[o.status]++;
     return counts;
@@ -988,9 +1012,9 @@ function PopulatedOutreach({
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold text-green-800">
               {justLaunched.needsAudience
-                ? "Outreach created — add an audience to start calling"
-                : justLaunched.status === "scheduled"
-                  ? "Scheduled — your outreach is queued"
+                ? "Outreach saved as draft — add an audience to start calling"
+                : justLaunched.status === "draft"
+                  ? "Saved as draft — add an audience to start calling"
                   : "Launched — your outreach is live"}
             </div>
             <div className="text-[11.5px] text-green-700 mt-0.5 truncate">
@@ -1001,7 +1025,7 @@ function PopulatedOutreach({
                 : (
                   <>
                     {" · "}{justLaunched.totalContacts.toLocaleString()} leads
-                    {justLaunched.status === "scheduled" && justLaunched.startDate
+                    {justLaunched.status === "draft" && justLaunched.startDate
                       ? ` · starts ${justLaunched.startDate}${justLaunched.startTime ? ` at ${justLaunched.startTime}` : ""}`
                       : " — dialing has begun"}
                   </>
@@ -1042,10 +1066,11 @@ function PopulatedOutreach({
         </div>
       </motion.div>
 
-      {/* Row 1: Spot Insights — full width, 4 insights horizontal */}
-      <motion.div variants={fadeUp} className="mb-4">
-        <SpotInsightsWidget insights={insights} />
-      </motion.div>
+      {/* Spot Insights widget removed — we're not introducing Spot in
+          this iteration. The widget code still lives in this file
+          (commented out below for the empty state, and kept defined as
+          SpotInsightsWidget) in case we bring it back; nothing
+          renders on the listing while Spot is paused. */}
 
       {/* Row 2: aggregate widgets — Talktime / Spend / Performance funnel.
           4-col grid mirrors the detail page so Talktime + Spend stay the
@@ -1084,13 +1109,13 @@ function PopulatedOutreach({
           (active → done → paused → upcoming). */}
       <motion.div variants={fadeUp} className="flex items-center mb-3">
         <div className="inline-flex items-center gap-0.5 bg-surface-secondary rounded-input p-0.5">
-          {(["all", "in_progress", "completed", "paused", "scheduled"] as const).map((s) => {
+          {(["all", "draft", "in_progress", "paused", "completed"] as const).map((s) => {
             const label =
               s === "all" ? "All" :
+              s === "draft" ? "Draft" :
               s === "in_progress" ? "Running" :
-              s === "completed" ? "Completed" :
               s === "paused" ? "Paused" :
-              "Scheduled";
+              "Completed";
             const count = statusCounts[s];
             const isActive = statusTab === s;
             return (
@@ -1137,14 +1162,26 @@ function PopulatedOutreach({
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-left">
                   Status
                 </th>
+                {/* Funnel columns — Leads is the top of the funnel,
+                    then Dialed / Connected / Interacted / Qualified
+                    narrow into the bottom. Each cell renders both the
+                    absolute number and the stage's conversion rate vs
+                    the top, so the user can scan the funnel shape per
+                    outreach without opening the detail page. */}
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
                   Leads
                 </th>
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
-                  Qualified
+                  Dialed
                 </th>
                 <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
-                  Qual %
+                  Connected
+                </th>
+                <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
+                  Interacted
+                </th>
+                <th className="px-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-right">
+                  Qualified
                 </th>
                 <th className="pl-6 pr-3 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] text-left">
                   Created on
