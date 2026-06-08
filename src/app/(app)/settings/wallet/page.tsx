@@ -28,17 +28,18 @@ import {
   utilizedInRange,
   periodProgress,
   sliceDailyToRange,
+  billingMonthOptions,
   CURRENCIES,
   formatMoney,
 } from "@/lib/credits-data";
-import type { Currency } from "@/lib/credits-data";
+import type { Currency, BillingMonth } from "@/lib/credits-data";
 import { useCurrencyStore } from "@/lib/currency-store";
 import { useBillingModeStore, type BillingMode, type WalletBalanceState, isBalanceBlocking } from "@/lib/billing-mode-store";
 import { LowBalanceModal } from "@/components/wallet/low-balance-modal";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { TopUpEstimatorModal } from "@/components/wallet/top-up-estimator-modal";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
-import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send } from "lucide-react";
+import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown } from "lucide-react";
 
 // The shared DateRangeSelector emits a preset string ("7", "30",
 // "thismonth", "lifetime", etc.). Our daily series is keyed by N-day
@@ -66,6 +67,77 @@ function presetToDays(preset: string): number {
 // ₹ amount needs the en-IN grouping ("1,00,000" not "100,000").
 function formatNum(n: number): string {
   return n.toLocaleString("en-IN");
+}
+
+// ── BillingMonthSelector ─────────────────────────────────────────────────────
+//
+// Compact months-only dropdown used in place of the dynamic DateRangeSelector
+// on the Billing page. Billing is anchored to calendar months (one invoice per
+// month), so "Last 7 days" / "This week" / arbitrary windows don't carry
+// useful meaning here — the user wants to ask "what was my March bill" or
+// "what's this month's spend so far", not "spend over a sliding seven-day
+// window". The list is short and static (current month + 5 past) because
+// older invoices are rare and we don't want a long scrolling menu.
+//
+// Visually matches the compact DateRangeSelector trigger so the Billing tab
+// inherits the same control affordance — the only change for the user is
+// what's INSIDE the menu.
+
+function BillingMonthSelector({
+  value,
+  onChange,
+  options,
+}: {
+  value: BillingMonth;
+  onChange: (m: BillingMonth) => void;
+  options: BillingMonth[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong transition-colors duration-150"
+      >
+        <Calendar size={12} strokeWidth={1.75} className="text-text-tertiary" />
+        <span>{value.label}</span>
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`text-text-tertiary transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl py-1 min-w-[200px]">
+            {options.map((opt) => {
+              const isActive = opt.id === value.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
+                    isActive ? "bg-surface-secondary" : ""
+                  }`}
+                >
+                  <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
+                  <span className="text-[11px] text-text-tertiary tabular-nums">{opt.range}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 // Round a raw maximum up to a "nice" round number so the Y-axis
@@ -318,8 +390,27 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   // DateRangeSelector preset triggered the change.
   const [range, setRange] = useState<number>(30);
 
-  // Range-windowed total — recomputed on every range change.
-  const rangeUtilized = useMemo(() => utilizedInRange(range), [range]);
+  // Billing month — Billing is anchored to monthly invoice cycles, so the
+  // header on the Billing view exposes a Months dropdown (not the dynamic
+  // DateRangeSelector). Default = current month ("This month"). We keep
+  // both selectors' state independent so the user can toggle Utilization ↔
+  // Billing without one resetting the other.
+  const billingMonths      = useMemo(() => billingMonthOptions(6), []);
+  const [billingMonth, setBillingMonth] = useState<BillingMonth>(billingMonths[0]);
+
+  // Effective window. Utilization always uses `range` from the DateRangeSelector
+  // (offset 0 — last N days). Billing uses the month selection's
+  // (days, offsetFromEnd) pair so the numbers are a true calendar-month slice
+  // instead of "last 30 days" mislabelled as a month.
+  const isBilling       = v === "billing";
+  const effectiveDays   = isBilling ? billingMonth.days          : range;
+  const effectiveOffset = isBilling ? billingMonth.offsetFromEnd : 0;
+
+  // Range-windowed total — recomputed when either selector changes.
+  const rangeUtilized = useMemo(
+    () => utilizedInRange(effectiveDays, effectiveOffset),
+    [effectiveDays, effectiveOffset],
+  );
 
   // Hydrate the currency store once on mount so the user's last
   // chosen currency (INR or USD) sticks across reloads.
@@ -384,11 +475,25 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
               cards below carry the real context. */}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <DateRangeSelector
-            compact
-            defaultPreset="30"
-            onChange={(preset) => setRange(presetToDays(preset))}
-          />
+          {/* Filter — months for Billing, free-form range for Utilization.
+              Billing is anchored to monthly invoice cycles, so anything
+              shorter or longer than a calendar month doesn't have a stable
+              meaning ("what's my bill for the last 14 days?" isn't a
+              question billing answers). Utilization is consumption
+              analysis where a sliding window is genuinely useful. */}
+          {isBilling ? (
+            <BillingMonthSelector
+              value={billingMonth}
+              options={billingMonths}
+              onChange={setBillingMonth}
+            />
+          ) : (
+            <DateRangeSelector
+              compact
+              defaultPreset="30"
+              onChange={(preset) => setRange(presetToDays(preset))}
+            />
+          )}
           {/* Add money is a billing/wallet action — only relevant on
               the Billing page and only for prepaid customers. Postpaid
               has nothing to top up against. */}
@@ -451,7 +556,8 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
       {v === "billing" && billingMode === "prepaid" && !isBalanceBlocking(billingMode, balanceState) && (
         <PrepaidBalanceHero
           rangeUtilized={rangeUtilized}
-          range={range}
+          range={effectiveDays}
+          rangeLabel={billingMonth.label}
           pool={pool}
           period={period}
           periodLabel={periodLabel}
@@ -460,7 +566,8 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
       {v === "billing" && billingMode === "postpaid" && (
         <BillingSpendHero
           rangeUtilized={rangeUtilized}
-          range={range}
+          range={effectiveDays}
+          rangeLabel={billingMonth.label}
           billingMode={billingMode}
           period={period}
           periodLabel={periodLabel}
@@ -472,7 +579,13 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           plan" in prepaid, "vs cap" in postpaid). Currency pinned
           to INR. */}
       {v === "billing" && (
-        <ModulesTable rangeDays={range} totalPool={pool.totalCredits} currency="INR" billingMode={billingMode} />
+        <ModulesTable
+          rangeDays={effectiveDays}
+          rangeOffset={effectiveOffset}
+          totalPool={pool.totalCredits}
+          currency="INR"
+          billingMode={billingMode}
+        />
       )}
 
       {/* ── Old wallet card grid — kept disabled in case we need to
@@ -1453,12 +1566,17 @@ function PrepaidEmptyHero({
 function PrepaidBalanceHero({
   rangeUtilized,
   range,
+  rangeLabel,
   pool,
   period,
   periodLabel,
 }: {
   rangeUtilized: number;
   range: number;
+  /** Optional override for the "Used in …" column header. Set by the
+   *  Billing-view's MonthSelector (e.g. "This month", "May 2026") so the
+   *  card reads as a calendar month instead of "Used in last N days". */
+  rangeLabel?: string;
   pool: { totalCredits: number; remaining: number };
   period: { daysLeft: number; end: Date };
   periodLabel: string;
@@ -1540,7 +1658,7 @@ function PrepaidBalanceHero({
           </div>
           <div>
             <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Used in last {range} days
+              {rangeLabel ? `Used in ${rangeLabel.toLowerCase()}` : `Used in last ${range} days`}
             </p>
             <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
               {formatAmount(used, "INR")}
@@ -1565,7 +1683,7 @@ function PrepaidBalanceHero({
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5 items-end mb-4">
           <div>
             <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Used in last {range} days
+              {rangeLabel ? `Used in ${rangeLabel.toLowerCase()}` : `Used in last ${range} days`}
             </p>
             <p
               className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
@@ -1666,12 +1784,17 @@ function BillingPrimaryCta({ onAddMoney }: { onAddMoney: () => void }) {
 function BillingSpendHero({
   rangeUtilized,
   range,
+  rangeLabel,
   billingMode,
   period,
   periodLabel,
 }: {
   rangeUtilized: number;
   range: number;
+  /** Optional override for "Spent in last X days". Set by the Billing-view
+   *  MonthSelector — e.g. "This month", "May 2026" — so the postpaid hero
+   *  reads as a calendar month, not a sliding window. */
+  rangeLabel?: string;
   billingMode: BillingMode;
   period: { daysLeft: number; end: Date };
   periodLabel: string;
@@ -1711,7 +1834,9 @@ function BillingSpendHero({
       <div className={`grid grid-cols-1 ${billingMode === "postpaid" ? "md:grid-cols-[2fr_1fr]" : ""} gap-5 items-end mb-4`}>
         <div>
           <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-            {billingMode === "postpaid" ? "Estimated bill this cycle" : `Spend in last ${range} days`}
+            {billingMode === "postpaid"
+              ? "Estimated bill this cycle"
+              : rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`}
           </p>
           <p
             className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
@@ -2031,11 +2156,16 @@ const SortHeader = ({
 
 function ModulesTable({
   rangeDays,
+  rangeOffset = 0,
   totalPool,
   currency,
   billingMode = "prepaid",
 }: {
   rangeDays: number;
+  /** Days back from today where the window *ends*. 0 = window ends today
+   *  (last N days). Non-zero slides the window back — set by the billing
+   *  Months selector when the user picks a past month. */
+  rangeOffset?: number;
   totalPool: number;
   currency: Currency;
   // Same table chrome for both modes; only the second column heading
@@ -2055,7 +2185,7 @@ function ModulesTable({
   // rows always stay attached to their parent product.
   const rows = useMemo(() => {
     return WALLETS.map((w) => {
-      const series    = sliceDailyToRange(w.daily, rangeDays);
+      const series    = sliceDailyToRange(w.daily, rangeDays, rangeOffset);
       const used      = series.reduce((s, d) => s + d.amount, 0);
       const pctOfPool = totalPool > 0 ? (used / totalPool) * 100 : 0;
       // Scale capability rows proportionally so the per-capability
@@ -2068,7 +2198,7 @@ function ModulesTable({
       if (sortKey === "pct")  return b.pctOfPool - a.pctOfPool;
       return a.module.name.localeCompare(b.module.name);
     });
-  }, [rangeDays, totalPool, sortKey]);
+  }, [rangeDays, rangeOffset, totalPool, sortKey]);
 
   // Shared grid template for all rows + header + footer. Five
   // columns: name | units | rate | used | % of plan. Tweaking the

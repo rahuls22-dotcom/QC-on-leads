@@ -470,12 +470,89 @@ export function moduleSplitInRange(days: number): {
 }
 
 // Total credits utilized across all modules within a window.
-export function utilizedInRange(days: number): number {
+// `offsetFromEnd` slides the window back from "today" — pass 0 (default)
+// for "last N days", or N>0 to look at a window that ended N days ago
+// (used by the billing month selector — e.g. "May 2026" passes the days
+// in May as `days` and the days back from today to end-of-May as
+// `offsetFromEnd`).
+export function utilizedInRange(days: number, offsetFromEnd: number = 0): number {
   return MODULES.reduce(
     (sum, m) =>
-      sum + sliceDailyToRange(m.daily, days).reduce((s, d) => s + d.amount, 0),
+      sum + sliceDailyToRange(m.daily, days, offsetFromEnd).reduce((s, d) => s + d.amount, 0),
     0
   );
+}
+
+// ─── Billing month options ──────────────────────────────────────────────
+//
+// Billing is anchored to calendar months — that's how invoices are cut.
+// Each option converts to a (days, offsetFromEnd) window that the rest
+// of the wallet helpers already understand, so the table / chart math
+// doesn't need a parallel code path.
+//
+// Today's date drives the windowing. For "This month" we look at
+// 1st-to-today; for past months the window covers the full month and
+// `offsetFromEnd` slides it back from today.
+
+export interface BillingMonth {
+  /** Stable identifier — e.g. "2026-05". */
+  id: string;
+  /** UI label — "This month", "Last month", or "Apr 2026". */
+  label: string;
+  /** Secondary label, e.g. "1 – 6 Jun" or "1 – 31 May" — shown under the primary. */
+  range: string;
+  /** Length of the window in days. */
+  days: number;
+  /** Days back from today where the window ends. 0 for current month. */
+  offsetFromEnd: number;
+}
+
+// Returns the most recent `count` calendar months, newest first.
+// Index 0 is always the current month ("This month"); index 1 is
+// "Last month"; older months are labelled "MMM YYYY".
+export function billingMonthOptions(count: number = 6): BillingMonth[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const out: BillingMonth[] = [];
+  for (let i = 0; i < count; i++) {
+    const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const monthEnd   = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    monthEnd.setHours(0, 0, 0, 0);
+    const isCurrent = i === 0;
+
+    // Window length:
+    //   current month  → days elapsed (1..today)
+    //   past month     → full month length
+    const days = isCurrent ? today.getDate() : monthEnd.getDate();
+
+    // Offset:
+    //   current month  → 0 (window ends today)
+    //   past month     → days from today back to month-end
+    const offsetFromEnd = isCurrent
+      ? 0
+      : Math.round((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
+
+    const monthName = monthStart.toLocaleDateString("en-IN", { month: "short" });
+    const yearShort = monthStart.getFullYear();
+    const label =
+      isCurrent ? "This month"
+      : i === 1 ? "Last month"
+      : `${monthName} ${yearShort}`;
+
+    // Secondary range string, e.g. "1 – 6 Jun" for partial current month,
+    // "1 – 31 May" for full past month. Compact and unambiguous.
+    const lastDay = isCurrent ? today.getDate() : monthEnd.getDate();
+    const range = `1 – ${lastDay} ${monthName}`;
+
+    out.push({
+      id: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`,
+      label,
+      range,
+      days,
+      offsetFromEnd,
+    });
+  }
+  return out;
 }
 
 // Module split — each module's spend as a share of the pool's utilized
@@ -531,13 +608,24 @@ export function periodProgress(): {
   };
 }
 
-// Limit the daily series to the last N days — used by the time-period
-// chart on the wallet page where the user can pick 7d / 30d / 90d.
+// Limit the daily series to a window — used by the time-period chart
+// on the wallet page.
+//
+// - `days`: how many days the window spans
+// - `offsetFromEnd`: how many days back from today the window *ends*.
+//   Zero (default) gives "last N days". A positive value shifts the
+//   window back, so e.g. `sliceDailyToRange(daily, 31, 7)` returns the
+//   31-day window that ended 7 days ago — handy for "last month" when
+//   we're a week into the new month.
 export function sliceDailyToRange(
   daily: { date: string; amount: number }[],
   days:  number,
+  offsetFromEnd: number = 0,
 ): { date: string; amount: number }[] {
-  return daily.slice(-days);
+  if (offsetFromEnd <= 0) return daily.slice(-days);
+  const end = daily.length - offsetFromEnd;
+  if (end <= 0) return [];
+  return daily.slice(Math.max(0, end - days), end);
 }
 
 // Compute the per-wallet spend in the active period from the daily
@@ -545,8 +633,9 @@ export function sliceDailyToRange(
 export function totalInRange(
   daily: { date: string; amount: number }[],
   days:  number,
+  offsetFromEnd: number = 0,
 ): number {
-  return sliceDailyToRange(daily, days).reduce((s, d) => s + d.amount, 0);
+  return sliceDailyToRange(daily, days, offsetFromEnd).reduce((s, d) => s + d.amount, 0);
 }
 
 // Re-export icon for the page module — saves the page importing both
