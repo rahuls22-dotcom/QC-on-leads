@@ -70,6 +70,73 @@ function formatNum(n: number): string {
   return n.toLocaleString("en-IN");
 }
 
+// ── Invoice PDF builder ─────────────────────────────────────────────────────
+//
+// Generates a real, valid PDF as a Blob from a list of text lines. No external
+// dep — the PDF spec is text-based and a minimal one-page document fits in
+// ~50 lines of hand-crafted PDF source. Used by the "Download invoice" button
+// on past-month postpaid billing rows. For the prototype this is enough; a
+// production version would render through a server-side renderer or a
+// proper PDF library with styling, tables, GSTIN, etc.
+function buildInvoicePdf(title: string, lines: string[]): Blob {
+  // Build the page content stream. Each line is placed at descending Y so
+  // text flows top-to-bottom. PDF coordinate origin is bottom-left.
+  const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  const TOP_Y = 780;
+  const LINE_H = 18;
+  const TITLE_LINE = `BT /F2 16 Tf 50 ${TOP_Y} Td (${escapeText(title)}) Tj ET`;
+  const bodyLines = lines.map((line, i) =>
+    `BT /F1 11 Tf 50 ${TOP_Y - 30 - i * LINE_H} Td (${escapeText(line)}) Tj ET`
+  );
+  const stream = [TITLE_LINE, ...bodyLines].join("\n");
+
+  // Build the PDF objects. xref offsets are tracked as we append.
+  const objects: string[] = [];
+  let pdf = "%PDF-1.4\n%âãÏÓ\n";
+  const xref: number[] = [];
+
+  const addObj = (body: string) => {
+    xref.push(pdf.length);
+    const idx = objects.length + 1;
+    pdf += `${idx} 0 obj\n${body}\nendobj\n`;
+    objects.push(body);
+  };
+
+  // 1: Catalog → 2: Pages → 3: Page → 4: Helvetica → 5: Bold → 6: Content stream.
+  addObj("<</Type /Catalog /Pages 2 0 R>>");
+  addObj("<</Type /Pages /Kids [3 0 R] /Count 1>>");
+  addObj(
+    "<</Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
+    "/Resources <</Font <</F1 4 0 R /F2 5 0 R>>>> /Contents 6 0 R>>"
+  );
+  addObj("<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>");
+  addObj("<</Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold>>");
+  addObj(`<</Length ${stream.length}>>\nstream\n${stream}\nendstream`);
+
+  // xref table + trailer.
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const off of xref) {
+    pdf += `${String(off).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer\n<</Size ${objects.length + 1} /Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+// Trigger a browser download of a Blob with the given filename.
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Give the browser a tick to start the download before revoking the URL.
+  setTimeout(() => URL.revokeObjectURL(url), 250);
+}
+
 // ── BillingMonthSelector ─────────────────────────────────────────────────────
 //
 // Compact months-only dropdown used in place of the dynamic DateRangeSelector
@@ -701,6 +768,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           billingMode={billingMode}
           period={period}
           periodLabel={periodLabel}
+          billingMonth={billingMonth}
         />
       )}
 
@@ -1941,6 +2009,7 @@ function BillingSpendHero({
   billingMode,
   period,
   periodLabel,
+  billingMonth,
 }: {
   rangeUtilized: number;
   range: number;
@@ -1951,50 +2020,151 @@ function BillingSpendHero({
   billingMode: BillingMode;
   period: { daysLeft: number; end: Date };
   periodLabel: string;
+  /** Selected billing month (postpaid only). Drives the cycle dates and
+   *  whether the bill is shown as "estimated" (current month) or
+   *  "settled invoice" (any past month). */
+  billingMonth?: BillingMonth;
 }) {
+  // For postpaid, derive the actual cycle the user picked from the
+  // billingMonth id ("2026-05" → start = 1 May, end = 31 May). Past-month
+  // selections show settled invoices with a download CTA; the current
+  // month still reads as an estimated bill that hasn't been invoiced yet.
+  const monthInfo = (() => {
+    if (!billingMonth || billingMode !== "postpaid") return null;
+    const [yearStr, mStr] = billingMonth.id.split("-");
+    const year   = parseInt(yearStr, 10);
+    const month  = parseInt(mStr, 10) - 1;
+    const start  = new Date(year, month, 1);
+    const end    = new Date(year, month + 1, 0);
+    const today  = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPast = end.getTime() < new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+    const fmt = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const fmtShort = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return {
+      start, end, isPast, year, month,
+      cycleLabel:  `${fmtShort(start)} – ${fmtShort(end)}`,
+      invoiceId:   `INV-${year}-${String(month + 1).padStart(2, "0")}`,
+      settledOn:   fmt(end),
+      daysLeft:    Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))),
+    };
+  })();
+
+  // Download a real PDF invoice for the selected past month. Only relevant
+  // when the cycle has closed — there's no invoice for a month that's
+  // still in progress.
+  const downloadInvoice = () => {
+    if (!monthInfo || !billingMonth) return;
+    const lines = [
+      `Invoice number     ${monthInfo.invoiceId}`,
+      `Workspace          Godrej South`,
+      `Billing cycle      ${monthInfo.cycleLabel}`,
+      `Settled on         ${monthInfo.settledOn}`,
+      ``,
+      `Line items`,
+      `  Contact Extraction   (extraction units)        — see Usage page`,
+      `  Enrichment           (lookup units)            — see Usage page`,
+      `  AI Calling           (voice minutes)           — see Usage page`,
+      ``,
+      `Total                  ${formatAmount(rangeUtilized, "INR")}`,
+      ``,
+      `Status                 Settled`,
+      ``,
+      `This is a system-generated invoice from Revspot. For queries,`,
+      `contact billing@revspot.ai.`,
+    ];
+    const blob = buildInvoicePdf(`Invoice ${monthInfo.invoiceId}`, lines);
+    downloadBlob(blob, `${monthInfo.invoiceId}.pdf`);
+  };
+
+  // Top-row labels:
+  //   Current month (postpaid)  → "Current cycle · 1 Jun – 30 Jun"  + days left
+  //   Past month  (postpaid)    → "May 2026 cycle · 1 May – 31 May" + Settled
+  //   Prepaid                   → "Spend window · <periodLabel>"
+  const topLeftLabel =
+      billingMode !== "postpaid" ? "Spend window"
+    : monthInfo?.isPast          ? `${billingMonth?.label ?? ""} cycle`
+    :                              "Current cycle";
+
+  const topLeftPeriod =
+      billingMode === "postpaid" && monthInfo
+    ? monthInfo.cycleLabel
+    : periodLabel;
+
+  const topRightMeta = (() => {
+    if (billingMode !== "postpaid" || !monthInfo) return null;
+    if (monthInfo.isPast) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#15803D]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+          Settled on {monthInfo.settledOn}
+        </span>
+      );
+    }
+    return (
+      <span className="text-[11px] font-medium text-text-tertiary">
+        <span className="text-text-secondary">{period.daysLeft}</span> days left · cycle closes{" "}
+        {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
+      </span>
+    );
+  })();
+
+  // Hero label + subtitle for postpaid changes based on past vs current.
+  const heroLabel =
+      billingMode !== "postpaid"
+    ? (rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`)
+    : monthInfo?.isPast
+      ? `Invoice — ${billingMonth?.label}`
+      : "Estimated bill this cycle";
+
+  const heroSubtitle =
+      billingMode !== "postpaid"
+    ? "Drawn from your prepaid balance over this window."
+    : monthInfo?.isPast
+      ? <>Invoice <span className="font-mono tabular-nums">{monthInfo.invoiceId}</span> · settled {monthInfo.settledOn}. Download to keep a copy.</>
+      : <>Invoiced on {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}. You&apos;ll be charged exactly what you use.</>;
+
   return (
     <div className="bg-white border border-border rounded-card p-5">
-      {/* Top row — period chip + supporting meta. For postpaid we
-          surface the cycle-close date because that's when the bill
-          lands; for prepaid we surface the period the spend covers. */}
+      {/* Top row — cycle label + supporting meta. For postpaid past-month
+          views we surface "settled on" with a green dot; for the current
+          cycle we surface days left until invoice. */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Calendar size={13} strokeWidth={1.6} className="text-text-tertiary" />
-          <span className="text-[12px] font-medium text-text-secondary">
-            {billingMode === "postpaid" ? "Current cycle" : "Spend window"}
-          </span>
-          <span className="text-[12px] text-text-primary font-medium">{periodLabel}</span>
+          <span className="text-[12px] font-medium text-text-secondary">{topLeftLabel}</span>
+          <span className="text-[12px] text-text-primary font-medium">{topLeftPeriod}</span>
         </div>
-        {billingMode === "postpaid" && (
-          <span className="text-[11px] font-medium text-text-tertiary">
-            <span className="text-text-secondary">{period.daysLeft}</span> days left · cycle closes {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
-          </span>
-        )}
+        {topRightMeta}
       </div>
 
-      {/* Hero number — just the bill. Postpaid is "you pay for exactly
-          what you used", so there's no balance / cap / remaining bar
-          to draw against. Earlier this card surfaced a spend-cap with a
-          progress bar, which read as a "remaining" metaphor and didn't
-          fit the postpaid mental model. Spend caps still exist as an
-          admin guardrail; they live elsewhere in the admin surface. */}
-      <div>
-        <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-          {billingMode === "postpaid"
-            ? "Estimated bill this cycle"
-            : rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`}
-        </p>
-        <p
-          className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          {formatAmount(rangeUtilized, "INR")}
-        </p>
-        <p className="text-[11.5px] text-text-tertiary mt-1.5">
-          {billingMode === "postpaid"
-            ? <>Invoiced on {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}. You&apos;ll be charged exactly what you use.</>
-            : "Drawn from your prepaid balance over this window."}
-        </p>
+      {/* Hero number — bill or invoice depending on month state. */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+            {heroLabel}
+          </p>
+          <p
+            className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {formatAmount(rangeUtilized, "INR")}
+          </p>
+          <p className="text-[11.5px] text-text-tertiary mt-1.5">{heroSubtitle}</p>
+        </div>
+
+        {/* Download invoice — only for past months. Current cycle has no
+            invoice yet; the bill is still accruing. */}
+        {billingMode === "postpaid" && monthInfo?.isPast && (
+          <button
+            type="button"
+            onClick={downloadInvoice}
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 text-[12.5px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150 shrink-0"
+          >
+            <ArrowDown size={13} strokeWidth={1.75} />
+            Download PDF
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2067,11 +2237,15 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
 
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Header */}
+      {/* Header — the page is already titled "Usage" and the date
+          filter at the top of the page tells the user which window is
+          active. Both used to be repeated here ("Usage by product" +
+          "Last X days · successful actions only"); the cleaner version
+          drops the redundancy and just labels the breakdown. */}
       <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
-        <h3 className="text-[13px] font-semibold text-text-primary">Usage by product</h3>
+        <h3 className="text-[13px] font-semibold text-text-primary">By product</h3>
         <span className="text-[11px] text-text-tertiary">
-          Last {rangeDays} days · successful actions only
+          Successful actions only
         </span>
       </div>
 
