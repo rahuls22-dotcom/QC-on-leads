@@ -49,8 +49,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           Manage your account, integrations, and lead delivery.
         </p>
       </div>
-      <div className="flex gap-8">
-        <aside className="w-[200px] flex-shrink-0">
+      <div className="flex gap-5">
+        <aside className="w-[176px] flex-shrink-0">
           <nav className="space-y-4">
             <div className="space-y-0.5">
               <div className="px-2 mb-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">

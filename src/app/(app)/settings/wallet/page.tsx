@@ -698,26 +698,33 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
         </div>
       </div>
 
-      {/* Demo controls — billing mode + plan type + balance state.
-          These are prototype scaffolding (they let a reviewer flip
-          between prepaid/postpaid, subscription/pure, healthy/empty
-          to see every state of the page) and they don't belong in
-          the production reading order. Hidden behind a tiny "Demo
-          controls" disclosure so the page header reads as production
-          UI by default but the toggles are one click away when we
-          want to demo a different state. */}
-      <details className="group">
-        <summary className="inline-flex items-center gap-1.5 px-2 h-6 rounded-badge text-[11px] font-medium text-text-tertiary cursor-pointer hover:text-text-secondary hover:bg-surface-secondary transition-colors duration-150 list-none [&::-webkit-details-marker]:hidden">
-          <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary/40 group-open:bg-accent" />
-          Demo controls
-          <ChevronDown size={11} strokeWidth={2} className="transition-transform duration-150 group-open:rotate-180" />
-        </summary>
-        <div className="mt-3 flex items-center gap-6 flex-wrap">
+      {/* Demo controls — Billing view only. BillingModeSwitch is lifted
+          out (rendered separately below) because it's a real product
+          concept (the workspace IS one or the other) and it impacts
+          whether the wallet shows up at all. The plan-type and balance-
+          state switches are pure demo flags — they belong behind the
+          disclosure so they don't clutter the production reading order.
+          Usage view shows nothing here — the demo toggles don't change
+          anything on the units side, so a disclosure there is just
+          noise. */}
+      {isBilling && (
+        <div className="flex items-center gap-3 flex-wrap">
           <BillingModeSwitch />
-          {billingMode === "prepaid" && <PrepaidPlanTypeSwitch />}
-          {billingMode === "prepaid" && <BalanceStateDemoSwitch />}
+          {billingMode === "prepaid" && (
+            <details className="group">
+              <summary className="inline-flex items-center gap-1.5 px-2 h-6 rounded-badge text-[11px] font-medium text-text-tertiary cursor-pointer hover:text-text-secondary hover:bg-surface-secondary transition-colors duration-150 list-none [&::-webkit-details-marker]:hidden">
+                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary/40 group-open:bg-accent" />
+                Demo controls
+                <ChevronDown size={11} strokeWidth={2} className="transition-transform duration-150 group-open:rotate-180" />
+              </summary>
+              <div className="mt-3 flex items-center gap-6 flex-wrap">
+                <PrepaidPlanTypeSwitch />
+                <BalanceStateDemoSwitch />
+              </div>
+            </details>
+          )}
         </div>
-      </details>
+      )}
 
       {/* ── Utilization route ──────────────────────────────────────────
           Utilization is the consumption story — "how much of each

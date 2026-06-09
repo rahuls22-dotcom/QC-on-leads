@@ -199,6 +199,26 @@ function workspaceVoiceDaily(): { date: string; amount: number }[] {
   });
 }
 
+// Sum the entries of a daily series that fall inside the current calendar
+// month (1st through today, inclusive). Used to compute month-to-date
+// per-product utilization figures that anchor the wallet hero — the
+// alternative was "last 30 days", which can stretch into the previous
+// cycle and make the wallet look over-utilized on the first week of a
+// new month.
+function monthToDateOf(daily: { date: string; amount: number }[]): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const monthStartIso = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const todayIso      = today.toISOString().slice(0, 10);
+  return daily
+    .filter((d) => d.date >= monthStartIso && d.date <= todayIso)
+    .reduce((s, d) => s + d.amount, 0);
+}
+
+function monthToDateVoiceSpend(): number {
+  return monthToDateOf(workspaceVoiceDaily());
+}
+
 function generateDailySeries(
   base:     number,    // mean spend per day in rupees
   variance: number,    // amplitude of variation
@@ -256,13 +276,15 @@ const { start: PERIOD_START, end: PERIOD_END } = currentPeriod();
 // level — Vercel, OpenAI, ElevenLabs all expose a single usage figure
 // even when the spend breaks down across features.
 export const CREDIT_POOL = {
-  // ₹2 lakh per cycle — matches the agency-scale example the prototype
-  // is modelled on (a typical mid-sized real-estate agency runs a few
-  // outreaches a week, a handful of voice-agent flows, and consumes
-  // around this much in voice + enrichment + workflow credits per
-  // month). ₹50K used to live here; it read as too small once the
-  // dashboard + outreach pages started showing six-figure spend.
-  totalCredits: 200000,
+  // ₹5 lakh per cycle — sized to the actual agency activity the rest of
+  // the prototype shows. Once AI Calling was linked to the workspace
+  // outreach spend (~₹150K of voice in a typical month, on top of the
+  // other products' ~₹85K), the previous ₹2L plan was visibly
+  // over-utilized in the wallet widget — red for an active month. ₹5L
+  // gives the demo a healthy mid-range read (~50% utilized at month
+  // close) while staying believable for a busy real-estate agency
+  // running 15+ outreaches a month.
+  totalCredits: 500000,
   // Sum of every module's `utilized` below — derived rather than
   // hand-rolled so the hero and the modules can't drift out of sync.
   // Computed lazily after MODULES is declared (see below).
@@ -294,18 +316,23 @@ export const MODULES: Module[] = [
     border:      "#D9E0EA",
     gradient:    "linear-gradient(135deg, #EEF2F7 0%, #D9E0EA 100%)",
     chartColor:  "#7B8FA8", // muted slate-blue
-    // Scaled to match the ₹2L pool budget. At a 70% target utilization
-    // for the month, this module accounts for ~₹45K of the spend — the
-    // high-volume, low-per-action bucket of the three.
-    utilized:     18000 + 27000,
+    // Month-to-date utilization, derived from the same daily series the
+    // chart and the table read from. Cycle target is ~₹45K at month
+    // close (phone + email split ~40/60), so early in a new month this
+    // will be a small fraction of that — exactly what a real wallet
+    // shows in the first week of a fresh cycle.
+    utilized:     monthToDateOf(generateDailySeries(1500, 750, 1)),
     capabilities: [
       {
         id:         "phone-extract",
         label:      "Phone extraction",
         icon:       Phone,
-        // 2 credits each × 9,000 phones = ₹18,000.
-        creditsUsed: 18000,
-        unitCount:   9000,
+        // 2 credits/phone. 40% of the module's month-to-date spend
+        // (phone extraction is the larger half by units, smaller by
+        // spend share); units derive at the contracted rate so the
+        // displayed phone-count agrees with the spend.
+        creditsUsed: Math.round(monthToDateOf(generateDailySeries(1500, 750, 1)) * 0.4),
+        unitCount:   Math.round(monthToDateOf(generateDailySeries(1500, 750, 1)) * 0.4 / 2),
         unitLabel:   "phone",
         rate:        2,
       },
@@ -313,9 +340,9 @@ export const MODULES: Module[] = [
         id:         "email-extract",
         label:      "Email extraction",
         icon:       Mail,
-        // 1.5 credits each × 18,000 emails = ₹27,000.
-        creditsUsed: 27000,
-        unitCount:   18000,
+        // 1.5 credits/email. 60% of the module's month-to-date spend.
+        creditsUsed: Math.round(monthToDateOf(generateDailySeries(1500, 750, 1)) * 0.6),
+        unitCount:   Math.round(monthToDateOf(generateDailySeries(1500, 750, 1)) * 0.6 / 1.5),
         unitLabel:   "email",
         rate:        1.5,
       },
@@ -341,9 +368,9 @@ export const MODULES: Module[] = [
     border:      "#E8DFD2",
     gradient:    "linear-gradient(135deg, #F6F2EE 0%, #E8DFD2 100%)",
     chartColor:  "#B59B82", // muted warm taupe
-    // ~₹40K of the month's spend. Premium per-action cost means smaller
-    // volume than Contact Extraction, but pricier per lookup.
-    utilized:     22000 + 18000,
+    // Month-to-date utilization. Cycle target ~₹40K split 55/45 between
+    // professional and financial; early-month values scale down naturally.
+    utilized:     monthToDateOf(generateDailySeries(1300, 650, 4)),
     // Vendor-imposed throttle. The enrichment provider honours 6K record
     // lookups per day — surfaced here so users hit a clear daily ceiling
     // instead of a confusing API error.
@@ -358,9 +385,9 @@ export const MODULES: Module[] = [
         // too and we no longer want "lookup" anywhere).
         label:      "Professional enrichment",
         icon:       UserIcon,
-        // 5 credits each × 4,400 lookups = ₹22,000.
-        creditsUsed: 22000,
-        unitCount:   4400,
+        // 5 credits/lookup. 55% of the module's month-to-date spend.
+        creditsUsed: Math.round(monthToDateOf(generateDailySeries(1300, 650, 4)) * 0.55),
+        unitCount:   Math.round(monthToDateOf(generateDailySeries(1300, 650, 4)) * 0.55 / 5),
         unitLabel:   "enrichment",
         rate:        5,
       },
@@ -368,9 +395,9 @@ export const MODULES: Module[] = [
         id:         "financial",
         label:      "Financial enrichment",
         icon:       BadgeDollarSign,
-        // 8 credits each × 2,250 lookups = ₹18,000.
-        creditsUsed: 18000,
-        unitCount:   2250,
+        // 8 credits/lookup. 45% of the module's month-to-date spend.
+        creditsUsed: Math.round(monthToDateOf(generateDailySeries(1300, 650, 4)) * 0.45),
+        unitCount:   Math.round(monthToDateOf(generateDailySeries(1300, 650, 4)) * 0.45 / 8),
         unitLabel:   "enrichment",
         rate:        8,
       },
@@ -396,32 +423,22 @@ export const MODULES: Module[] = [
     gradient:    "linear-gradient(135deg, #EFF3F0 0%, #DAE3DD 100%)",
     chartColor:  "#8AA395", // muted sage
     // Wallet AI Calling lifetime/cycle totals derive from the workspace
-    // outreach spend — same activity, single source of truth. Hand-rolled
-    // utilization figures used to sit here (~₹55K) and they didn't agree
-    // with what the outreach pages reported (~₹148K in May). Derived
-    // figures are slightly higher but they actually match what the user
-    // sees elsewhere.
-    utilized:     (() => {
-      const daily = workspaceVoiceDaily();
-      // Last 30 days = the cycle window the rest of the wallet uses.
-      return daily.slice(-30).reduce((s, d) => s + d.amount, 0);
-    })(),
+    // outreach spend — same activity, single source of truth. Sum is
+    // calendar-month-to-date (not rolling 30 days), matching the real
+    // billing cycle so the sidebar wallet widget and the in-page hero
+    // tell a healthy "X used of plan so far this cycle" story instead
+    // of accidentally tipping past 100% by counting the previous month.
+    utilized:     monthToDateVoiceSpend(),
     capabilities: [
       {
         id:         "talktime",
         label:      "Talk time",
         icon:       PhoneCall,
-        // ₹4 per minute. Credits = sum of last-30-day voice spend (linked
-        // to outreach). Units derive from that at the contracted rate so
-        // the per-minute count agrees with the spend column.
-        creditsUsed: (() => {
-          const daily = workspaceVoiceDaily();
-          return daily.slice(-30).reduce((s, d) => s + d.amount, 0);
-        })(),
-        unitCount:   (() => {
-          const daily = workspaceVoiceDaily();
-          return Math.round(daily.slice(-30).reduce((s, d) => s + d.amount, 0) / 4);
-        })(),
+        // ₹4 per minute. Credits = month-to-date voice spend (linked to
+        // outreach). Units derive at the contracted rate so the per-
+        // minute count agrees with the spend column.
+        creditsUsed: monthToDateVoiceSpend(),
+        unitCount:   Math.round(monthToDateVoiceSpend() / 4),
         unitLabel:   "min",
         rate:        4,
       },
