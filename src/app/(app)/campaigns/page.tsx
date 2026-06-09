@@ -15,7 +15,6 @@ import { edTechCampaigns, productOptions } from "@/lib/campaigns-edtech";
 import { rollupCampaigns } from "@/lib/campaigns-edtech-rollup";
 import {
   CampaignsTable,
-  ChannelMark,
   METRIC_DEFS,
   DEFAULT_METRICS,
   ALL_METRIC_KEYS,
@@ -24,8 +23,6 @@ import {
   type MetricKey,
 } from "@/components/campaigns/campaigns-table";
 import { StatCard } from "@/components/campaigns/metric-badges";
-
-type ChannelFilterValue = "all" | "Meta" | "Google";
 
 export default function CampaignsPage() {
   return (
@@ -45,7 +42,6 @@ function CampaignsPageInner() {
   })();
   const [query, setQuery] = useState("");
   const [productId, setProductId] = useState<"all" | string>(initialProduct);
-  const [channel, setChannel] = useState<ChannelFilterValue>("all");
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(DEFAULT_METRICS);
 
   const products = productOptions();
@@ -53,12 +49,11 @@ function CampaignsPageInner() {
   const filtered = useMemo(() => {
     return edTechCampaigns.filter((c) => {
       if (productId !== "all" && c.productId !== productId) return false;
-      if (channel !== "all" && c.channel !== channel) return false;
       if (!query.trim()) return true;
       const q = query.toLowerCase();
       return c.name.toLowerCase().includes(q) || c.productName.toLowerCase().includes(q);
     });
-  }, [query, productId, channel]);
+  }, [query, productId]);
 
   const rollup = useMemo(() => rollupCampaigns(filtered), [filtered]);
   const liveCount = filtered.filter((c) => c.status === "enabled").length;
@@ -72,7 +67,7 @@ function CampaignsPageInner() {
             Campaigns
           </h1>
           <span className="text-[12px] text-text-tertiary truncate">
-            Every Meta &amp; Google campaign · read-only
+            Every Meta campaign · read-only
           </span>
         </div>
         <button
@@ -89,7 +84,6 @@ function CampaignsPageInner() {
       {/* Filters strip */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <ProductFilter value={productId} onChange={setProductId} options={products} />
-        <ChannelFilter value={channel} onChange={setChannel} />
         <MetricsPicker selected={selectedMetrics} onChange={setSelectedMetrics} />
         <div className="relative max-w-[260px] min-w-[160px]">
           <Search
@@ -140,71 +134,6 @@ function CampaignsPageInner() {
 
 /* ─── Filters ──────────────────────────────────────────────────── */
 
-function ChannelFilter({
-  value,
-  onChange,
-}: {
-  value: ChannelFilterValue;
-  onChange: (v: ChannelFilterValue) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const label = value === "all" ? "All channels" : value;
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-button border border-border bg-white hover:border-border-hover text-[12px] font-medium text-text-primary"
-      >
-        {value === "all" ? (
-          <Filter size={11} strokeWidth={1.7} className="text-text-secondary" />
-        ) : (
-          <ChannelMark channel={value} size={12} />
-        )}
-        {label}
-        <ChevronDown size={11} strokeWidth={1.8} className="text-text-tertiary" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-20 min-w-[180px] bg-white border border-border rounded-card shadow-card-hover py-1">
-            <button
-              type="button"
-              onClick={() => {
-                onChange("all");
-                setOpen(false);
-              }}
-              className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page inline-flex items-center gap-2 ${
-                value === "all" ? "text-text-primary font-medium" : "text-text-secondary"
-              }`}
-            >
-              <Filter size={11} strokeWidth={1.7} className="text-text-tertiary" />
-              All channels
-            </button>
-            <div className="my-1 h-px bg-border-subtle" />
-            {(["Meta", "Google"] as const).map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  onChange(c);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-surface-page inline-flex items-center gap-2 ${
-                  value === c ? "text-text-primary font-medium" : "text-text-secondary"
-                }`}
-              >
-                <ChannelMark channel={c} size={12} />
-                {c}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function ProductFilter({
   value,
   onChange,
@@ -216,7 +145,7 @@ function ProductFilter({
 }) {
   const [open, setOpen] = useState(false);
   const current =
-    value === "all" ? "All products" : options.find((o) => o.id === value)?.name ?? "Product";
+    value === "all" ? "All projects" : options.find((o) => o.id === value)?.name ?? "Project";
   return (
     <div className="relative">
       <button
@@ -242,7 +171,7 @@ function ProductFilter({
                 value === "all" ? "text-text-primary font-medium" : "text-text-secondary"
               }`}
             >
-              All products
+              All projects
             </button>
             <div className="my-1 h-px bg-border-subtle" />
             {options.map((o) => (

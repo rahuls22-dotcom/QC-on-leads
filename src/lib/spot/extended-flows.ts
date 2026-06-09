@@ -186,13 +186,13 @@ export const SCALE_ANALYSIS: AnalysisFindings = {
       ],
     },
     {
-      name: "JEE Crack · Google Search · Brand defense",
-      signal: "Underspent by ~60% · losing 31% of branded impressions to category bidders.",
+      name: "JEE Crack · BOFU · Demo-abandoner retargeting",
+      signal: "Underspent by ~60% · warm demo-abandoner pool sitting idle on a tiny cap.",
       tag: "neutral",
       metrics: [
         { label: "Spend", value: "₹38K" },
         { label: "CPL", value: "₹463" },
-        { label: "Impression share", value: "69%", delta: "↓ 8pts", deltaTone: "bad" },
+        { label: "Reach share", value: "69%", delta: "↓ 8pts", deltaTone: "bad" },
       ],
     },
   ],
@@ -562,9 +562,9 @@ export const SCALE_PLAN: WorkflowPlan = {
       tone: "good",
     },
     {
-      title: "Brand Search is severely underspent",
+      title: "BOFU retargeting is severely underspent",
       detail:
-        "₹38K against ₹98K total Google spend — defending brand queries at ~100% intent, but we're losing ~31% of branded impressions to category bidders.",
+        "₹38K against ₹98K total spend — warm demo-abandoners convert at ~2× cold, but the BOFU cap is throttling reach to ~31% of the eligible pool.",
       tone: "warn",
     },
     {
@@ -584,12 +584,12 @@ export const SCALE_PLAN: WorkflowPlan = {
         "Lift budget +25% on Engineer Parent × Mentor-led hook (staggered over 3 days)",
         "Lift budget +25% on Self-Studier × Doubt-clearing reel",
         "Brief the LAL audience from the 860-strong verified+qualified cohort",
-        "Open Brand Search defense budget cap by 2.4× (₹38K → ₹92K)",
+        "Open the BOFU retargeting budget cap by 2.4× (₹38K → ₹92K)",
       ],
       observes: [
         "CPL drift on lifted ad sets · expecting ≤ 8%",
         "Frequency on the top Reel · cap at 4×",
-        "Brand Search impression share recovery",
+        "BOFU retargeting reach recovery on demo-abandoners",
       ],
       decisionAt: "Day 4 · Jun 1",
       decisionRule:
@@ -603,8 +603,8 @@ export const SCALE_PLAN: WorkflowPlan = {
       actions: [
         "If Stage 1 holds, fire Stage 2 lift (+25% more, compounds to +50% total)",
         "Launch the new 1% LAL audience inside the Scaling bucket",
-        "Open Stories + Reels Discover placements on the top 2 winning Reels",
-        "Continue Brand Search defense at the new budget cap",
+        "Open Stories + Reels placements on the top 2 winning Reels",
+        "Continue BOFU retargeting at the new budget cap",
       ],
       observes: [
         "LAL audience CPL vs. core (target: within 15%)",
@@ -640,7 +640,7 @@ export const SCALE_PLAN: WorkflowPlan = {
     "Never push more than one major change on a weekend",
   ],
   reportingCadence:
-    "I'll drop a short check-in on your dashboard every Monday morning, plus a flag the moment any guardrail fires. End of Week 3 I'll write a learnings entry into product memory.",
+    "Once this is live, my analyst watches it continuously — I'll flag the moment any guardrail fires and surface the next decision here. As results land I write the learnings into product memory, and plan the next move then.",
 };
 
 export const OPTIMIZE_PLAN: WorkflowPlan = {
@@ -738,7 +738,7 @@ export const OPTIMIZE_PLAN: WorkflowPlan = {
     "No landing-page changes ship to prod without your sign-off — only briefs and tickets",
   ],
   reportingCadence:
-    "Daily CPL ping on the dashboard for the first 5 days, then weekly. Any guardrail fire = immediate notification. End of Week 3 = full retro entry into product memory.",
+    "Once this is live, my analyst tracks CPL and sentiment continuously — any guardrail fire is an immediate notification, and I surface the next call here. I write the retro into product memory as the data settles, and plan the next move then.",
 };
 
 export const ANGLES_PLAN: WorkflowPlan = {
@@ -836,7 +836,7 @@ export const ANGLES_PLAN: WorkflowPlan = {
     "All new copy passes through the 'avoid' list from product memory before going live",
   ],
   reportingCadence:
-    "Mid-test check-in on the dashboard at Day 4. Full result + winner declaration at Day 10. Learnings update to memory on Day 14.",
+    "Once the test is live, my analyst watches it for me — I'll surface the winner declaration here the moment the data is conclusive, write the pattern into product memory, and plan the next move then.",
 };
 
 export function planFor(kind: "scale" | "optimize" | "test-angles"): WorkflowPlan {
@@ -1439,10 +1439,10 @@ export function extendedIntroMessage(
     case "ang-clarify": {
       const text =
         kind === "scale"
-          ? `Three questions on the right — I've picked defaults based on what I found in the analysis. Confirm or change, then I'll fold them into the execution plan.`
+          ? `A few quick questions before I plan — I've pre-picked defaults from what I found in the analysis. Confirm or tweak them right here.`
           : kind === "optimize"
-            ? `Three questions on the right — I've biased the defaults toward what I think the priority should be based on the analysis. Confirm or change.`
-            : `Three questions on the right — these constrain what I generate. Defaults are picked from the audit.`;
+            ? `A few quick questions before I plan — defaults are biased toward what I think the priority should be. Confirm or tweak them right here.`
+            : `A few quick questions before I draft the angles — these constrain what I generate. Defaults are picked from the audit.`;
       // For test-angles the next step isn't the plan — it's the angle
       // drafting surface. So the CTA points there instead.
       const clarifyCta =
@@ -1452,17 +1452,15 @@ export function extendedIntroMessage(
               label: "Confirm · draft the angles",
               helper:
                 "I'll generate a fresh set of angles from these constraints for you to review.",
-              refineHint: "or change the picks on the right",
             }
           : {
               type: "step-cta" as const,
-              label: "Confirm · build the execution plan",
-              helper: "I'll fold these into a time-phased execution plan to approve.",
-              refineHint: "or change the picks on the right",
+              label: "Confirm · build the plan",
+              helper: "I'll fold these into the plan for you to approve.",
             };
       return {
         role: "spot",
-        parts: [{ type: "text", text }, clarifyCta],
+        parts: [{ type: "text", text }, { type: "clarify-questions", kind }, clarifyCta],
       };
     }
 
@@ -1491,19 +1489,19 @@ export function extendedIntroMessage(
     case "ang-plan": {
       const intro =
         kind === "scale"
-          ? "Execution plan's ready · 3 phases over 3 weeks. The actions for Week 1 are concrete; the later phases adapt based on what I observe. Guardrails are listed at the bottom — I enforce them without asking."
+          ? "Plan's ready — the exact moves I'll make right now, on the right. Guardrails are listed at the bottom; I enforce them without asking. This is a one-time plan: I execute it now, then my analyst keeps watching and I'll plan the next move when the data calls for it."
           : kind === "optimize"
-            ? "Execution plan's ready · 3 phases over 3 weeks. Week 1 ships the small reversible fixes. Week 2 is the bigger swings. Week 3 is watch-mode + writing learnings to memory."
-            : "Execution plan's ready · 3 phases over ~17 days — built around the angles you just approved. Week 1 launches the test. Week 2 prunes and doubles down. Week 3 promotes winners + writes the pattern to memory.";
+            ? "Plan's ready — the exact fixes I'll ship right now, on the right. Small reversible changes first, with guardrails I enforce automatically. One-time plan: I act now, then re-plan when the analyst flags the next opportunity."
+            : "Plan's ready — built around the angles you just approved. The exact test I'll launch right now is on the right. One-time plan: I ship it now, then re-plan once the test has data.";
       return {
         role: "spot",
         parts: [
           { type: "text", text: intro },
           {
             type: "step-cta",
-            label: "Deploy agent · kick off Week 1",
+            label: "Deploy agent · execute this plan",
             helper:
-              "Once deployed, I'll execute Week 1 today and ping your dashboard at every decision point.",
+              "Once deployed, I execute the checklist now — you'll watch each item tick off, then I ping your dashboard whenever a watcher fires.",
             refineHint: "or tell me what to change before I start",
           },
         ],
@@ -1524,7 +1522,7 @@ export function extendedIntroMessage(
           },
           {
             type: "text",
-            text: "Week 1 actions are running. You'll see me ping your dashboard at the next decision date with what to approve. Anything I need *before* that, I'll surface here.",
+            text: "I'm executing the plan now — watch each item tick off on the right. Once it's done, I keep watching: anything I need you to approve, I'll surface here and on your dashboard.",
           },
         ],
       };
@@ -1671,7 +1669,7 @@ export const EXTENDED_TOOL_CALLS: Record<
   // Live — quick deploy ack.
   "scale-live": {
     agent: "deploy.push",
-    detail: "staging Week 1 actions · setting watchers · queueing dashboard pings…",
+    detail: "executing the plan's moves · setting watchers · queueing dashboard pings…",
     delayMs: 3400,
   },
   "opt-live": {

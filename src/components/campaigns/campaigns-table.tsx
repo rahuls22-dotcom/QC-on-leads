@@ -844,11 +844,6 @@ function NameCell({
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>
-      {channel && (
-        <span className={indent > 0 ? "opacity-60" : ""}>
-          <ChannelMark channel={channel} size={dense ? 12 : 14} />
-        </span>
-      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 min-w-0">
           {onOpen ? (

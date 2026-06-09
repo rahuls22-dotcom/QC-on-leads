@@ -7,6 +7,15 @@ import { SpotLoader } from "./spot-loader";
 import { RichText } from "./rich-text";
 import type { SpotFinding, SpotKpi, SpotMessage, SpotPart, Verdict, GuidedKind, SpotChoiceOption, SpotChoiceIcon } from "@/lib/spot/types";
 import { useSpotStore } from "@/lib/spot/store";
+import type { LaunchWorkflow } from "@/lib/spot/workflow";
+import {
+  IMPORT_AD_ACCOUNTS,
+  campaignsForAccount,
+  importAccount,
+  summariseImport,
+  type ImportPlatform,
+} from "@/lib/spot/import-campaigns-data";
+import { clarifyQuestionsFor, analysisFor } from "@/lib/spot/extended-flows";
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   const map: Record<Verdict, { label: string; cls: string; Icon: typeof Check }> = {
@@ -112,8 +121,8 @@ const NEXT_STEP: Record<GuidedKind, SpotMessage> = {
       {
         type: "findings",
         items: [
-          { tone: "neutral", title: "Pulling existing personas linked to this product", body: "I'll look at every persona already approved against this product's memory and surface the ones that historically work." },
-          { tone: "neutral", title: "Sweeping comparable products", body: "Cross-checking Banerghatta + Yelahanka audience overlap to recommend net-new personas worth testing." },
+          { tone: "neutral", title: "Pulling existing personas linked to this project", body: "I'll look at every persona already approved against this project's memory and surface the ones that historically work." },
+          { tone: "neutral", title: "Sweeping comparable projects", body: "Cross-checking Banerghatta + Yelahanka audience overlap to recommend net-new personas worth testing." },
           { tone: "neutral", title: "Drafting persona briefs", body: "For each candidate I'll write identity, pain, desire, and the channels where they perform — you approve or refine." },
         ],
       },
@@ -262,7 +271,7 @@ function ChoicePart({ prompt, options }: { prompt?: string; options: SpotChoiceO
         startImportCampaigns();
         break;
       case "launch-after-import":
-        advanceWorkflow(undefined, "launch-plan");
+        advanceWorkflow(undefined, "launch-strategy");
         break;
       case "analyse-performance":
         exitWorkflow();
@@ -325,6 +334,257 @@ function ChoicePart({ prompt, options }: { prompt?: string; options: SpotChoiceO
   );
 }
 
+/* ─── Inline import-campaigns picker (left panel) ─────────────────── */
+
+function importInr(n: number): string {
+  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1000000 ? 1 : 2)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+  return `₹${Math.round(n)}`;
+}
+
+const IMPORT_PLATFORM_COLOR: Record<ImportPlatform, string> = {
+  Meta: "#4C6FFF",
+  Google: "#34A853",
+};
+
+function ImportPlatformDot({ platform }: { platform: ImportPlatform }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-full text-[9.5px] font-semibold flex-shrink-0"
+      style={{ background: `${IMPORT_PLATFORM_COLOR[platform]}1A`, color: IMPORT_PLATFORM_COLOR[platform] }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: IMPORT_PLATFORM_COLOR[platform] }} />
+      {platform}
+    </span>
+  );
+}
+
+function ImportCheckBox({ checked, indeterminate }: { checked: boolean; indeterminate?: boolean }) {
+  const on = checked || indeterminate;
+  return (
+    <span
+      className="inline-flex items-center justify-center w-[16px] h-[16px] rounded-[5px] flex-shrink-0 transition-colors"
+      style={{
+        background: on ? "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)" : "#FFFFFF",
+        border: on ? "none" : "1.5px solid var(--border)",
+      }}
+    >
+      {checked && <Check size={11} strokeWidth={3} style={{ color: "#0A0A09" }} />}
+      {indeterminate && !checked && (
+        <span className="w-[7px] h-[2px] rounded-full" style={{ background: "#0A0A09" }} />
+      )}
+    </span>
+  );
+}
+
+function ImportStatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white px-2 py-2 text-center">
+      <div className="text-[13.5px] font-semibold tabular text-text-primary leading-none">{value}</div>
+      <div className="text-[8.5px] uppercase tracking-wider font-semibold text-text-tertiary mt-1">{label}</div>
+      {sub && <div className="text-[8.5px] text-[#15803D] mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+/**
+ * ImportPickerPart · the whole import-campaigns selection, rendered inline
+ * in the chat (left panel). Walks the workflow's importStage:
+ *   select-account  → list of ad accounts to pick
+ *   select-campaigns → tickable campaign list + Import button
+ *   imported         → compact read-only confirmation
+ * All state lives in the store; the right canvas stays on memory.md.
+ */
+function ImportPickerPart() {
+  const workflow = useSpotStore((s) => s.workflow);
+  const selectImportAdAccount = useSpotStore((s) => s.selectImportAdAccount);
+  const backToImportAccounts = useSpotStore((s) => s.backToImportAccounts);
+  const toggleImportCampaign = useSpotStore((s) => s.toggleImportCampaign);
+  const setImportSelection = useSpotStore((s) => s.setImportSelection);
+  const confirmImportCampaigns = useSpotStore((s) => s.confirmImportCampaigns);
+
+  if (!workflow || workflow.kind !== "launch-campaign") return null;
+  const w = workflow as LaunchWorkflow;
+  const stage = w.importStage ?? "select-account";
+  const accountId = w.importAdAccountId ?? null;
+
+  // ── Phase 1 · choose an ad account ──
+  if (stage === "select-account" || !accountId) {
+    return (
+      <div className="mb-2.5">
+        <div className="text-[11px] text-text-tertiary mb-1.5">
+          Choose an account — I&apos;ll pull every campaign in it.
+        </div>
+        <div className="space-y-1.5">
+          {IMPORT_AD_ACCOUNTS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => selectImportAdAccount(a.id)}
+              className="group w-full text-left rounded-[10px] border border-border bg-white hover:border-border-hover hover:bg-surface-page px-3 py-2.5 flex items-center gap-2.5 transition-colors"
+            >
+              <ImportPlatformDot platform={a.platform} />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12.5px] font-semibold text-text-primary truncate">{a.name}</span>
+                <span className="block text-[10.5px] text-text-tertiary truncate">
+                  {a.campaignCount} campaigns · {importInr(a.spend30d)}/30d
+                </span>
+              </span>
+              <ArrowRight size={13} strokeWidth={2} className="text-text-tertiary group-hover:text-text-primary flex-shrink-0 transition-colors" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const campaigns = campaignsForAccount(accountId);
+  const account = importAccount(accountId);
+
+  // ── Phase 3 · imported · success summary ──
+  if (stage === "imported") {
+    const ids = w.importedCampaignIds ?? [];
+    const sum = summariseImport(ids);
+    const importedRows = campaigns.filter((c) => ids.includes(c.id));
+    return (
+      <div className="mb-2.5 rounded-[12px] border overflow-hidden" style={{ borderColor: "#A7F3D0" }}>
+        {/* Success header */}
+        <div
+          className="px-3.5 py-3 flex items-center gap-2.5"
+          style={{ background: "linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 100%)", borderBottom: "1px solid var(--border-subtle)" }}
+        >
+          <span
+            className="inline-flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0"
+            style={{ background: "rgba(34,197,94,0.14)", border: "1px solid rgba(34,197,94,0.4)" }}
+          >
+            <Check size={16} strokeWidth={2.6} className="text-[#15803D]" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[13.5px] font-semibold text-text-primary leading-tight">
+              {sum.count} campaign{sum.count === 1 ? "" : "s"} imported
+            </div>
+            <div className="text-[11px] text-text-tertiary truncate">
+              Pulled into {w.productName}&apos;s memory{account ? ` · ${account.name}` : ""}
+            </div>
+          </div>
+        </div>
+
+        {/* Stat tiles */}
+        <div className="grid grid-cols-4" style={{ gap: 1, background: "var(--border-subtle)" }}>
+          <ImportStatTile label="Campaigns" value={`${sum.count}`} sub={`${sum.active} active`} />
+          <ImportStatTile label="Spend · 30d" value={importInr(sum.spend)} />
+          <ImportStatTile label="Leads · 30d" value={sum.leads.toLocaleString("en-IN")} />
+          <ImportStatTile label="Blended CPL" value={importInr(sum.blendedCpl)} />
+        </div>
+
+        {/* Imported list */}
+        <div className="px-3.5 py-2.5 bg-white border-t border-border-subtle">
+          <div className="text-[9.5px] uppercase tracking-wider font-semibold text-text-tertiary mb-1.5">
+            Imported into memory
+          </div>
+          <ul className="space-y-1">
+            {importedRows.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 text-[11.5px]">
+                <Check size={11} strokeWidth={2.6} className="text-[#15803D] flex-shrink-0" />
+                <span className="flex-1 truncate text-text-secondary">{c.name}</span>
+                <span className="text-text-tertiary tabular flex-shrink-0">{importInr(c.spend)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Phase 2 · choose campaigns ──
+  const selected = w.selectedImportCampaignIds ?? [];
+  const selectedSet = new Set(selected);
+  const allIds = campaigns.map((c) => c.id);
+  const allSelected = selected.length === campaigns.length && campaigns.length > 0;
+  const sum = summariseImport(selected);
+
+  return (
+    <div className="mb-2.5">
+      {/* Account header */}
+      <div className="flex items-center gap-2 mb-1.5">
+        {account && <ImportPlatformDot platform={account.platform} />}
+        <span className="text-[12px] font-medium text-text-primary truncate flex-1">{account?.name}</span>
+        <button type="button" onClick={backToImportAccounts} className="text-[11px] text-text-tertiary hover:text-text-primary">
+          Change
+        </button>
+      </div>
+
+      {/* Select-all bar */}
+      <button
+        type="button"
+        onClick={() => setImportSelection(allSelected ? [] : allIds)}
+        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[8px] border border-border bg-surface-page mb-1 text-[11.5px]"
+      >
+        <span className="inline-flex items-center gap-2 font-medium text-text-secondary">
+          <ImportCheckBox checked={allSelected} indeterminate={!allSelected && selected.length > 0} />
+          {allSelected ? "Deselect all" : "Select all"}
+        </span>
+        <span className="text-text-tertiary tabular">{selected.length} of {campaigns.length}</span>
+      </button>
+
+      {/* List */}
+      <div className="rounded-[10px] border border-border overflow-hidden bg-white">
+        {campaigns.map((c, i) => {
+          const checked = selectedSet.has(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleImportCampaign(c.id)}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left transition-colors hover:bg-surface-page"
+              style={{
+                borderTop: i > 0 ? "1px solid var(--border-subtle)" : undefined,
+                background: checked ? "rgba(201,168,106,0.07)" : undefined,
+              }}
+            >
+              <ImportCheckBox checked={checked} />
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ background: c.status === "active" ? "#22C55E" : "#C4C4BD" }}
+                title={c.status === "active" ? "Active" : "Paused"}
+              />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12px] font-medium text-text-primary truncate">{c.name}</span>
+                <span className="block text-[10px] text-text-tertiary truncate">
+                  {c.objective} · {importInr(c.spend)} · {c.leads.toLocaleString("en-IN")} leads · {importInr(c.cpl)} CPL
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <span className="text-[10.5px] text-text-tertiary">
+          {selected.length > 0 ? (
+            <>
+              Importing <span className="font-semibold text-text-secondary">{selected.length}</span> · {importInr(sum.spend)} · {sum.leads.toLocaleString("en-IN")} leads
+            </>
+          ) : (
+            "Select at least one campaign"
+          )}
+        </span>
+        <button
+          type="button"
+          disabled={selected.length === 0}
+          onClick={confirmImportCampaigns}
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11.5px] font-semibold transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)", color: "#0A0A09" }}
+        >
+          Import {selected.length > 0 ? selected.length : ""} campaign{selected.length === 1 ? "" : "s"}
+          <ArrowRight size={10} strokeWidth={2.4} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ToolCallPart({ agent, detail, status }: { agent: string; detail?: string; status: "running" | "done" }) {
   const running = status === "running";
   // Inline thinking line — no card, no border. Single row that reads
@@ -355,6 +615,65 @@ function ToolCallPart({ agent, detail, status }: { agent: string; detail?: strin
   );
 }
 
+/**
+ * ClarifyQuestionsPart · the diagnostic clarify questions, rendered
+ * inline in the chat (left panel) so the user answers right where Spot
+ * is asking. Reads/writes the workflow's `clarifyAnswers` in the store;
+ * the right canvas mirrors the captured brief. Confirmation lives in
+ * the step-cta below this part.
+ */
+function ClarifyQuestionsPart({ kind }: { kind: "scale" | "optimize" | "test-angles" }) {
+  const workflow = useSpotStore((s) => s.workflow);
+  const setClarifyAnswer = useSpotStore((s) => s.setClarifyAnswer);
+  const answers =
+    workflow &&
+    (workflow.kind === "scale" ||
+      workflow.kind === "optimize" ||
+      workflow.kind === "test-angles")
+      ? workflow.clarifyAnswers
+      : {};
+  const questions = clarifyQuestionsFor(kind, analysisFor(kind));
+
+  return (
+    <div className="mb-2 space-y-2">
+      {questions.map((q) => {
+        const selected = answers[q.id] ?? q.defaultValue;
+        return (
+          <div key={q.id} className="rounded-card border border-border bg-white p-3">
+            <div className="text-[12.5px] font-semibold text-text-primary mb-0.5">
+              {q.question}
+            </div>
+            {q.why && (
+              <div className="text-[11px] text-text-tertiary mb-2 leading-snug">{q.why}</div>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {q.options.map((o) => {
+                const active = selected === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setClarifyAnswer(q.id, o.value)}
+                    title={o.hint}
+                    className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-button text-[11.5px] font-medium transition-colors ${
+                      active
+                        ? "bg-[#111] text-[#FAFAF8] border border-[#111]"
+                        : "bg-white border border-border text-text-secondary hover:border-border-hover hover:text-text-primary"
+                    }`}
+                  >
+                    {active && <Check size={11} strokeWidth={2.4} />}
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PartRenderer({ part }: { part: SpotPart }) {
   switch (part.type) {
     case "headline":
@@ -369,6 +688,10 @@ function PartRenderer({ part }: { part: SpotPart }) {
       return <StepCtaPart label={part.label} helper={part.helper} refineHint={part.refineHint} />;
     case "choice":
       return <ChoicePart prompt={part.prompt} options={part.options} />;
+    case "import-picker":
+      return <ImportPickerPart />;
+    case "clarify-questions":
+      return <ClarifyQuestionsPart kind={part.kind} />;
     case "tool-call":
       return <ToolCallPart agent={part.agent} detail={part.detail} status={part.status} />;
     case "text":

@@ -413,11 +413,11 @@
   color: #F5F4EF !important;
 }
 .md-dark p {
-  color: #B8B7B0 !important;
+  color: #CBCAC3 !important;
 }
-.md-dark .text-text-primary  { color: #F5F4EF !important; }
-.md-dark .text-text-secondary { color: #B8B7B0 !important; }
-.md-dark .text-text-tertiary  { color: #8A8980 !important; }
+.md-dark .text-text-primary  { color: #F7F6F1 !important; }
+.md-dark .text-text-secondary { color: #CBCAC3 !important; }
+.md-dark .text-text-tertiary  { color: #AEADA5 !important; }
 .md-dark .bg-white            { background: #1F1F1D !important; }
 .md-dark .border-border        { border-color: #2E2E2A !important; }
 .md-dark .border-border-subtle { border-color: #26262300 !important; border-color: #262623 !important; }
@@ -435,12 +435,12 @@
 
 /* Properties-bar pills */
 .md-dark .uppercase.tracking-wider.text-text-tertiary {
-  color: #8A8980 !important;
+  color: #AEADA5 !important;
 }
 
 /* Strong text stays bright (we use `text-text-primary` in <strong>). */
-.md-dark strong { color: #F5F4EF !important; }
-.md-dark em { color: #B8B7B0 !important; }
+.md-dark strong { color: #F7F6F1 !important; }
+.md-dark em { color: #CBCAC3 !important; }
 
 /* ─── md-render block-level dark overrides ───────────────────── */
 
@@ -461,7 +461,7 @@
 .md-dark .md-property-pill {
   background: #1F1F1D !important;
   border-color: #2E2E2A !important;
-  color: #A8A8A0 !important;
+  color: #C2C1B9 !important;
 }
 
 /* USP / Avoid insight cards */

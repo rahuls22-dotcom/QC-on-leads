@@ -61,7 +61,7 @@ export const PERSONAS: Persona[] = [
       "Mentors with credentials (IIT alumni) the parent can trust",
       "A program that fits *around* school, not in conflict with it",
     ],
-    preferredChannels: ["Meta", "Google", "WhatsApp"],
+    preferredChannels: ["Meta", "WhatsApp"],
     products: [
       { id: "prod-guyjus-jee", name: "Guyju's JEE Crack" },
       { id: "prod-guyjus-foundation", name: "Guyju's Foundation 9-10" },

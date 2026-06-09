@@ -9,6 +9,10 @@ export type SpotScope = {
   kind: ScopeKind;
   label: string;
   target?: string;
+  /** When kind is "project", an optional single campaign within it.
+   *  Absent = "All campaigns" (the whole project). */
+  campaignId?: string;
+  campaignLabel?: string;
 };
 
 export type Verdict = "ok" | "warn" | "err" | "info";
@@ -28,6 +32,16 @@ export type SpotPart =
   // single Spot message (e.g. "Import campaigns" vs "Launch new"). Each
   // option carries an `action` key the renderer maps to a store call.
   | { type: "choice"; prompt?: string; options: SpotChoiceOption[] }
+  // Inline import-campaigns picker — ad-account selection → campaign
+  // selection → imported, all rendered in the chat (left panel). Reads /
+  // writes the workflow's import state in the store; the right canvas
+  // stays on memory.md.
+  | { type: "import-picker" }
+  // Inline clarify questions — the 2-3 quick-pick questions for a
+  // diagnostic flow (scale / optimize / test-angles), rendered in the
+  // chat (left panel) so the user answers right where Spot is talking.
+  // The right canvas mirrors the captured brief.
+  | { type: "clarify-questions"; kind: "scale" | "optimize" | "test-angles" }
   // Tool / agent call narration — renders a compact status row that
   // says "Spawning Persona Researcher…" with a spinner. Status flips
   // to "done" with a check once the workflow advances.

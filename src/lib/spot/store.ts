@@ -18,18 +18,7 @@ import {
   type WorkflowStep,
 } from "./workflow";
 import { PRODUCTS } from "../products-data";
-import {
-  campaignsForAccount,
-  importAccount,
-  summariseImport,
-} from "./import-campaigns-data";
-
-/** Compact rupee formatter for chat narration (₹2.4L / ₹420). */
-function inrShort(n: number): string {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(n >= 1000000 ? 1 : 2)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${Math.round(n)}`;
-}
+import { campaignsForAccount } from "./import-campaigns-data";
 
 type PanelState = {
   open: boolean;
@@ -404,13 +393,13 @@ export const useSpotStore = create<PanelState>((set) => ({
       canvasFiles: ["memory"],
       viewHomeOverride: false,
       clickedCtas: new Set<string>(),
-      scope: { kind: "workspace", label: "New product" },
+      scope: { kind: "workspace", label: "New project" },
       pendingQuery: null,
       workflow: {
         kind: "launch-campaign",
         step: "product-setup",
         productId: null,
-        productName: "Untitled product",
+        productName: "Untitled project",
         budget: null,
         approvals: { ...EMPTY_APPROVALS },
         startedAt: Date.now(),
@@ -422,7 +411,7 @@ export const useSpotStore = create<PanelState>((set) => ({
         productSetupModalOpen: false,
       },
       thread: [
-        { role: "user", text: "Let's start working on a new product." },
+        { role: "user", text: "Let's start working on a new project." },
         {
           role: "spot",
           parts: [
@@ -844,7 +833,7 @@ export const useSpotStore = create<PanelState>((set) => ({
     startDiagnostic(set, "scale", product, "scale-analyze", {
       headline: `Scaling ${product.name}.`,
       intro:
-        "Let me pull up what I know about this product first — recent winners, audience headroom, where money's underspent. I'll lay it out on the right, and then we'll talk about goals.",
+        "Let me pull up what I know about this project first — recent winners, audience headroom, where money's underspent. I'll lay it out on the right, and then we'll talk about goals.",
     });
   },
   startOptimizeFlow: (product) => {
@@ -1036,15 +1025,18 @@ export const useSpotStore = create<PanelState>((set) => ({
         parts: [
           {
             type: "text",
-            text: "Let's bring in your existing campaigns. Pick an ad account on the right — I'll pull every campaign in it so you can choose what to import.",
+            text: "Let's bring in your existing campaigns.",
           },
+          { type: "import-picker" },
         ],
       };
       return {
         canvasOpen: true,
         workflow: {
           ...s.workflow,
-          step: "import-campaigns",
+          // Keep the step on kickoff — the picker lives inline in the chat
+          // (left panel), and the canvas stays on memory.md. importStage
+          // drives the inline import-picker part.
           importStage: "select-account",
           importAdAccountId: null,
           selectedImportCampaignIds: [],
@@ -1057,19 +1049,9 @@ export const useSpotStore = create<PanelState>((set) => ({
   selectImportAdAccount: (accountId) =>
     set((s) => {
       if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
+      // The inline import-picker re-renders to the campaign list; it's
+      // self-describing, so no extra chat narration is appended here.
       const all = campaignsForAccount(accountId).map((c) => c.id);
-      const acct = importAccount(accountId);
-      const reply: SpotMessage = {
-        role: "spot",
-        parts: [
-          {
-            type: "text",
-            text: acct
-              ? `Pulled **${all.length} campaigns** from ${acct.name}. They're all ticked — untick anything you don't want, then import.`
-              : `Pulled ${all.length} campaigns. Pick what to import.`,
-          },
-        ],
-      };
       return {
         workflow: {
           ...s.workflow,
@@ -1077,7 +1059,6 @@ export const useSpotStore = create<PanelState>((set) => ({
           importAdAccountId: accountId,
           selectedImportCampaignIds: all,
         },
-        thread: [...s.thread, reply],
       };
     }),
 
@@ -1114,21 +1095,15 @@ export const useSpotStore = create<PanelState>((set) => ({
       if (!s.workflow || s.workflow.kind !== "launch-campaign") return {};
       const ids = s.workflow.selectedImportCampaignIds ?? [];
       if (ids.length === 0) return {};
-      const sum = summariseImport(ids);
+      // The inline import-picker re-renders to a rich success summary
+      // (count + spend/leads/CPL + the imported list). The chat just
+      // offers the next step.
       const msg: SpotMessage = {
         role: "spot",
         parts: [
           {
-            type: "headline",
-            text: `${sum.count} campaign${sum.count === 1 ? "" : "s"} imported.`,
-            verdict: "ok",
-          },
-          {
-            type: "text",
-            text: `Wired ${sum.count} campaign${sum.count === 1 ? "" : "s"} into ${s.workflow.productName}'s memory — ${inrShort(sum.spend)} spend, ${sum.leads.toLocaleString("en-IN")} leads, ${inrShort(sum.blendedCpl)} blended CPL. What next?`,
-          },
-          {
             type: "choice",
+            prompt: "What would you like to do next?",
             options: [
               {
                 label: "Launch new campaigns",

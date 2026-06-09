@@ -30,6 +30,10 @@ export type WorkflowStep =
   // (this step · selects an ad account then campaigns) or launch new
   // (continues to launch-plan). Driven manually, not via STEP_ORDER.
   | "import-campaigns"
+  // Launch new → Spot first drafts a Campaign Strategy (key personas +
+  // creative angles + targeting + approach + target CPQL) for approval,
+  // then expands it into the detailed plan.
+  | "launch-strategy"
   | "launch-plan"
   | "launch-building"
   | "launch-review"
@@ -79,6 +83,7 @@ export type WorkflowKind =
  *  Spot's findings are persisted as part of memory. */
 export type CanvasFile =
   | "memory"
+  | "strategy"
   | "plan"
   | "dashboard"
   | "assets"
@@ -88,6 +93,7 @@ export const STEP_ORDER: WorkflowStep[] = [
   "deep-research",
   "product-setup",
   "kickoff",
+  "launch-strategy",
   "launch-plan",
   "launch-building",
   // Building drafts everything (creatives, forms, landing pages, plan,
@@ -103,9 +109,10 @@ export const STEP_ORDER: WorkflowStep[] = [
 export const STEP_LABELS: Record<WorkflowStep, string> = {
   // launch (new structure)
   "deep-research": "Deep research",
-  "product-setup": "Product memory",
+  "product-setup": "Project memory",
   kickoff: "Memory",
   "import-campaigns": "Import campaigns",
+  "launch-strategy": "Campaign strategy",
   "launch-plan": "Execution plan",
   "launch-building": "Spot working",
   "launch-review": "Review & deploy",
@@ -140,6 +147,7 @@ export const STEP_LABELS: Record<WorkflowStep, string> = {
 /** Steps that show in the visible step rail (launch flow default). */
 export const VISIBLE_STEPS: WorkflowStep[] = [
   "kickoff",
+  "launch-strategy",
   "launch-plan",
   "launch-building",
   "launch-review",
@@ -997,11 +1005,20 @@ export const STEP_TOOL_CALL: Partial<Record<WorkflowStep, StepToolCall>> = {
   // a single tool-call map regardless of which workflow kind is active.
   ...(EXTENDED_TOOL_CALLS as unknown as Partial<Record<WorkflowStep, StepToolCall>>),
   // New launch-plan step — builds the consolidated plan (parallel agents).
+  // Campaign Strategy step — Spot drafts the key personas + their
+  // creative angles + targeting + approach + a target CPQL from the
+  // project's price band.
+  "launch-strategy": {
+    agent: "spot.strategy",
+    detail:
+      "personas.draft · angles.brief · targeting.scope · cpql.target — composing the campaign strategy…",
+    delayMs: 7000,
+  },
   "launch-plan": {
     agent: "spot.plan",
     detail:
-      "personas.draft · memory.read · media.plan · creative.brief · rollout.sequence · budget.lock — running in parallel…",
-    delayMs: 11800,
+      "creatives.brief · forms.template · campaign.architecture · adset.settings — expanding the strategy into a plan…",
+    delayMs: 9000,
   },
   // Building step — Spot runs 5 tasks end-to-end: build creatives +
   // forms + landing pages → lock campaign plan → verify CRM →
@@ -1055,7 +1072,7 @@ export const STEP_TOOL_CALL: Partial<Record<WorkflowStep, StepToolCall>> = {
   },
   campaigns: {
     agent: "campaigns.compile",
-    detail: "compiling campaign → ad-set → ad tree on Meta and Google…",
+    detail: "compiling campaign → ad-set → ad tree on Meta…",
     delayMs: 4200,
   },
   "voice-agent": {
@@ -1065,7 +1082,7 @@ export const STEP_TOOL_CALL: Partial<Record<WorkflowStep, StepToolCall>> = {
   },
   done: {
     agent: "deploy.push",
-    detail: "pushing to Meta and Google ad accounts…",
+    detail: "pushing to Meta + WhatsApp ad accounts…",
     delayMs: 4800,
   },
 };
@@ -1091,6 +1108,24 @@ export function stepIntroMessage(
     return extendedIntroMessage(step, w.productName, w.kind);
   }
   switch (step) {
+    case "launch-strategy":
+      return {
+        role: "spot",
+        parts: [
+          {
+            type: "text",
+            text:
+              "Here's the campaign strategy — the key personas I'd target, the creative angles for each, how we'll target them, and the approach. Campaigns run as lead-gen forms for now, and I've set a target CPQL off your price band. Approve it and I'll expand it into the detailed plan.",
+          },
+          {
+            type: "step-cta",
+            label: "Approve strategy · build the plan",
+            helper:
+              "I'll draft the creatives, lead-form templates, and the full campaign architecture (ad sets + ad settings) next.",
+            refineHint: "or tell me what to change — a persona, an angle, the CPQL target",
+          },
+        ],
+      };
     case "launch-plan":
       return {
         role: "spot",
@@ -1098,11 +1133,11 @@ export function stepIntroMessage(
           {
             type: "text",
             text:
-              "Here's the execution plan — personas, media, creatives, landing pages, lead forms, campaign tree, and outreach. Five concrete tasks ready to run end-to-end: build creatives + forms + landing pages, lock the campaign structure, verify CRM integrations, spin up the Pre-Sales Agent, and launch campaigns. Deploy me once and I'll handle the rest.",
+              "Strategy approved — here's the detailed plan: creatives per persona, the lead-form templates with banners, and the full campaign architecture (campaigns → ad sets → ad settings). Five concrete tasks to run it end-to-end. Deploy me once and I'll execute the checklist.",
           },
           {
             type: "step-cta",
-            label: "Deploy agent · run this execution plan",
+            label: "Deploy agent · run this plan",
             helper:
               "5 tasks · ~20 seconds end-to-end · once this plan is executed it's done — talk to me again for a fresh one.",
             refineHint: "or tell me what to change before I start",
@@ -1137,12 +1172,12 @@ export function stepIntroMessage(
           {
             type: "text",
             text:
-              "All assets built. Right pane has the full preview — creatives, landing pages, lead forms, campaign tree, voice agent. Approve to deploy live to Meta + Google.",
+              "All assets built. Right pane has the full preview — creatives, landing pages, lead forms, campaign tree, voice agent. Approve to deploy live to Meta + WhatsApp.",
           },
           {
             type: "step-cta",
             label: "Approve all · deploy live",
-            helper: "I'll push to Meta + Google immediately and start the watchers.",
+            helper: "I'll push to Meta + WhatsApp immediately and start the watchers.",
             refineHint: "or tell me which assets need a tweak",
           },
         ],
@@ -1154,7 +1189,7 @@ export function stepIntroMessage(
           {
             type: "text",
             text:
-              "Deploying to Meta + Google + WhatsApp now. ~14s end-to-end. Feel free to step away — I'll surface the final summary the moment it's live.",
+              "Deploying to Meta + WhatsApp now. ~14s end-to-end. Feel free to step away — I'll surface the final summary the moment it's live.",
           },
         ],
       };
@@ -1164,7 +1199,7 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Here's the mix I'd run. Three from your library that already win on this product, plus one net-new worth testing. Tick the ones you want me to use.",
+            text: "Here's the mix I'd run. Three from your library that already win on this project, plus one net-new worth testing. Tick the ones you want me to use.",
           },
           {
             type: "step-cta",
@@ -1180,7 +1215,7 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Execution plan's on the right — three-bucket Meta model (experiment / scaling / cost-cap), Google Search + Discover split, and an Outreach lane for Voice + WhatsApp. Reasoning mirrors what we did with personas — experiment on the new ones, scale the winners, cost-cap the mature spend.",
+            text: "Execution plan's on the right — three-bucket Meta model (experiment / scaling / cost-cap) and an Outreach lane for Voice + WhatsApp. Reasoning mirrors what we did with personas — experiment on the new ones, scale the winners, cost-cap the mature spend.",
           },
           {
             type: "step-cta",
@@ -1196,7 +1231,7 @@ export function stepIntroMessage(
         parts: [
           {
             type: "text",
-            text: "Creatives are spinning up — visual angles per persona for Meta, and a separate set of search-ad copies for Google.",
+            text: "Creatives are spinning up — visual angles per persona for Meta.",
           },
           {
             type: "step-cta",

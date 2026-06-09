@@ -190,69 +190,82 @@ _Memory last updated · ${p.updatedAt} · Readiness ${Math.round(p.readiness * 1
 `;
 }
 
-function buildPlanMd(p: ProductSummary, plan: ProductPlan | undefined): string {
-  if (!plan) {
-    return `# Execution plan · ${p.name}
+/**
+ * The launch plan · plan.md. Spot's plans are one-time ("do this now"),
+ * not multi-week roadmaps — so the plan is organised by *what* gets built,
+ * not by day. Four sections: Creatives, Forms, Audiences, and Campaign
+ * Structure & Targeting. The CRM / Qualifier-Agent workflow lives in the
+ * strategy, not here. Lead-gen forms only for now.
+ *
+ * Shared by new products (workflow-pane's launch-plan view) and existing
+ * products (the plan.md file tab) so both read identically.
+ */
+export function buildLaunchPlanMd(productName: string): string {
+  return `# ${productName} · Plan
 
-_No active execution plan yet._
+_Drafted just now · one-time plan · approve once and I execute the checklist._
 
-Every time you talk to Spot, the agent drafts a fresh execution plan for that conversation. Deploy the agent to run it; once those tasks are done, the plan is finished and a new conversation will produce a new one.
-`;
-  }
-  const phaseBlocks = plan.phases
-    .map((ph, i) => {
-      const actions = ph.actions.map((a) => `- ${a}`).join("\n");
-      const observes = ph.observes.map((o) => `- ${o}`).join("\n");
-      const decision = ph.decisionRule
-        ? `\n**Decision rule** — ${ph.decisionRule}`
-        : "";
-      return `### ${i + 1}. ${ph.week} · ${ph.title}
+The exact build for this launch — creatives, forms, audiences, and the full campaign architecture. Lead-gen forms only for now. Approve and I deploy it end-to-end.
 
-_${ph.dates}_
+## 1 · Creatives
 
-**What I'll do**
-${actions}
+Three angles per priority persona, each shipped in the formats that persona actually responds to — twelve concepts plus six Reels.
 
-**What I'll watch**
-${observes}
-${ph.decisionAt ? `\n**Decision at** · ${ph.decisionAt}` : ""}${decision}
-`;
-    })
-    .join("\n");
-  const guardrails = plan.guardrails.map((g) => `- ${g}`).join("\n");
-  const history = plan.history
-    .slice()
-    .reverse()
-    .map((h) => `- **${h.at}** · _${h.who}_ — ${h.entry}`)
-    .join("\n");
+- **Reels (6)** · 9:16 · hook in the first 1.5s · 15-20s · captions burned in
+- **Statics (4)** · 1:1 + 4:5 · one claim, one CTA
+- **Carousels (2)** · 1:1 · 3-4 cards · problem → proof → offer
+- Every creative leads with one persona's pain + one proof point; CTA = **Book a free demo class**
+- Brand-safe: no rank/score guarantees, no competitor name-checks — enforced against project memory
 
-  return `# Execution plan · ${p.name}
+## 2 · Forms
 
-_${plan.status.toUpperCase()} · ${plan.dayLabel}_
+A single lead-gen form template, persona-branded with a banner.
 
-## Goal
+- **Banner** · 1200×628 · logo + "Book your free demo class" + trust strip (cohort size · mentor pedigree)
+- **Fields** · Name · Phone (OTP-verified) · Class / target exam · City
+- **Qualifying question** · "When are you planning to start?" → hot leads route to instant callback
+- **Completion** · WhatsApp opt-in (pre-checked) + thank-you with a calendar link
+- **Prefill** · name + phone pulled from the Meta profile to cut drop-off
 
-${plan.goal}
+## 3 · Audiences
 
-## Phases
+Every campaign warm-starts instead of cold-prospecting.
 
-${phaseBlocks}
+- 🎯 **Revspot Audience** · ~480K matched high-intent users · pushed to Meta as a Custom Audience · refreshes weekly
+- **1% lookalike** seeded on the Revspot Audience + past converters
+- **Interest stacks** · one per persona (exam-prep, coaching, parents-of-aspirants…)
+- **Geo** · tier-1/2/3 metros, weighted to high-intent regions
+- **Exclusions** · existing leads + recent enrollers + 30-day form-openers
+- Expected ~2.1× qualification lift vs cold (prior products in this category)
 
-## Guardrails
+## 4 · Campaign Structure & Targeting
 
-I enforce these automatically — no need to confirm.
+Three campaigns — one per priority persona. Objective = Leads, lead forms only.
 
-${guardrails}
-
-## History
-
-${history}
+- **Campaigns** · 1 per persona · objective = Leads · CBO off (ABO for clean reads)
+- **Ad sets · 3 per campaign** · ① Revspot Audience ② 1% lookalike ③ interest stack
+  - Budget · ₹700/day per ad set · optimise for lead · 7-day click / 1-day view
+  - Placements · Advantage+ (Feed · Reels · Stories) · auto
+  - Schedule · all-day · bid = highest-volume, no cap to start
+- **Ads · 3 angles per ad set** · UTM-tagged per persona × angle
+- **Tracking** · Meta pixel + Conversion API · lead event + a qualified-lead custom conversion
 
 ---
 
-_Execution plan last updated · ${plan.updatedAt}_
-_Next decision · ${plan.nextDecision}_
+_Plan generated · approve to deploy · edit any block in chat._
 `;
+}
+
+function buildPlanMd(p: ProductSummary, plan: ProductPlan | undefined): string {
+  if (!plan) {
+    return `# Plan · ${p.name}
+
+_No active plan yet._
+
+Every time you talk to Spot, the agent drafts a fresh plan for that conversation. Deploy the agent to run it; once those tasks are done, the plan is finished and a new conversation will produce a new one.
+`;
+  }
+  return buildLaunchPlanMd(p.name);
 }
 
 function buildPerformance(
@@ -332,10 +345,8 @@ function buildPerformance(
     spendCurve,
     leadsCurve,
     channelMix: [
-      { name: "Meta", share: 55, color: "#1877F2" },
-      { name: "Google Search", share: 18, color: "#4285F4" },
-      { name: "Google Discover", share: 12, color: "#34A853" },
-      { name: "Outreach", share: 15, color: "#15803D" },
+      { name: "Meta", share: 70, color: "#1877F2" },
+      { name: "Outreach", share: 30, color: "#15803D" },
     ],
   };
 }
@@ -509,7 +520,7 @@ function buildChangeHistoryMd(p: ProductSummary): string {
 
   return `# Change history · ${p.name}
 
-Every change to this product's memory · append-only. Spot writes here
+Every change to this project's memory · append-only. Spot writes here
 whenever it learns something new; humans show up when they correct,
 add a constraint, or approve a change.
 

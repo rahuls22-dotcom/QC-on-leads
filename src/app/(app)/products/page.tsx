@@ -60,9 +60,9 @@ export default function ProductsPage() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="text-meta text-text-secondary mb-1">Library · Memory</div>
-          <h1 className="text-page-title text-text-primary">Products</h1>
+          <h1 className="text-page-title text-text-primary">Projects</h1>
           <p className="text-meta text-text-secondary mt-1 max-w-[640px]">
-            The shared brain across every project. Each product holds its brief, USPs, do-not-mention rules, and an append-only
+            The shared brain across every project. Each project holds its brief, USPs, do-not-mention rules, and an append-only
             memory that Spot reads from before it acts.
           </p>
         </div>
@@ -71,7 +71,7 @@ export default function ProductsPage() {
           className="inline-flex items-center gap-1.5 h-9 px-3 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium"
         >
           <Plus size={14} strokeWidth={2} />
-          New product
+          New project
         </button>
       </div>
 

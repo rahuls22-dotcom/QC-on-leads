@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Package,
   Paperclip,
   ArrowUp,
   ArrowRight,
@@ -43,11 +44,13 @@ import { MessageBubble, TypingDots } from "@/components/spot/spot-message";
 import { useSpotStore } from "@/lib/spot/store";
 import { generateReply } from "@/lib/spot/replies";
 import { useCurrentUser } from "@/lib/workspace-store";
+import { useDemoMode } from "@/lib/demo-mode";
 import { projectsList } from "@/lib/campaign-data";
 import { SPOT_SESSIONS, type SpotSession } from "@/lib/spot/mock-history";
 import type { SpotMessage, SpotScope } from "@/lib/spot/types";
 import { WorkflowPane, ChatHeaderFilePicker } from "@/components/spot/workflow/workflow-pane";
 import { PRODUCTS, diagnoseProduct } from "@/lib/products-data";
+import { campaignsForProduct } from "@/lib/campaigns-edtech-rollup";
 import { STEP_LABELS, type SpotWorkflow } from "@/lib/spot/workflow";
 import {
   planForProduct,
@@ -66,7 +69,7 @@ const SUGGESTIONS: string[] = (() => {
   if (ranked[0]) out.push(`Launch a campaign for ${ranked[0].name}`);
   if (ranked[1]) out.push(`Run persona research on ${ranked[1].name}`);
   if (out.length === 0) {
-    out.push("Create a new product and research it");
+    out.push("Create a new project and research it");
   }
   return out;
 })();
@@ -151,6 +154,7 @@ function composerPlaceholderFor(workflow: SpotWorkflow | null): string | undefin
 
 export default function SpotPage() {
   const user = useCurrentUser();
+  const { isEmpty: demoEmpty } = useDemoMode();
   const scope = useSpotStore((s) => s.scope);
   const setScope = useSpotStore((s) => s.setScope);
   const thread = useSpotStore((s) => s.thread);
@@ -458,7 +462,7 @@ export default function SpotPage() {
           <SpotMark size={18} />
           <div className="flex-1">
             <div className="text-[13px] font-semibold leading-tight">Spot</div>
-            <div className="text-[11px] text-text-tertiary leading-tight">Scoped to {scope.label}</div>
+            <div className="text-[11px] text-text-tertiary leading-tight">Scoped to {scope.label}{scope.campaignLabel ? ` · ${scope.campaignLabel}` : ""}</div>
           </div>
           {workflow && <ChatHeaderFilePicker compact />}
           <button
@@ -554,7 +558,10 @@ export default function SpotPage() {
         {/* Suggestion chips — smaller, more subtle so they don't compete
             with the Spot focus. Show just 2 chips at reduced size. */}
         <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
-          {SUGGESTIONS.slice(0, 2).map((s) => (
+          {(demoEmpty
+            ? ["Create a new project and research it", "What can you help me with?"]
+            : SUGGESTIONS
+          ).slice(0, 2).map((s) => (
             <button
               key={s}
               type="button"
@@ -776,7 +783,7 @@ function ProductSetupQuestionCard({
 
   const question =
     step === 0
-      ? "What should I call this product?"
+      ? "What should I call this project?"
       : step === 1
         ? "Got a brand URL I can crawl?"
         : "Any files I should learn from?";
@@ -786,7 +793,7 @@ function ProductSetupQuestionCard({
       ? "I'll use this name across memory, plans, and campaigns."
       : step === 1
         ? "Pricing, curriculum, positioning — I'll pull whatever I can find."
-        : "Brochures, decks, PDFs — drop anything that explains the product.";
+        : "Brochures, decks, PDFs — drop anything that explains the project.";
 
   // Disable Continue when on Q1 with no name typed.
   const continueDisabled = step === 0 && !canSubmit;
@@ -796,7 +803,7 @@ function ProductSetupQuestionCard({
       {/* Context line above the card · mirrors the Claude pattern */}
       <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary mb-2 ml-0.5">
         <Sparkles size={10} strokeWidth={1.7} />
-        <span>Setting up a new product · {TOTAL} quick questions</span>
+        <span>Setting up a new project · {TOTAL} quick questions</span>
       </div>
 
       {/* The interactive card itself · light surface matching the app theme */}
@@ -1059,6 +1066,9 @@ function Composer({
           open={scopeOpen}
           onOpenChange={onScopeOpenChange}
         />
+        {scope.kind === "project" && scope.target && (
+          <CampaignScopePicker scope={scope} onChange={onChangeScope} />
+        )}
         <div className="flex-1" />
         <span className="mono text-[10px] text-text-tertiary mr-1">⏎ to send</span>
         <button
@@ -1142,7 +1152,7 @@ function ScopePicker({
           />
           <div className="border-t border-border-subtle my-1" />
           <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-            Products
+            Projects
           </div>
           {projectScopes.map((p) => (
             <ScopeRow
@@ -1165,8 +1175,96 @@ function ScopePicker({
             className="w-full text-left flex items-center gap-2 px-3 h-8 hover:bg-surface-secondary text-[12.5px] text-text-primary"
           >
             <Plus size={12} strokeWidth={2} className="text-text-tertiary" />
-            <span className="flex-1">New product — start with research</span>
+            <span className="flex-1">New project — start with research</span>
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Campaign sub-selector — only shown when the chat is scoped to a Project.
+ * Defaults to "All campaigns" (the whole project); the user can narrow to a
+ * single campaign. Selecting a different Project resets this to All campaigns
+ * (ScopePicker replaces the scope object without a campaign).
+ */
+function CampaignScopePicker({
+  scope,
+  onChange,
+}: {
+  scope: SpotScope;
+  onChange: (s: SpotScope) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const campaigns = scope.target ? campaignsForProduct(scope.target) : [];
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 h-7 px-2 rounded-button border border-border bg-white hover:border-border-hover text-[12px] text-text-secondary hover:text-text-primary"
+        title="Scope to a campaign"
+      >
+        <span aria-hidden className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: scope.campaignId ? "#C9A86A" : "#9B9B9B" }} />
+        <span className="max-w-[160px] truncate">{scope.campaignLabel ?? "All campaigns"}</span>
+        <ChevronDown size={11} strokeWidth={1.8} />
+      </button>
+      {open && (
+        <div
+          className="absolute bottom-[calc(100%+6px)] left-0 z-50 bg-white border border-border rounded-card py-1.5 min-w-[260px]"
+          style={{ boxShadow: "0 8px 28px -8px rgba(0,0,0,0.12)" }}
+        >
+          <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+            Campaigns · {scope.label}
+          </div>
+          <ScopeRow
+            label="All campaigns"
+            active={!scope.campaignId}
+            onSelect={() => {
+              onChange({ ...scope, campaignId: undefined, campaignLabel: undefined });
+              setOpen(false);
+            }}
+          />
+          {campaigns.length > 0 && <div className="border-t border-border-subtle my-1" />}
+          {campaigns.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                onChange({ ...scope, campaignId: c.id, campaignLabel: c.name });
+                setOpen(false);
+              }}
+              className="w-full text-left flex items-center gap-2 px-3 h-8 hover:bg-surface-secondary text-[12.5px] text-text-primary"
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ background: c.status === "enabled" ? "#22C55E" : "#9B9B9B" }}
+              />
+              <span className="flex-1 truncate">{c.name}</span>
+              {scope.campaignId === c.id && (
+                <Check size={12} strokeWidth={2} className="text-text-primary" />
+              )}
+            </button>
+          ))}
+          {campaigns.length === 0 && (
+            <div className="px-3 py-2 text-[11.5px] text-text-tertiary italic">
+              No campaigns yet for this project.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1202,12 +1300,41 @@ function ScopeRow({
  * startLaunchFlow which kicks off the split-screen workflow.
  */
 function ActiveProductsRail() {
+  const { isEmpty } = useDemoMode();
   const startLaunchFlow = useSpotStore((s) => s.startLaunchFlow);
   const startNewProductFlow = useSpotStore((s) => s.startNewProductFlow);
   const startScaleFlow = useSpotStore((s) => s.startScaleFlow);
   const startOptimizeFlow = useSpotStore((s) => s.startOptimizeFlow);
   const startTestAnglesFlow = useSpotStore((s) => s.startTestAnglesFlow);
   const top = PRODUCTS.slice(0, 3);
+
+  // Empty-state preview — no products in the workspace yet.
+  if (isEmpty) {
+    return (
+      <div>
+        <div className="flex items-center mb-2.5">
+          <span className="label-section">Your projects</span>
+        </div>
+        <div className="bg-white border border-border rounded-card flex flex-col items-center text-center px-6 py-12">
+          <div className="w-12 h-12 rounded-full bg-surface-secondary flex items-center justify-center mb-3">
+            <Package size={20} strokeWidth={1.5} className="text-text-tertiary" />
+          </div>
+          <h3 className="text-[15px] font-semibold text-text-primary">No projects yet</h3>
+          <p className="text-[12.5px] text-text-secondary leading-relaxed mt-1.5 max-w-[420px]">
+            Spin up your first project and I&apos;ll research it, build the memory, and draft a launch plan — or import existing campaigns to start from your live data.
+          </p>
+          <button
+            type="button"
+            onClick={startNewProductFlow}
+            className="inline-flex items-center gap-1.5 h-9 px-4 mt-4 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium"
+          >
+            <Plus size={14} strokeWidth={2} />
+            Create your first project
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // The chip action on each product card maps the diagnosis to a
   // workflow kind. "Healthy" → scale (best-case action is to scale
@@ -1225,13 +1352,13 @@ function ActiveProductsRail() {
   return (
     <div>
       <div className="flex items-center mb-2.5">
-        <span className="label-section">Your products</span>
+        <span className="label-section">Your projects</span>
         <span className="flex-1" />
         <a
           href="/products"
           className="text-[11.5px] text-text-tertiary hover:text-text-primary"
         >
-          All products →
+          All projects →
         </a>
       </div>
       <div className="grid grid-cols-4 gap-3">
@@ -1297,13 +1424,8 @@ function ActiveProductsRail() {
                   >
                     <span className="inline-flex w-1.5 h-1.5 rounded-full bg-[#22C55E] flex-shrink-0" />
                     <span className="text-[11px] text-text-primary font-medium truncate flex-1">
-                      {PLAN_STATUS_LABEL[plan.status]} · {plan.dayLabel}
+                      {PLAN_STATUS_LABEL[plan.status]}
                     </span>
-                    {plan.pendingRecs > 0 && (
-                      <span className="pill pill-warn flex-shrink-0" style={{ fontSize: 9.5 }}>
-                        {plan.pendingRecs} pending
-                      </span>
-                    )}
                   </a>
                 );
               })()}
@@ -1323,7 +1445,7 @@ function ActiveProductsRail() {
                   type="button"
                   onClick={() => startLaunchFlow({ id: p.id, name: p.name })}
                   className="inline-flex items-center h-7 px-2 rounded-button text-[11px] text-text-tertiary hover:text-text-primary"
-                  title="Open the launch workflow for this product"
+                  title="Open the launch workflow for this project"
                 >
                   Launch
                 </button>
@@ -1341,7 +1463,7 @@ function ActiveProductsRail() {
           <div>
             <div className="text-[10.5px] text-text-tertiary mb-0.5">Fresh start</div>
             <div className="text-[13px] font-medium text-text-primary leading-tight min-h-[2.4em]">
-              New product
+              New project
             </div>
           </div>
           <div className="text-[11px] text-text-secondary leading-snug">
@@ -1349,7 +1471,7 @@ function ActiveProductsRail() {
           </div>
           <span className="inline-flex items-center gap-1 text-[11.5px] text-text-primary font-medium group-hover:underline mt-auto">
             <Plus size={11} strokeWidth={2} />
-            Start a new product
+            Start a new project
           </span>
         </button>
       </div>
@@ -1378,9 +1500,33 @@ function ProductMetric({ label, value }: { label: string; value: string }) {
  *   · completed       → subtle "View" link
  */
 function SessionsCard() {
+  const { isEmpty } = useDemoMode();
   const workflow = useSpotStore((s) => s.workflow);
   const viewHomeOverride = useSpotStore((s) => s.viewHomeOverride);
   const resumeWorkflow = useSpotStore((s) => s.resumeWorkflow);
+
+  // Empty-state preview — no sessions run yet.
+  if (isEmpty) {
+    return (
+      <div className="bg-white border border-border rounded-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-2">
+          <SpotMark size={12} />
+          <span className="text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+            Sessions
+          </span>
+        </div>
+        <div className="flex flex-col items-center text-center px-6 py-12">
+          <div className="w-12 h-12 rounded-full bg-surface-secondary flex items-center justify-center mb-3">
+            <SpotMark size={20} />
+          </div>
+          <h3 className="text-[15px] font-semibold text-text-primary">No sessions yet</h3>
+          <p className="text-[12.5px] text-text-secondary leading-relaxed mt-1.5 max-w-[420px]">
+            When you put me to work, your active and completed runs show up here — ready to review, resume, or pick up where we left off.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Pinned at top: the user's current parked workflow (if any) — they
   // get a quick way back into whatever they were doing.

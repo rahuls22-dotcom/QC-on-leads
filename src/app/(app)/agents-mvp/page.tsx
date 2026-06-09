@@ -145,8 +145,8 @@ export default function AgentsMvpPage() {
                   <button onClick={() => { setContextSource("project"); setSelectedCampaign(""); }}
                     className={`text-left p-3 rounded-[8px] border transition-colors ${contextSource === "project" ? "border-accent bg-accent/5" : "border-border hover:border-border-hover"}`}>
                     <FolderKanban size={14} strokeWidth={1.5} className={contextSource === "project" ? "text-accent mb-1" : "text-text-tertiary mb-1"} />
-                    <div className="text-[12px] font-medium text-text-primary">Product</div>
-                    <div className="text-[10px] text-text-tertiary mt-0.5">Use product knowledge base</div>
+                    <div className="text-[12px] font-medium text-text-primary">Project</div>
+                    <div className="text-[10px] text-text-tertiary mt-0.5">Use project knowledge base</div>
                   </button>
                   <button onClick={() => { setContextSource("campaign"); setSelectedProject(""); }}
                     className={`text-left p-3 rounded-[8px] border transition-colors ${contextSource === "campaign" ? "border-accent bg-accent/5" : "border-border hover:border-border-hover"}`}>

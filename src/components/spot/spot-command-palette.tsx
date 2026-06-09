@@ -71,7 +71,7 @@ function buildNavSections(args: {
     section: "Go to",
     items: [
       { id: "nav-dash", kind: "nav", text: "Dashboard", target: "/dashboard", icon: LayoutGrid, scope: "Workspace" },
-      { id: "nav-projects", kind: "nav", text: "Products", target: "/projects", icon: Folder, scope: "Workspace" },
+      { id: "nav-projects", kind: "nav", text: "Projects", target: "/projects", icon: Folder, scope: "Workspace" },
       { id: "nav-campaigns", kind: "nav", text: "Campaigns", target: "/campaigns", icon: Monitor, scope: "Workspace" },
       ...projItems,
     ],

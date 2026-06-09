@@ -147,10 +147,10 @@ type SectionKind =
 
 function sectionKindFor(heading: string): SectionKind {
   const h = heading.toLowerCase();
-  if (h.includes("product brief") || h === "brief") return "brief";
+  if (h.includes("product brief") || h.includes("overview") || h === "brief") return "brief";
   if (h.includes("pricing")) return "pricing";
   if (h.includes("offers")) return "offers";
-  if (h.includes("usp")) return "usps";
+  if (h.includes("usp") || h.includes("key benefit")) return "usps";
   if (h.includes("do not mention") || h.includes("avoid")) return "avoid";
   if (h.includes("persona")) return "personas";
   if (h.includes("collateral") || h.includes("attached")) return "collateral";

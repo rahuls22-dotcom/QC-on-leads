@@ -90,7 +90,7 @@ const EXPERIMENT_PLAN: PlanDay[] = [
     tone: "launch",
     actions: [
       "Push 3 distinct angles into Meta · Lead Gen, ₹3,000/day each",
-      "Open one Google Search bucket on brand + 'category online coaching' keywords",
+      "Layer a Meta retargeting ad set on site visitors + form openers",
       "Spin up the demo-class landing page · mobile-first, sticky CTA",
       "Arm the watchers: CPL, frequency cap, comment sentiment",
     ],
@@ -576,7 +576,7 @@ const PLAN_PROGRESS_MESSAGES = [
   "Briefing Resize Agent on the variant matrix…",
   "Building the demo-class landing page · mobile-first…",
   "Composing the Day-1 lead form…",
-  "Compiling the Meta + Google campaign tree…",
+  "Compiling the Meta campaign tree…",
   "Provisioning Sherpa (Voice + WA) on the inbound pool…",
   "Setting up the watchers · CPL · sentiment · frequency…",
   "Queueing Day-1 deploy to ad accounts…",
@@ -633,16 +633,16 @@ type CreativePersonaGroup = {
 const CREATIVES_BY_PERSONA: CreativePersonaGroup[] = [
   {
     persona: "Working professional · Aspiring fluent speaker",
-    sub: "25-34 · tier-1/2 cities · LinkedIn-active",
+    sub: "25-34 · tier-1/2 cities · career-focused",
     pain: "Stalled career growth from English gap",
     swatch: "#1F5BE0",
     channels: [
-      { label: "LinkedIn Ads" },
-      { label: "Meta · Instagram" },
-      { label: "Google Search" },
+      { label: "Meta · Feed" },
+      { label: "Instagram" },
+      { label: "Reels" },
     ],
     channelRationale:
-      "LinkedIn captures intent at the career moment. Instagram reaches them off-hours; Google Search picks up bottom-funnel 'spoken English course' queries.",
+      "Feed captures intent during work-day scrolls. Instagram + Reels reach them off-hours with short, proof-driven creative.",
     creatives: [
       { id: "wp1", hook: "Master English for career success", format: "Reel", src: "/assets/creatives/professional-01.png", hue: 215 },
       { id: "wp2", hook: "Boost the confidence your role deserves", format: "Static", src: "/assets/creatives/professional-02.png", hue: 200 },
@@ -650,16 +650,16 @@ const CREATIVES_BY_PERSONA: CreativePersonaGroup[] = [
   },
   {
     persona: "College student · Interview prep",
-    sub: "18-24 · semi-urban · YouTube-heavy",
+    sub: "18-24 · semi-urban · mobile-first",
     pain: "Campus placement interviews",
     swatch: "#15803D",
     channels: [
-      { label: "YouTube" },
       { label: "Instagram Reels" },
-      { label: "Google Search" },
+      { label: "Meta · Feed" },
+      { label: "Stories" },
     ],
     channelRationale:
-      "YouTube is where they study and binge — pre-rolls + bumper ads on test-prep content. Reels covers scroll-time; Search covers exam/placement-prep keywords.",
+      "Reels is where they spend scroll-time — short-form story ads on placement-prep angles. Feed + Stories retarget the warm ones.",
     creatives: [
       { id: "cs1", hook: "Excel in campus interviews", format: "Reel", src: "/assets/creatives/student-03.png", hue: 200 },
       { id: "cs2", hook: "Placement prep made easy", format: "Static", src: "/assets/creatives/student-04.png", hue: 215 },
@@ -672,11 +672,11 @@ const CREATIVES_BY_PERSONA: CreativePersonaGroup[] = [
     swatch: "#B45309",
     channels: [
       { label: "Meta · Facebook" },
+      { label: "Instagram" },
       { label: "WhatsApp" },
-      { label: "Google Discover" },
     ],
     channelRationale:
-      "Facebook is their primary feed. WhatsApp click-to-chat turns interest into a conversation with the Pre-Sales Agent. Discover catches passive parenting research.",
+      "Facebook is their primary feed; Instagram adds reach. WhatsApp click-to-chat turns interest into a conversation with the Pre-Sales Agent.",
     creatives: [
       { id: "pa1", hook: "Help your child speak with confidence", format: "Static", src: "/assets/creatives/parent-01.png", hue: 340 },
       { id: "pa2", hook: "Trusted by 12,000+ parents", format: "Carousel", src: "/assets/creatives/parent-02.png", hue: 320 },
@@ -722,15 +722,15 @@ const CAMPAIGN_PLAN: CampaignRow[] = [
     persona: "Working professional",
     swatch: "#1F5BE0",
     objective: "Lead gen (demo booking)",
-    platform: "LinkedIn + Meta + Search",
+    platform: "Meta · Feed · Reels · Stories",
     dailyBudget: 600,
     targetCpl: 380,
     expectedLeadsPerDay: 16,
     goal: "Book 200 demos · 14 days",
     adSets: [
-      { id: "wp-as1", name: "LinkedIn · job titles + skills", audience: "Mid-level IC, manager · LinkedIn-active", ads: 4 },
-      { id: "wp-as2", name: "Meta · interest stack · LinkedIn lookalike", audience: "Custom Audience · 1% LAL", ads: 4 },
-      { id: "wp-as3", name: "Google Search · 'spoken English for professionals'", audience: "High-intent BoFu keywords", ads: 3 },
+      { id: "wp-as1", name: "Meta · Revspot Audience", audience: "Matched high-intent professionals", ads: 4 },
+      { id: "wp-as2", name: "Meta · 1% lookalike", audience: "Custom Audience · 1% LAL", ads: 4 },
+      { id: "wp-as3", name: "Meta · retargeting", audience: "30-day site visitors + form opens", ads: 3 },
     ],
   },
   {
@@ -739,15 +739,15 @@ const CAMPAIGN_PLAN: CampaignRow[] = [
     persona: "College student",
     swatch: "#15803D",
     objective: "Lead gen (mock + free class)",
-    platform: "YouTube + Reels + Search",
+    platform: "Meta · Reels · Feed · Stories",
     dailyBudget: 500,
     targetCpl: 240,
     expectedLeadsPerDay: 21,
     goal: "Book 290 free classes · 14 days",
     adSets: [
-      { id: "cs-as1", name: "YouTube · placement-prep & study channels", audience: "18-24 · semi-urban · test-prep viewers", ads: 4 },
-      { id: "cs-as2", name: "Instagram Reels · short-form story", audience: "Campus interest stack", ads: 4 },
-      { id: "cs-as3", name: "Google Search · 'campus placement English'", audience: "Exam + placement keywords", ads: 3 },
+      { id: "cs-as1", name: "Meta · Reels · interest stack", audience: "18-24 · semi-urban · test-prep viewers", ads: 4 },
+      { id: "cs-as2", name: "Meta · 1% lookalike", audience: "Campus interest stack", ads: 4 },
+      { id: "cs-as3", name: "Meta · retargeting", audience: "75% video viewers + form opens", ads: 3 },
     ],
   },
   {
@@ -756,7 +756,7 @@ const CAMPAIGN_PLAN: CampaignRow[] = [
     persona: "Parent · Buying for child",
     swatch: "#B45309",
     objective: "Lead gen (WhatsApp conversation)",
-    platform: "Meta + WhatsApp + Discover",
+    platform: "Meta · Feed · WhatsApp",
     dailyBudget: 700,
     targetCpl: 310,
     expectedLeadsPerDay: 22,
@@ -764,7 +764,7 @@ const CAMPAIGN_PLAN: CampaignRow[] = [
     adSets: [
       { id: "pa-as1", name: "Facebook feed · child-confidence hooks", audience: "32-45 · parents · tier-2/3", ads: 4 },
       { id: "pa-as2", name: "Meta CTW (Click-to-WhatsApp)", audience: "Lookalike · prior demo bookers", ads: 4 },
-      { id: "pa-as3", name: "Google Discover · parenting + edutech", audience: "Discover affinity audiences", ads: 3 },
+      { id: "pa-as3", name: "Meta · retargeting · engagers", audience: "Page + WhatsApp engagers", ads: 3 },
     ],
   },
 ];
@@ -820,7 +820,7 @@ export function LaunchReviewStep({ workflow }: { workflow: LaunchWorkflow }) {
             <ReviewStat label="Resized variants" value={`${TOTAL_CREATIVES_COUNT * 4}`} sub="4 sizes per angle" />
             <ReviewStat label="Landing pages" value="3" sub="mobile-first" />
             <ReviewStat label="Lead forms" value={`${SAMPLE_FORMS_COUNT}`} sub="+ WhatsApp scripts" />
-            <ReviewStat label="Campaigns" value="3" sub="Meta + Google" />
+            <ReviewStat label="Campaigns" value="3" sub="Meta · lead forms" />
           </div>
         </div>
       </motion.div>
@@ -978,7 +978,7 @@ export function LaunchReviewStep({ workflow }: { workflow: LaunchWorkflow }) {
 
       <motion.div variants={canvasReveal} className="grid grid-cols-3 gap-2.5 mb-4">
         <ReviewBucket icon={FileText} title="Lead forms" count={`${SAMPLE_FORMS_COUNT}`} subtitle="Meta + WhatsApp" />
-        <ReviewBucket icon={Megaphone} title="Campaign tree" count={`${CAMPAIGN_PLAN.length}`} subtitle="Meta + Google + LinkedIn" />
+        <ReviewBucket icon={Megaphone} title="Campaign tree" count={`${CAMPAIGN_PLAN.length}`} subtitle="Meta · lead forms" />
         <ReviewBucket icon={Mic} title="Voice agent" count="Sherpa" subtitle="Voice + WA · provisioned" />
       </motion.div>
 
@@ -1082,7 +1082,7 @@ export function LaunchReviewStep({ workflow }: { workflow: LaunchWorkflow }) {
           <ul className="space-y-1 text-[12px] text-text-primary leading-relaxed">
             <li className="flex gap-1.5">
               <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D] flex-shrink-0 mt-0.5" />
-              <span>Push 3 campaigns live on Meta + Google · Day-1 budget per the execution plan</span>
+              <span>Push 3 campaigns live on Meta · Day-1 budget per the plan</span>
             </li>
             <li className="flex gap-1.5">
               <CheckCircle2 size={11} strokeWidth={2} className="text-[#15803D] flex-shrink-0 mt-0.5" />

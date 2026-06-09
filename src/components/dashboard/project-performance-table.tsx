@@ -78,15 +78,15 @@ export function ProjectPerformanceTable() {
   if (projects.length === 0) {
     return (
       <div className="bg-white border border-border rounded-card p-10 text-center">
-        <div className="text-section-header text-text-primary mb-1">No products yet</div>
+        <div className="text-section-header text-text-primary mb-1">No projects yet</div>
         <div className="text-meta text-text-tertiary mb-3">
-          Create your first product to see performance here.
+          Create your first project to see performance here.
         </div>
         <Link
           href="/projects"
           className="text-[13px] font-medium text-text-secondary hover:text-text-primary inline-flex items-center gap-1"
         >
-          Go to Products
+          Go to Projects
           <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       </div>
@@ -96,9 +96,9 @@ export function ProjectPerformanceTable() {
   return (
     <div className="bg-white border border-border rounded-card">
       <div className="px-6 py-5 border-b border-border-subtle">
-        <h2 className="text-section-header text-text-primary">Product performance</h2>
+        <h2 className="text-section-header text-text-primary">Project performance</h2>
         <div className="text-meta text-text-tertiary mt-0.5">
-          Click any product to open it.
+          Click any project to open it.
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -106,7 +106,7 @@ export function ProjectPerformanceTable() {
           <thead>
             <tr>
               <th className="text-left px-6 py-3 text-[12px] font-medium text-text-tertiary uppercase tracking-[0.5px]">
-                Product
+                Project
               </th>
               <th className="text-right px-3 py-3 text-[12px] font-medium text-text-tertiary uppercase tracking-[0.5px]">
                 Spend
@@ -204,7 +204,7 @@ export function ProjectPerformanceTable() {
           href="/projects"
           className="text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors duration-150 inline-flex items-center gap-1"
         >
-          View all products
+          View all projects
           <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       </div>

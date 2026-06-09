@@ -22,6 +22,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
+  ListChecks,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -66,7 +67,6 @@ import {
   ANGLE_REVISIONS,
   type AnalysisCampaignSignal,
   type AnalysisFindings,
-  type ClarifyQuestion,
   type PendingRecommendation,
   type WorkflowPlan,
   type CreativeAngle,
@@ -557,13 +557,7 @@ function AnalyzeLoader() {
 
 function ClarifyStep({ workflow }: { workflow: DiagnosticWorkflow }) {
   const kind = workflow.kind;
-  // Pull findings from analysis so the question options + defaults adapt
-  // to what Spot actually found (e.g. hide "Stop the decay" when no
-  // decay was detected, default "Recent decay only" when only decay was).
-  const findings = analysisFor(kind);
-  const questions = clarifyQuestionsFor(kind, findings);
   const primeClarifyDefaults = useSpotStore((s) => s.primeClarifyDefaults);
-  const setClarifyAnswer = useSpotStore((s) => s.setClarifyAnswer);
 
   // Prime defaults on first render only. We key the effect by `kind`
   // (stable per workflow) — the questions array itself is a fresh ref
@@ -579,6 +573,9 @@ function ClarifyStep({ workflow }: { workflow: DiagnosticWorkflow }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
 
+  // The quick-pick questions now live in the chat (left panel). The
+  // canvas mirrors the captured brief — it fills in live as the user
+  // answers on the left.
   return (
     <motion.div
       className="px-5 py-5"
@@ -588,68 +585,15 @@ function ClarifyStep({ workflow }: { workflow: DiagnosticWorkflow }) {
     >
       <motion.div variants={canvasReveal}>
         <StepHeader
-          title="Quick setup"
-          blurb={`A few choices that constrain how I'll work. Defaults are what I'd pick anyway — confirm or tweak, then approve in chat.`}
+          title="Setup brief"
+          blurb={`Answer the few quick questions in the chat — this brief fills in live with exactly what I'll work with.`}
         />
       </motion.div>
 
-      <div className="space-y-3 mb-4">
-        {questions.map((q) => (
-          <motion.div key={q.id} variants={canvasReveal}>
-            <QuestionCard
-              question={q}
-              selected={workflow.clarifyAnswers[q.id] ?? q.defaultValue}
-              onSelect={(v) => setClarifyAnswer(q.id, v)}
-            />
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Verification brief — what Spot understood */}
       <motion.div variants={canvasReveal}>
         <BriefCard workflow={workflow} />
       </motion.div>
     </motion.div>
-  );
-}
-
-function QuestionCard({
-  question,
-  selected,
-  onSelect,
-}: {
-  question: ClarifyQuestion;
-  selected: string;
-  onSelect: (value: string) => void;
-}) {
-  return (
-    <div className="bg-white border border-border rounded-card p-3.5">
-      <div className="mb-0.5 text-[13px] font-semibold text-text-primary">{question.question}</div>
-      {question.why && (
-        <div className="text-[11.5px] text-text-tertiary mb-2.5">{question.why}</div>
-      )}
-      <div className="flex flex-wrap gap-1.5">
-        {question.options.map((o) => {
-          const active = selected === o.value;
-          return (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => onSelect(o.value)}
-              title={o.hint}
-              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-button text-[12px] font-medium transition-colors ${
-                active
-                  ? "bg-[#111] text-[#FAFAF8] border border-[#111]"
-                  : "bg-white border border-border text-text-secondary hover:border-border-hover hover:text-text-primary"
-              }`}
-            >
-              {active && <CheckCircle2 size={11} strokeWidth={2} />}
-              {o.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -1490,7 +1434,7 @@ function PlanStep({ workflow }: { workflow: DiagnosticWorkflow }) {
       <motion.div variants={canvasReveal}>
         <StepHeader
           title="Spot's plan"
-          blurb="One plan · three weeks · one approval. Week 1 actions are concrete; the later phases adapt to what I observe. Guardrails fire automatically."
+          blurb="The exact moves I'll make right now — one approval, and I execute the checklist. No multi-week roadmap; when the data shifts, my analyst reports back and I plan the next move then."
         />
       </motion.div>
 
@@ -1517,14 +1461,11 @@ function PlanStep({ workflow }: { workflow: DiagnosticWorkflow }) {
         </div>
       </motion.div>
 
-      {/* Time-phased plan — the centerpiece */}
+      {/* The plan — a single concrete set of moves to make now. Spot's
+          plans are one-time ("do this now"), never a multi-week roadmap. */}
       <motion.div variants={canvasReveal} className="mb-4">
-        <div className="label-section mb-2">Time-phased plan</div>
-        <div className="space-y-2.5">
-          {plan.phases.map((phase, i) => (
-            <PhaseCard key={phase.id} phase={phase} index={i} total={plan.phases.length} />
-          ))}
-        </div>
+        <div className="label-section mb-2">The plan · what I&apos;ll do now</div>
+        <NowPlanCard phase={plan.phases[0]} />
       </motion.div>
 
       {/* Guardrails */}
@@ -1580,48 +1521,31 @@ function InsightCard({ insight }: { insight: WorkflowPlan["insights"][number] })
   );
 }
 
-function PhaseCard({
-  phase,
-  index,
-  total,
-}: {
-  phase: WorkflowPlan["phases"][number];
-  index: number;
-  total: number;
-}) {
+/**
+ * NowPlanCard · the single concrete plan Spot will execute now. No week
+ * labels, no "decide later" — Spot plans only what to do right now; the
+ * next move is planned when the analyst reports back. Shows the moves
+ * (the checklist that gets executed) + what Spot will watch after.
+ */
+function NowPlanCard({ phase }: { phase: WorkflowPlan["phases"][number] }) {
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Phase header */}
-      <div className="px-4 py-2.5 border-b border-border-subtle bg-surface-page flex items-center gap-3">
-        <div className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#111] text-[#FAFAF8] text-[10.5px] font-bold">
-          {index + 1}
+      <div className="px-4 py-2.5 border-b border-border-subtle bg-surface-page flex items-center gap-2.5">
+        <ListChecks size={14} strokeWidth={1.8} className="text-text-secondary flex-shrink-0" />
+        <div className="text-[13px] font-medium text-text-primary leading-tight">
+          {phase.title}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-[12px] font-semibold text-text-primary uppercase tracking-wider">
-              {phase.week}
-            </span>
-            <span className="text-[11px] text-text-tertiary">· {phase.dates}</span>
-          </div>
-          <div className="text-[13px] font-medium text-text-primary leading-tight mt-0.5">
-            {phase.title}
-          </div>
-        </div>
-        {phase.decisionAt && (
-          <span className="pill pill-info inline-flex items-center gap-1 flex-shrink-0">
-            <Clock size={9} strokeWidth={2} />
-            Decide {phase.decisionAt}
-          </span>
-        )}
+        <span className="pill pill-info inline-flex items-center gap-1 flex-shrink-0 ml-auto">
+          {phase.actions.length} moves
+        </span>
       </div>
 
-      {/* Phase body */}
       <div className="px-4 py-3 grid grid-cols-2 gap-4">
         <div>
           <div className="flex items-center gap-1.5 mb-1.5">
             <Zap size={10} strokeWidth={1.8} className="text-text-secondary" />
             <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-medium">
-              What I'll do
+              What I&apos;ll do now
             </span>
           </div>
           <ul className="space-y-1.5">
@@ -1640,7 +1564,7 @@ function PhaseCard({
           <div className="flex items-center gap-1.5 mb-1.5">
             <Eye size={10} strokeWidth={1.8} className="text-text-secondary" />
             <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-medium">
-              What I'll watch
+              What I&apos;ll watch
             </span>
           </div>
           <ul className="space-y-1.5">
@@ -1653,18 +1577,6 @@ function PhaseCard({
           </ul>
         </div>
       </div>
-
-      {/* Decision rule */}
-      {phase.decisionRule && (
-        <div className="px-4 pb-3 pt-1 border-t border-border-subtle bg-surface-page">
-          <div className="text-[10.5px] uppercase tracking-wider text-text-tertiary mt-2 mb-1">
-            Decision rule
-          </div>
-          <div className="text-[11.5px] text-text-primary leading-relaxed italic">
-            {phase.decisionRule}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1858,41 +1770,6 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
         </ul>
       </motion.div>
 
-      {/* Phase timeline strip */}
-      <motion.div variants={canvasReveal} className="mb-4">
-        <div className="flex items-center gap-2">
-          {plan.phases.map((p, i) => (
-            <div
-              key={p.id}
-              className={`flex-1 rounded-card border p-2.5 ${
-                i === 0
-                  ? "border-text-primary bg-white shadow-card-hover"
-                  : "border-border bg-surface-page"
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                {i === 0 ? (
-                  <span className="inline-flex w-2 h-2 rounded-full bg-[#22C55E]" />
-                ) : (
-                  <span className="inline-flex w-2 h-2 rounded-full bg-text-tertiary/40" />
-                )}
-                <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-medium">
-                  {p.week}
-                </span>
-                <span className="text-[10.5px] text-text-tertiary ml-auto">{p.dates}</span>
-              </div>
-              <div
-                className={`text-[12px] leading-snug mt-1 ${
-                  i === 0 ? "text-text-primary font-medium" : "text-text-secondary"
-                }`}
-              >
-                {p.title}
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
       {/* ── Tasks running now · animated queued → running → done ── */}
       <motion.div
         variants={canvasReveal}
@@ -1905,7 +1782,7 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
             <Activity size={13} strokeWidth={1.7} className="text-text-secondary" />
           )}
           <div className="label-section">
-            {allDone ? "Week 1 deployed" : "Spot is working through the queue"}
+            {allDone ? "Plan deployed" : "Spot is executing the plan"}
           </div>
           <span className="text-[10.5px] text-text-tertiary ml-auto tabular">
             {doneCount} of {activePhase.actions.length} tasks complete
@@ -2038,8 +1915,8 @@ function LiveStep({ workflow }: { workflow: DiagnosticWorkflow }) {
           {recs.length === 0 ? (
             <div className="bg-white border border-border-subtle border-dashed rounded-card p-3.5 text-center">
               <div className="text-[12px] text-text-secondary">
-                Nothing pending right now — I'll surface the next call at{" "}
-                <span className="text-text-primary font-medium">{activePhase.decisionAt}</span>.
+                Nothing pending right now — I&apos;ll surface the next call here{" "}
+                <span className="text-text-primary font-medium">when a watcher fires</span>.
               </div>
             </div>
           ) : (

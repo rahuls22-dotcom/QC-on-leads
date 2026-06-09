@@ -40,6 +40,8 @@ import {
   LaunchBuildingStep,
   LaunchReviewStep,
 } from "@/components/spot/workflow/launch-build-steps";
+import { LaunchStrategyStep } from "@/components/spot/workflow/launch-strategy-step";
+import { ExecutionChecklist, LAUNCH_DEPLOY_CHECKLIST } from "@/components/spot/workflow/execution-checklist";
 import { CampaignDiveStep } from "@/components/spot/workflow/campaign-dive-step";
 import { ImportCampaignsStep } from "@/components/spot/workflow/import-campaigns-step";
 import { SpotMark } from "@/components/spot/spot-mark";
@@ -52,6 +54,7 @@ const STEP_ICONS: Record<WorkflowStep, typeof Users> = {
   "product-setup": Package,
   kickoff: Sparkles,
   "import-campaigns": Download,
+  "launch-strategy": Sparkles,
   "launch-plan": Sparkles,
   "launch-building": Cog,
   "launch-review": CheckCircle2,
@@ -114,8 +117,9 @@ export const FILE_TABS: {
   file: string;
   icon: typeof FileText;
 }[] = [
-  { key: "memory", label: "Memory", file: "memory.md", icon: FileText },
-  { key: "plan", label: "Execution plan", file: "execution-plan.md", icon: TrendingUp },
+  { key: "memory", label: "Project details", file: "project-details.md", icon: FileText },
+  { key: "strategy", label: "Strategy", file: "strategy.md", icon: Sparkles },
+  { key: "plan", label: "Plan", file: "plan.md", icon: TrendingUp },
   { key: "analysis", label: "Analysis", file: "analysis.md", icon: Search },
   { key: "dashboard", label: "Dashboard", file: "dashboard.html", icon: ChartPie },
   { key: "assets", label: "Assets", file: "assets/", icon: ImageIcon },
@@ -125,12 +129,15 @@ export const FILE_TABS: {
  *  exists for diagnostic workflows (scale / optimize / test-angles)
  *  where Spot's findings are persisted as part of product memory. */
 export function fileTabsForWorkflow(workflow: SpotWorkflow | null) {
-  if (!workflow) return FILE_TABS.filter((t) => t.key !== "analysis");
+  if (!workflow) return FILE_TABS.filter((t) => t.key !== "analysis" && t.key !== "strategy");
   const isDiagnostic =
     workflow.kind === "scale" ||
     workflow.kind === "optimize" ||
     workflow.kind === "test-angles";
-  return FILE_TABS.filter((t) => t.key !== "analysis" || isDiagnostic);
+  const isLaunch = workflow.kind === "launch-campaign";
+  return FILE_TABS.filter(
+    (t) => (t.key !== "analysis" || isDiagnostic) && (t.key !== "strategy" || isLaunch),
+  );
 }
 
 /** Default file to focus when a workflow step changes. The chat
@@ -148,6 +155,7 @@ export function defaultFileForStep(step: WorkflowStep): CanvasFile {
     step === "kickoff"
   )
     return "memory";
+  if (step === "launch-strategy") return "strategy";
   if (step === "import-campaigns") return "plan";
   if (step === "launch-plan" || step === "launch-building") return "plan";
   if (
@@ -363,8 +371,18 @@ export function WorkflowPane() {
               </div>
 
               {/* Pane body · loader/celebration states take over;
-                  otherwise normal file body. */}
-              <div className="flex-1 overflow-y-auto">
+                  otherwise normal file body. The review step is a
+                  light-themed "build complete" document, so the pane
+                  goes light there (otherwise its dark text is invisible
+                  on the dark canvas). */}
+              <div
+                className="flex-1 overflow-y-auto"
+                style={
+                  isReviewing && tab !== "memory"
+                    ? { background: "#FAFAF8" }
+                    : undefined
+                }
+              >
                 {isImporting ? (
                   <ImportCampaignsStep workflow={workflow as LaunchWorkflow} />
                 ) : isAwaitingSetup && tab === "memory" ? (
@@ -382,12 +400,14 @@ export function WorkflowPane() {
                     workflow={workflow as LaunchWorkflow}
                   />
                 ) : isDeploying ? (
-                  <DeployingLoader
-                    productName={
+                  <ExecutionChecklist
+                    title={
                       workflow.kind === "launch-campaign"
-                        ? workflow.productName
-                        : ""
+                        ? `Deploying ${workflow.productName} live`
+                        : "Deploying the plan live"
                     }
+                    subtitle="Executing the approved plan · pushing everything to Meta + WhatsApp"
+                    items={LAUNCH_DEPLOY_CHECKLIST}
                   />
                 ) : isDone ? (
                   <ThankYouScreen
@@ -670,6 +690,9 @@ function FileBody({
   if (tab === "memory") {
     return <MemoryFileView workflow={workflow} buildingOverlay={isBuilding && tab === "memory"} />;
   }
+  if (tab === "strategy") {
+    return <StrategyFileView workflow={workflow as LaunchWorkflow} />;
+  }
   if (tab === "plan") {
     return <PlanFileView workflow={workflow} buildingOverlay={isBuilding} />;
   }
@@ -684,7 +707,7 @@ function FileBody({
 
 /* ─── File views ───────────────────────────────────────────────── */
 
-import { MEMORY_FILES, memoryFilesFor } from "@/lib/spot/memory-files";
+import { MEMORY_FILES, memoryFilesFor, buildLaunchPlanMd } from "@/lib/spot/memory-files";
 import { Markdown } from "@/components/memory/md-render";
 
 /** Resolve the product id Spot is working on — could be the workflow's
@@ -754,10 +777,10 @@ const MEMORY_FINDINGS: {
   { time: 12300, category: "synth", icon: "👥", label: "Drafted Persona 2 · College student" },
   { time: 12700, category: "synth", icon: "👥", label: "Drafted Persona 3 · Parent buying for child" },
   { time: 13100, category: "synth", icon: "💰", label: "Proposed 3 pricing tiers · median band" },
-  // ── Stage 6 · Write (12.5-14s) — atomic commits to memory.md ──
-  { time: 13500, category: "write", icon: "✓", label: "Committed brief → memory.md" },
-  { time: 13800, category: "write", icon: "✓", label: "Committed personas → memory.md" },
-  { time: 14000, category: "write", icon: "✓", label: "Memory index rebuilt · ready" },
+  // ── Stage 6 · Write (12.5-14s) — atomic commits to project-details.md ──
+  { time: 13500, category: "write", icon: "✓", label: "Committed overview → project-details.md" },
+  { time: 13800, category: "write", icon: "✓", label: "Committed pricing + offers → project-details.md" },
+  { time: 14000, category: "write", icon: "✓", label: "Project details index rebuilt · ready" },
 ];
 
 /** Live counters · numbers tick up as findings accumulate. Each is
@@ -1235,60 +1258,44 @@ function CounterCardLive({
 
 /* ── Memory + Plan loader wrappers (pick a config, render shared body) ── */
 
+/** Deep-research canvas loader · a calm Spot orb with cycling, relevant
+ *  thoughts. Spot does the research end-to-end (crawl → read → synthesize
+ *  → write to project details); no busy dashboard, just the agent thinking. */
 function MemoryBuildingLoader({ productName }: { productName: string }) {
   return (
-    <LiveBuildLoader
-      config={{
-        agentName: "Deep Research Agent",
-        title: (
-          <>
-            Building memory for{" "}
-            <span
-              style={{
-                background:
-                  "linear-gradient(135deg, #8C6D33 0%, #C9A86A 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              {productName}
-            </span>
-          </>
-        ),
-        blurb:
-          "One agent end-to-end — crawling, reading, synthesizing, then writing everything to product memory.",
-        agents: MEMORY_BUILD_AGENTS,
-        findings: MEMORY_FINDINGS,
-        counters: [
-          {
-            icon: "🌐",
-            label: "Pages crawled",
-            valueOf: (v) =>
-              v.filter((f) => f.category === "crawl" && f.label.startsWith("GET")).length,
-          },
-          {
-            icon: "🔗",
-            label: "Entities found",
-            valueOf: (v) => (v.find((f) => f.label.includes("entities")) ? 47 : 0),
-          },
-          {
-            icon: "📊",
-            label: "Signals indexed",
-            valueOf: (v) =>
-              v.filter((f) => f.category === "web").length +
-              v.filter((f) => f.category === "graph").length,
-          },
-          {
-            icon: "👥",
-            label: "Personas drafted",
-            valueOf: (v) =>
-              v.filter((f) => f.label.startsWith("Drafted Persona")).length,
-          },
-        ],
-      }}
+    <DarkSpotLoader
+      agentLabel="Deep Research Agent · live"
+      title={
+        <>
+          Building project details for{" "}
+          <span
+            style={{
+              background: "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            {productName}
+          </span>
+        </>
+      }
+      thoughts={MEMORY_BUILD_THOUGHTS}
+      intervalMs={1900}
     />
   );
 }
+
+/** Cycling thoughts for the deep-research build · relevant to what Spot
+ *  is actually doing, in order: crawl → web → docs → synthesize → write. */
+const MEMORY_BUILD_THOUGHTS = [
+  "Crawling the brand site — about, curriculum, pricing…",
+  "Reading the open web for category signals…",
+  "Scanning review sites + parent forums…",
+  "Pulling competitor positioning + pricing tiers…",
+  "Matching against the Revspot audience graph…",
+  "Synthesizing everything into a coherent brief…",
+  "Writing overview, pricing + offers to project details…",
+];
 
 /** Big-number counter card · dark surface, large tabular value,
  *  small label, emoji icon. Soft gold glow when value > 0. */
@@ -1353,9 +1360,6 @@ function researchedMemoryToMd(
   const brief = m.brief
     .map((r) => `- ${r.icon} **${r.label}** · ${r.value}`)
     .join("\n");
-  const personas = (m.personas ?? [])
-    .map((p) => `- **${p.name}** · ${p.meta} · pain: ${p.pain}`)
-    .join("\n");
   const pricing = m.pricing
     .map(
       (p) =>
@@ -1375,11 +1379,11 @@ _Freshly researched · Memory just built_
 
 ${m.tagline}
 
-## Product brief
+## Project overview
 
 ${brief}
 
-${personas ? `## Personas\n\n${personas}\n\n` : ""}## Pricing
+## Pricing
 
 ${pricing}
 
@@ -1387,7 +1391,7 @@ ${pricing}
 
 ${offers}
 
-## USPs · lead with these
+## Key benefits
 
 ${usps}
 
@@ -1478,25 +1482,10 @@ const PLAN_THOUGHTS = [
   "Let me plan experiment campaigns to figure out what works.",
   "Personas first — three target groups from the brief.",
   "Composing creative angles for each persona.",
-  "Drafting media mix · Meta · Google · WhatsApp.",
+  "Drafting media mix · Meta · WhatsApp.",
   "Sequencing the 14-day rollout in phases.",
   "Locking budget allocations · conservative caps.",
   "Building your plan…",
-];
-
-/** Deployment thoughts · the dark Spot loader for the moment after
- *  the user clicks "Approve all · deploy live". Maps to the
- *  ad/page/form/pixel/tracker push to Meta + Google + WhatsApp. */
-const DEPLOY_THOUGHTS = [
-  "Provisioning Meta Ads Manager handles…",
-  "Publishing 12 creatives + 6 reels to Meta…",
-  "Pushing 9 ad sets across 3 campaigns…",
-  "Setting up Google Search + Discover campaigns…",
-  "Deploying 3 landing pages to CDN…",
-  "Activating Meta pixel + Conversion API…",
-  "Wiring lead forms + WhatsApp business inbox…",
-  "Verifying tracking — fire test events…",
-  "All ads live. Watchers are armed.",
 ];
 
 /** Cycling thoughts for every phase of the three diagnostic
@@ -1755,7 +1744,7 @@ const LAUNCH_BUILD_TASKS: {
   {
     id: "plan",
     label: "Building the campaign plan",
-    sub: "3 Meta campaigns · 9 ad sets · Google Search + Discover",
+    sub: "3 Meta campaigns · 9 ad sets · WhatsApp outreach",
     duration: 3500,
   },
   {
@@ -1773,7 +1762,7 @@ const LAUNCH_BUILD_TASKS: {
   {
     id: "launch",
     label: "Preparing campaigns to go live",
-    sub: "drafted on Meta + Google · pixel armed · waiting for your approval",
+    sub: "drafted on Meta · pixel armed · waiting for your approval",
     duration: 3800,
   },
 ];
@@ -2175,51 +2164,6 @@ function ReviewAssetsCta() {
   );
 }
 
-/** Deployment loader · shown for the ~14s after the user clicks
- *  "Approve all · deploy live". The Spot orb floats on black,
- *  thoughts cycle every ~1.8s, the progress dots fill, and a
- *  "Back to Spot homepage" CTA lets the user step away (the
- *  homepage gets a "Spot is deploying" section while it runs). */
-function DeployingLoader({ productName }: { productName: string }) {
-  const showHomeView = useSpotStore((s) => s.showHomeView);
-  return (
-    <DarkSpotLoader
-      agentLabel="Deploy Agent · live"
-      title={
-        <>
-          Deploying{" "}
-          <span
-            style={{
-              background:
-                "linear-gradient(135deg, #C9A86A 0%, #E0C083 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            {productName}
-          </span>{" "}
-          to Meta · Google · WhatsApp
-        </>
-      }
-      thoughts={DEPLOY_THOUGHTS}
-      intervalMs={1800}
-      actions={
-        <div className="flex items-center gap-2 mt-8">
-          <button
-            type="button"
-            onClick={showHomeView}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-button text-[12px] font-medium transition-colors hover:bg-white/5"
-            style={{ color: "#A8A8A0" }}
-          >
-            <Home size={12} strokeWidth={1.7} />
-            Back to Spot homepage
-          </button>
-        </div>
-      }
-    />
-  );
-}
-
 /** Thank-you screen · the canvas state after deploy finishes. Big
  *  celebratory Spot orb on black, gold-gradient headline, a short
  *  list of what just went live, and a CTA to head back to home. */
@@ -2278,14 +2222,14 @@ function ThankYouScreen({ productName }: { productName: string }) {
         style={{ color: "#A8A8A0" }}
       >
         18 creatives · 3 landing pages · 2 lead forms · 3 campaigns shipped to
-        Meta, Google, and WhatsApp. Watchers are armed and I&apos;ll surface
+        Meta and WhatsApp. Watchers are armed and I&apos;ll surface
         the first results the moment data lands.
       </p>
 
       {/* What's live · 4 cards */}
       <div className="grid grid-cols-4 gap-2.5 mt-7 w-full max-w-[640px]">
         {[
-          { icon: "📣", label: "3 campaigns", sub: "Meta + Google" },
+          { icon: "📣", label: "3 campaigns", sub: "Meta + WhatsApp" },
           { icon: "🎨", label: "18 creatives", sub: "all sizes deployed" },
           { icon: "📄", label: "3 landing pages", sub: "live on CDN" },
           { icon: "📋", label: "2 lead forms", sub: "+ WhatsApp inbox" },
@@ -2434,95 +2378,46 @@ function PlanBuildingLoader({ productName }: { productName: string }) {
   );
 }
 
-/** Hard-coded launch plan template for brand-new products. Substitutes
- *  the product name everywhere so the canvas isn't blank after the
- *  user clicks "show me the plan". Themed for an EdTech course like
- *  Guyju's Spoken English — applies cleanly to any new product the
- *  user spins up in this demo. */
+/** Launch plan template for brand-new products · delegates to the shared
+ *  4-section builder (Creatives · Forms · Audiences · Campaign Structure)
+ *  so new and existing products read identically. */
 function buildNewProductPlanMd(productName: string): string {
-  return `# ${productName} · Execution plan
+  return buildLaunchPlanMd(productName);
+}
 
-_Drafted just now · single-use execution plan · 14-day rollout · Conservative experiment_
+/** Cycling thoughts for the strategy compose loader. */
+const STRATEGY_THOUGHTS = [
+  "Reading the project details + audience graph…",
+  "Picking the personas worth targeting first…",
+  "Drafting creative angles per persona…",
+  "Setting the target CPQL off the price band…",
+  "Composing the campaign strategy…",
+];
 
-A small-budget, persona-led launch to learn what wins before we scale. Personas come first — once we know who we're targeting, media mix and creative briefs follow. One campaign per persona, three creative angles each, tight feedback loop on CPL and qualification.
+/** Strategy canvas · gated behind a short Spot-orb loader so the strategy
+ *  doesn't pop in instantly. Mirrors PlanFileView's build gate. */
+function StrategyFileView({ workflow }: { workflow: LaunchWorkflow }) {
+  const [building, setBuilding] = useState(workflow.step === "launch-strategy");
+  useEffect(() => {
+    if (workflow.step === "launch-strategy") {
+      setBuilding(true);
+      const id = setTimeout(() => setBuilding(false), 5000);
+      return () => clearTimeout(id);
+    }
+    setBuilding(false);
+  }, [workflow.step]);
 
-## Personas
-
-- **Working professional · Aspiring fluent speaker** · 25-34 · tier-1/2 cities · LinkedIn-active · pain: stalled career growth from English gap
-- **College student · Interview prep** · 18-24 · semi-urban · YouTube-heavy · pain: campus placement interviews
-- **Parent · Buying for child** · 32-45 · tier-2/3 cities · WhatsApp + Facebook · pain: child's school confidence
-
-## Revspot Audience · pre-built targeting
-
-I've identified a matching audience from the Revspot graph — high-intent users who've engaged with adjacent EdTech products in the last 90 days but haven't converted yet. We can push this directly to Meta and Google as a Custom Audience so every campaign starts on a warm cohort instead of cold-prospecting from scratch.
-
-- 🎯 **Revspot Audience** · ~ 480K matched users · refreshes weekly
-- 🔵 **Meta** · pushed as a Custom Audience + 1% lookalike seed
-- 🔴 **Google** · pushed as a Customer Match list for Search + Discover
-- 📈 **Expected lift** · 2.1× higher qualification vs cold targeting (based on prior products in this category)
-
-## CRM Workflow · Qualifier Agent
-
-The Qualifier Agent picks up every inbound lead the moment it lands and routes it based on ICP fit. Two channels: **voice calls** + **WhatsApp**.
-
-- 🤖 **Qualifier Agent** · always-on · voice + WhatsApp capable
-- 🔍 **Step 1 · ICP match** · runs Revspot Enrichment on the lead — company, role, intent signals, prior product touches
-- ✅ **High ICP match** · agent patches the call live to a human Sales rep within 90 seconds while the lead is still warm
-- 🤝 **Lower ICP match** · agent qualifies on the call itself (budget, urgency, decision authority) and drops the lead into the WhatsApp nurture sequence
-- 💬 **WhatsApp nurture · 10 days** · 6 sequenced touches with persona-specific content (Day 1 welcome, Day 2 social proof, Day 4 outcome story, Day 6 objection handler, Day 8 trial offer, Day 10 final nudge) — agent answers questions inline and re-qualifies the lead for sales when intent re-surfaces
-
-## Phase 1 · Day 1-2 · Setup
-
-- Lock the 3 personas above + write briefs to product memory
-- Provision pixel + Conversion API for the brand site
-- Build 3 landing pages — one per persona
-- Wire Meta lead forms + WhatsApp click-to-chat
-- Connect CRM webhook for real-time lead delivery
-- Push Revspot Audience to Meta + Google as Custom Audience / Customer Match
-- Brief the Qualifier Agent · ICP rules + voice script + 6 WhatsApp nurture templates
-
-## Phase 2 · Day 3-7 · Launch
-
-- Go live with 3 Meta campaigns · 1 per persona · ₹500/day each · seeded on the Revspot Audience
-- Spin up Google Search on high-intent keywords · ₹400/day
-- Activate Google Discover for top-of-funnel reach · ₹300/day
-- Qualifier Agent live on every inbound lead · voice + WhatsApp routing
-- Monitor CPL, qualification rate, agent-to-human patch rate, and creative engagement daily
-
-## Phase 3 · Day 8-14 · Optimize
-
-- Pause ad sets with CPL > 2x target
-- Scale winners by 30% per 48h once CPL stabilises
-- Promote top creatives to broader audiences
-- Refresh fatigued creatives (frequency > 2.5)
-- Tune Qualifier Agent ICP thresholds based on first-week conversion data
-
-## Phase 4 · Day 15+ · Scale
-
-- Expand to 5 ad sets per persona on the winning angle
-- Test new persona variants from the audience graph
-- Layer in Revspot lookalike expansion (2% → 3% → 5%)
-- Hand WhatsApp nurture overflow to the Qualifier Agent for warm-lead follow-ups
-
-## Budget
-
-- **Meta** · ₹1,500/day · ₹21,000 over 14 days
-- **Google Search** · ₹400/day · ₹5,600 over 14 days
-- **Google Discover** · ₹300/day · ₹4,200 over 14 days
-- **Total · 14 days** · ₹30,800
-- **Daily cap** · ₹2,200
-
-## Risks to monitor
-
-- Audience saturation in the top persona
-- Creative fatigue past 14 days
-- Landing page bounce > 60%
-- Lead-form drop-off > 40%
-
----
-
-_Execution plan generated · Awaiting your approval to deploy · Edit any block in chat_
-`;
+  if (building) {
+    return (
+      <DarkSpotLoader
+        agentLabel="Strategy Agent · live"
+        title="Composing the campaign strategy"
+        thoughts={STRATEGY_THOUGHTS}
+        intervalMs={1600}
+      />
+    );
+  }
+  return <LaunchStrategyStep workflow={workflow} />;
 }
 
 function PlanFileView({
@@ -2583,7 +2478,7 @@ function PlanFileView({
         <EmptyCanvas
           icon={TrendingUp}
           title="No plan yet"
-          body="Once the memory is approved, Spot will draft a day-by-day launch plan here — personas, media mix, creative briefs — for you to approve in chat."
+          body="Once the strategy is approved, Spot will draft the plan here — creatives, forms, audiences, and the campaign structure — for you to approve in chat."
         />
         {buildingOverlay && <BuildingOverlay label="Spot is drafting the execution plan…" />}
       </div>
@@ -2840,7 +2735,7 @@ function AssetsFileView({
           >
             {workflow.kind === "campaign-dive"
               ? workflow.productName
-              : (workflow as LaunchWorkflow).productName || "New product"}
+              : (workflow as LaunchWorkflow).productName || "New project"}
           </h1>
           <div
             className="text-[12px] mt-1"
@@ -2889,14 +2784,6 @@ function AssetsFileView({
         <div className="grid grid-cols-4 gap-3 mb-7">
           {creatives.map((c) => (
             <CreativeCard key={c.id} creative={c} productSlug={productSlug} />
-          ))}
-        </div>
-
-        {/* Search ads */}
-        <SectionHeading title="Search ads" count={searchAds.length} />
-        <div className="space-y-2.5 mb-7">
-          {searchAds.map((s) => (
-            <SearchAdRow key={s.id} ad={s} />
           ))}
         </div>
 
@@ -3902,7 +3789,7 @@ function ProductSetupStep() {
         <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#FAF8F2] border border-[#E8E3D5] mb-3">
           <Package size={16} strokeWidth={1.6} className="text-text-secondary" />
         </div>
-        <h2 className="text-section-header text-text-primary">New product brief</h2>
+        <h2 className="text-section-header text-text-primary">New project brief</h2>
         <p className="text-meta text-text-secondary mt-1.5 max-w-[420px] mx-auto">
           I'm filling this in as we talk. <span className="text-text-primary font-medium">Answer in the chat on the left.</span>
         </p>
@@ -3911,7 +3798,7 @@ function ProductSetupStep() {
       {/* Captured fields — display only, filling in as the user answers */}
       <div className="bg-white border border-border rounded-card overflow-hidden">
         <BriefRow
-          label="Product name"
+          label="Project name"
           value={answers.name}
           placeholder="What should I call it?"
           active={activeIs("name")}
@@ -4103,7 +3990,7 @@ function KickoffStep({ workflow }: { workflow: LaunchWorkflow }) {
           {/* Structured brief — what the product IS */}
           {researched.brief && researched.brief.length > 0 && (
             <div className="bg-white border border-border rounded-card p-4">
-              <div className="label-section mb-2.5">Product brief</div>
+              <div className="label-section mb-2.5">Project brief</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {researched.brief.map((row, i) => (
                   <div key={i} className="flex items-baseline gap-2 text-[12.5px]">
@@ -4808,7 +4695,7 @@ function MediaPlanStep() {
     <div className="px-5 py-5">
       <StepHeader
         title="Execution plan"
-        blurb="3-bucket Meta model · Google Search and Discover lanes · Outreach for Voice + WhatsApp. Each campaign carries the reason it exists."
+        blurb="3-bucket Meta model · experiment / scaling / cost-cap · Outreach for Voice + WhatsApp. Each campaign carries the reason it exists."
       />
 
       <BudgetCard
@@ -5004,7 +4891,7 @@ function CreativesStep() {
     <div className="px-5 py-5">
       <StepHeader
         title="Creative direction"
-        blurb="Visual angles per persona for Meta · search ad copy for Google. The Creative Agent generates concepts one at a time per persona — watch the right pane fill in."
+        blurb="Visual angles per persona for Meta. The Creative Agent generates concepts one at a time per persona — watch the right pane fill in."
       />
 
       {/* Tabs */}
@@ -5458,7 +5345,7 @@ function attachmentsFor(personaName: string, angleIdx: number): string[] {
   const meta = ["Scaling", "Experiment", "Cost cap"][angleIdx % 3];
   return [
     `Meta · ${meta} · ${personaName} ad set`,
-    `Google Discover · Cold · ${personaName}`,
+    `Meta · Lookalike · ${personaName}`,
   ];
 }
 
@@ -5954,7 +5841,7 @@ function CampaignsStep() {
     <div className="px-5 py-5">
       <StepHeader
         title="Draft campaign structure · ready to deploy"
-        blurb="3 campaigns · 6 ad sets · 17 ads, mapped to the approved personas. Approve in chat — I push to Meta + Google."
+        blurb="3 campaigns · 6 ad sets · 17 ads, mapped to the approved personas. Approve in chat — I push to Meta + WhatsApp."
       />
 
       <div className="grid grid-cols-3 gap-3 mb-4">

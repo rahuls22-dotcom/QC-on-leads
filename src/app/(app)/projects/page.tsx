@@ -84,13 +84,13 @@ export default function ProjectsPage() {
       <div className="flex items-end justify-between mb-6">
         <div>
           <div className="text-[12px] text-text-secondary mb-1">{wsLabel} · Lead Generation</div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.01em]">Products</h1>
+          <h1 className="text-[26px] font-semibold tracking-[-0.01em]">Projects</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() =>
-              askSpot("Audit every product — which is on pace and which needs attention?", {
+              askSpot("Audit every project — which is on pace and which needs attention?", {
                 kind: "workspace",
                 label: wsLabel,
               })
@@ -106,7 +106,7 @@ export default function ProjectsPage() {
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium transition-colors"
           >
             <Plus size={13} />
-            New product
+            New project
           </button>
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function ProjectsPage() {
             className="grid items-center px-5 py-2.5 border-b border-border bg-surface-page text-[10px] uppercase tracking-[0.04em] font-semibold text-text-tertiary"
             style={gridStyle}
           >
-            <span>Product</span>
+            <span>Project</span>
             <span className="text-right">Spend</span>
             <span className="text-right">Leads</span>
             <span className="text-right">Verified</span>
@@ -180,12 +180,6 @@ export default function ProjectsPage() {
                       <span className={`pill ${PLAN_STATUS_TONE[plan.status]}`} style={{ fontSize: 10 }}>
                         {PLAN_STATUS_LABEL[plan.status]}
                       </span>
-                      <span className="text-[10.5px] text-text-tertiary">{plan.dayLabel}</span>
-                      {plan.pendingRecs > 0 && (
-                        <span className="pill pill-warn" style={{ fontSize: 9.5 }}>
-                          {plan.pendingRecs} pending
-                        </span>
-                      )}
                     </div>
                   ) : (
                     <span className="text-[11px] text-text-tertiary">No plan yet</span>
@@ -222,12 +216,12 @@ export default function ProjectsPage() {
           <div className="uplabel mb-1">Spot · portfolio read</div>
           <div className="text-[13.5px] leading-[1.5] text-text-primary">
             {attention.length === 0
-              ? `All ${rows.length} products are holding pace. I'll flag anything that starts slipping.`
-              : `${attention.length} of ${rows.length} products need attention — ${attention.map((a) => a.p.name).join(", ")}. Want me to dig in?`}
+              ? `All ${rows.length} projects are holding pace. I'll flag anything that starts slipping.`
+              : `${attention.length} of ${rows.length} projects need attention — ${attention.map((a) => a.p.name).join(", ")}. Want me to dig in?`}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2.5">
             {[
-              attention[0] ? `Why does ${attention[0].p.name} need attention?` : "Compare products on CPQL",
+              attention[0] ? `Why does ${attention[0].p.name} need attention?` : "Compare projects on CPQL",
               "Where should I shift budget?",
               `Audit ${wsLabel}'s portfolio`,
             ].map((q) => (

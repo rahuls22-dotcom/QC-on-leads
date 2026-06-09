@@ -18,6 +18,7 @@ import {
   Users,
   Sparkles,
   Package,
+  Upload,
 } from "lucide-react";
 import { PRODUCTS } from "@/lib/products-data";
 import { rollupCampaigns, campaignsForProduct } from "@/lib/campaigns-edtech-rollup";
@@ -29,6 +30,8 @@ import { PersonasEmptyState } from "@/components/personas/personas-empty-state";
 import { LeadDistribution } from "@/components/enrichment/lead-distribution";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { SpotMark } from "@/components/spot/spot-mark";
+import { IllustrationCampaigns, IllustrationEnrichment } from "@/components/illustrations/empty-states";
+import { useDemoMode } from "@/lib/demo-mode";
 
 type Tab = "personas" | "campaigns" | "enrichment";
 
@@ -53,12 +56,18 @@ export default function ProjectDetailPage() {
   const product = PRODUCTS.find((p) => p.id === id);
   if (!product) notFound();
 
+  const { isEmpty } = useDemoMode();
   const campaigns = campaignsForProduct(id);
   const r = rollupCampaigns(campaigns);
   const scorecards = scorecardsForProduct(id);
   const health = projectHealth(id);
-  const hasCampaigns = campaigns.length > 0;
-  const [tab, setTab] = useState<Tab>("personas");
+  // Each tab falls back to its empty state when the data is genuinely empty
+  // OR the global "Preview empty states" toggle is on.
+  const hasCampaigns = !isEmpty && campaigns.length > 0;
+  const hasPersonas = !isEmpty && scorecards.length > 0;
+  const campaignCount = isEmpty ? 0 : campaigns.length;
+  const personaCount = isEmpty ? 0 : scorecards.length;
+  const [tab, setTab] = useState<Tab>("campaigns");
 
   return (
     <motion.div initial="hidden" animate="show" variants={fadeUp}>
@@ -70,7 +79,7 @@ export default function ProjectDetailPage() {
         >
           <ArrowLeft size={16} strokeWidth={1.5} />
         </button>
-        <span className="text-meta text-text-secondary">Products &rsaquo; {product!.name}</span>
+        <span className="text-meta text-text-secondary">Projects &rsaquo; {product!.name}</span>
       </div>
 
       {/* Header */}
@@ -115,7 +124,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Metric grid */}
-      <Section title="Performance" sub="Rolled up across this product's live campaigns.">
+      <Section title="Performance" sub="Rolled up across this project's live campaigns.">
         {hasCampaigns ? (
           <div className="grid grid-cols-3 gap-2.5">
             <MetricCard label="Spend" value={inr(r.spend)} trend={toTrend(r.spendDelta)} previousLabel="vs prior" />
@@ -154,31 +163,20 @@ export default function ProjectDetailPage() {
             />
           </div>
         ) : (
-          <EmptyNote text="No active campaigns yet — metrics fill in once this product goes live." />
+          <EmptyNote text="No active campaigns yet — metrics fill in once this project goes live." />
         )}
       </Section>
 
-      {/* Tabs · Personas | Campaigns | Enrichment */}
+      {/* Tabs · Campaigns | Personas | Enrichment */}
       <div className="flex items-center gap-1 border-b border-border-subtle mb-5">
-        <TabButton icon={Users} label="Personas" active={tab === "personas"} onClick={() => setTab("personas")} count={scorecards.length} />
-        <TabButton icon={Monitor} label="Campaigns" active={tab === "campaigns"} onClick={() => setTab("campaigns")} count={campaigns.length} />
+        <TabButton icon={Monitor} label="Campaigns" active={tab === "campaigns"} onClick={() => setTab("campaigns")} count={campaignCount} />
+        <TabButton icon={Users} label="Personas" active={tab === "personas"} onClick={() => setTab("personas")} count={personaCount} />
         <TabButton icon={Sparkles} label="Enrichment" active={tab === "enrichment"} onClick={() => setTab("enrichment")} />
       </div>
 
-      {tab === "personas" &&
-        (scorecards.length > 0 ? (
-          <div className="space-y-4">
-            {scorecards.map((card) => (
-              <PersonaScorecardCard key={card.id} card={card} />
-            ))}
-          </div>
-        ) : (
-          <PersonasEmptyState compact productName={product!.name} />
-        ))}
-
-      {tab === "campaigns" && (
-        <div>
-          {hasCampaigns && (
+      {tab === "campaigns" &&
+        (hasCampaigns ? (
+          <div>
             <div className="flex justify-end mb-2">
               <button
                 type="button"
@@ -189,20 +187,33 @@ export default function ProjectDetailPage() {
                 <ArrowRight size={11} strokeWidth={1.8} />
               </button>
             </div>
-          )}
-          {hasCampaigns ? (
             <CampaignsTable
               campaigns={campaigns}
               onOpenCampaign={(cid) => router.push(`/campaigns/${cid}`)}
-              emptyLabel="No campaigns for this product yet."
+              emptyLabel="No campaigns for this project yet."
             />
-          ) : (
-            <EmptyNote text="No campaigns for this product yet — launch one from Spot." />
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <CampaignsEmptyState productName={product!.name} />
+        ))}
 
-      {tab === "enrichment" && <LeadDistribution productId={id} />}
+      {tab === "personas" &&
+        (hasPersonas ? (
+          <div className="space-y-4">
+            {scorecards.map((card) => (
+              <PersonaScorecardCard key={card.id} card={card} />
+            ))}
+          </div>
+        ) : (
+          <PersonasEmptyState compact productName={product!.name} />
+        ))}
+
+      {tab === "enrichment" &&
+        (!isEmpty ? (
+          <LeadDistribution productId={id} />
+        ) : (
+          <EnrichmentEmptyState productName={product!.name} />
+        ))}
     </motion.div>
   );
 }
@@ -292,6 +303,65 @@ function EmptyNote({ text }: { text: string }) {
   return (
     <div className="bg-white border border-border rounded-card px-4 py-6 text-center text-[12.5px] text-text-tertiary italic">
       {text}
+    </div>
+  );
+}
+
+/** Campaigns-tab empty state — no campaigns launched or imported yet. */
+function CampaignsEmptyState({ productName }: { productName: string }) {
+  const router = useRouter();
+  return (
+    <div className="bg-white border border-border rounded-card flex flex-col items-center text-center px-6 py-12">
+      <IllustrationCampaigns />
+      <h3 className="text-[16px] font-semibold text-text-primary mt-4">No campaigns yet</h3>
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mt-1.5 max-w-[440px]">
+        Launch your first campaign for {productName} with Spot — I&apos;ll build the plan, creatives,
+        and forms — or import existing campaigns from your ad accounts.
+      </p>
+      <div className="flex items-center gap-2 mt-4">
+        <button
+          type="button"
+          onClick={() => router.push("/spot")}
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium"
+        >
+          <SpotMark size={13} />
+          Launch with Spot
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/spot")}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-button border border-border bg-white hover:border-border-hover text-[12.5px] font-medium text-text-secondary hover:text-text-primary"
+        >
+          <Upload size={14} strokeWidth={1.8} />
+          Import campaigns
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Enrichment-tab empty state — no enriched leads for this project yet. */
+function EnrichmentEmptyState({ productName }: { productName: string }) {
+  const router = useRouter();
+  return (
+    <div className="bg-white border border-border rounded-card flex flex-col items-center text-center px-6 py-12">
+      <IllustrationEnrichment />
+      <h3 className="text-[16px] font-semibold text-text-primary mt-4">No enrichment data yet</h3>
+      <p className="text-[12.5px] text-text-secondary leading-relaxed mt-1.5 max-w-[460px]">
+        Spot appends firmographic and demographic signals — company tier, seniority, location, net
+        worth — to leads as they arrive. Once {productName} has enriched leads, the distribution
+        shows up here.
+      </p>
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => router.push("/enrichment")}
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-button bg-[#111] text-[#FAFAF8] hover:bg-black text-[12.5px] font-medium"
+        >
+          <Sparkles size={13} strokeWidth={1.8} />
+          Go to Enrichment
+        </button>
+      </div>
     </div>
   );
 }

@@ -105,8 +105,8 @@ function MemoryPageInner() {
           <div className="text-meta text-text-secondary mb-0.5">Spot&apos;s brain</div>
           <h1 className="text-page-title text-text-primary">Memory</h1>
           <p className="text-meta text-text-secondary mt-1 max-w-[680px]">
-            What Spot knows about each product — the durable layer every new
-            conversation and project reads from. Personas track which angles are
+            What Spot knows about each project — the durable layer every new
+            conversation reads from before it acts. Personas track which angles are
             actually working; the rest is the ground truth Spot acts on.
           </p>
         </div>
@@ -148,7 +148,7 @@ function ProductsList({
       <div className="px-3 py-2.5 border-b border-border-subtle flex items-center gap-1.5">
         <Package size={11} strokeWidth={1.8} className="text-text-tertiary" />
         <span className="text-[10.5px] uppercase tracking-wider text-text-tertiary font-semibold">
-          Products · {PRODUCTS.length}
+          Projects · {PRODUCTS.length}
         </span>
       </div>
       <ul>
@@ -429,8 +429,8 @@ function CreativesTab({ files }: { files: ProductMemoryFiles }) {
       </h1>
       <FilePathBreadcrumb productId={files.productId} file="creatives/" />
       <p className="text-[12.5px] text-text-secondary leading-relaxed mb-4 max-w-[680px]">
-        Every asset Spot has built for this product — reusable into any new
-        project. Filter by persona to pull a winning angle back into play.
+        Every asset Spot has built for this project — reusable into any new
+        campaign. Filter by persona to pull a winning angle back into play.
       </p>
 
       {/* Persona filter */}
@@ -466,24 +466,10 @@ function CreativesTab({ files }: { files: ProductMemoryFiles }) {
 
         <section>
           <AssetSectionHeader
-            icon={Search}
-            title="Search ads"
-            count={searchAds.length}
-            subtitle="Google search copies · brand, category, competitor buckets."
-          />
-          <div className="space-y-2">
-            {searchAds.map((sa) => (
-              <SearchAdCard key={sa.id} sa={sa} />
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <AssetSectionHeader
             icon={Smartphone}
             title="Landing pages"
             count={landingPages.length}
-            subtitle="Mobile-first pages Spot has built for this product."
+            subtitle="Mobile-first pages Spot has built for this project."
           />
           <div className="grid grid-cols-3 gap-2.5">
             {landingPages.map((lp) => (
@@ -546,7 +532,7 @@ function BrandTab({ files }: { files: ProductMemoryFiles }) {
       </h1>
       <FilePathBreadcrumb productId={files.productId} file="brand/" />
       <p className="text-[12.5px] text-text-secondary leading-relaxed mb-5 max-w-[600px]">
-        The brand logo Spot uses across creatives for this product.
+        The brand logo Spot uses across creatives for this project.
       </p>
 
       {/* Logo — the only thing we actually have. */}
@@ -592,7 +578,7 @@ function KnowledgeTab({ files }: { files: ProductMemoryFiles }) {
         </div>
         {collateral.length === 0 ? (
           <div className="text-[12.5px] text-text-tertiary italic">
-            No files uploaded for this product yet.
+            No files uploaded for this project yet.
           </div>
         ) : (
           <div className="space-y-2">
@@ -684,7 +670,7 @@ function HistoryTab({ files }: { files: ProductMemoryFiles }) {
       </h1>
       <FilePathBreadcrumb productId={files.productId} file="history/" />
       <p className="text-[12.5px] text-text-secondary leading-relaxed mb-5 max-w-[680px]">
-        Every execution plan deployed against this product, and the running log
+        Every execution plan deployed against this project, and the running log
         of every change to its memory.
       </p>
 

@@ -60,7 +60,7 @@ import { signOut } from "@/lib/auth";
 
 // ─── Top standalone items (above sections) ───────────────────────
 const dashboardItem = { name: "Dashboard", href: "/dashboard", icon: LayoutGrid };
-const projectsItem  = { name: "Products",  href: "/projects",  icon: FolderKanban };
+const projectsItem  = { name: "Projects",  href: "/projects",  icon: FolderKanban };
 const campaignsItem = { name: "Campaigns", href: "/campaigns", icon: Monitor };
 const memoryItem    = { name: "Memory",    href: "/memory",    icon: Brain };
 const leadsItem     = { name: "Leads",     href: "/enquiries", icon: FileText };
