@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
+import { PRODUCTS } from "@/lib/products-data";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import {
@@ -170,7 +172,23 @@ const leadMetricOptions: MetricOption[] = [
 ];
 
 export default function EnquiriesPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <EnquiriesPageInner />
+    </Suspense>
+  );
+}
+
+function EnquiriesPageInner() {
   const { isEmpty } = useDemoMode();
+  const searchParams = useSearchParams();
+  // Deep-link from a project: /enquiries?product=<id>. Lead data isn't
+  // product-aware yet, so we surface an honest banner rather than fake a
+  // filter — true per-product lead filtering is a follow-up.
+  const productParam = searchParams.get("product");
+  const linkedProduct = productParam
+    ? PRODUCTS.find((p) => p.id === productParam)
+    : null;
   const [search, setSearch] = useState("");
   const [campaignFilter, setCampaignFilter] = useState("All Campaigns");
   const [statusFilter, setStatusFilter] = useState<
@@ -252,6 +270,18 @@ export default function EnquiriesPage() {
           </button>
         </div>
       </div>
+
+      {/* Came in from a project — honest banner; lead data isn't per-product yet. */}
+      {linkedProduct && (
+        <div className="mb-4 flex items-center gap-2 bg-[#FEFCE8] border border-[#FDE68A] rounded-card px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#92740E]">
+            {linkedProduct.name}
+          </span>
+          <span className="text-[12px] text-[#92740E]/90">
+            Showing all leads — per-product lead filtering is coming soon.
+          </span>
+        </div>
+      )}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-5 gap-2.5 mb-3">

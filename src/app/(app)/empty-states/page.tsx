@@ -102,7 +102,7 @@ export default function EmptyStatesPage() {
           <EmptyState
             illustration={<IllustrationProjects />}
             title="No projects yet"
-            description="Group your campaigns into projects for better organization and reporting."
+            description="Group your campaigns by project for cleaner organization and reporting."
             action={
               <button className="h-9 px-4 bg-accent text-white text-[13px] font-medium rounded-button hover:bg-accent-hover transition-colors duration-150">
                 Create project

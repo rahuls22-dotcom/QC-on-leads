@@ -218,6 +218,15 @@ export function generateReply(query: string, scope: SpotScope): SpotMessage {
 
 export function suggestionsFor(scope: SpotScope): string[] {
   if (scope.kind === "project") {
+    // Narrowed to a single campaign within the project.
+    if (scope.campaignId) {
+      return [
+        "Why is CPL up this week?",
+        "Which ad sets should I pause?",
+        "What creatives are winning?",
+        "Show me the daily readout",
+      ];
+    }
     return [
       "Why are we behind on the goal?",
       "Which persona is converting best?",

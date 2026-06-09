@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { campaignDetail, campaignsList, leadDistributionData } from "@/lib/campaign-data";
+import { edTechCampaigns } from "@/lib/campaigns-edtech";
 import { workspaceIdForLegacyProject } from "@/lib/project-data";
 import { ForbiddenState, useScopeGuard } from "@/components/project/shared/scope-guard";
 import { campaignDiagnosisPayload } from "@/lib/diagnosis-data";
@@ -95,7 +96,18 @@ export default function CampaignDetailPage() {
     setStatusConfirm(null);
   };
 
-  const campaign = campaignDetail;
+  // The campaigns table is EdTech (Guyju's); the rich diagnosis/leads payload
+  // below is the representative singleton. Override the header identity with
+  // the clicked EdTech campaign so the page reads as the campaign you opened.
+  const edt = edTechCampaigns.find((c) => c.id === urlId);
+  const campaign = edt
+    ? {
+        ...campaignDetail,
+        name: edt.name,
+        platform: edt.channel,
+        client: edt.productName,
+      }
+    : campaignDetail;
   const isEnabled = campaignStatus === "enabled";
   const diagnosis = campaignDiagnosisPayload;
 

@@ -1,29 +1,61 @@
 "use client";
 
+// Spot is no longer a right-side panel — it's a route (/spot). Any UI
+// action that previously called askSpot() now updates the Spot store
+// AND lands the user on /spot via this redirector.
+//
+// What this component still does:
+//   · Cmd-K  → command palette (lightweight, keep it)
+//   · Cmd-J  → navigate to /spot
+//   · Toast  → bottom-center confirmation strip
+//   · Redirect on askSpot() / startLaunchFlow() → /spot
+//
+// What it no longer does:
+//   · Render a right-side panel
+//   · Render a guided-flow modal (handoff cards now advance inline)
+
 import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 import { useSpotStore } from "@/lib/spot/store";
-import { SpotPanel } from "./spot-panel";
 import { SpotCommandPalette } from "./spot-command-palette";
-import { SpotFloatingLauncher } from "./spot-floating-launcher";
-import { GuidedFlowModal } from "./guided-flow";
 
-/**
- * Mounted once at the app shell level. Provides:
- * - The right-docked Spot panel
- * - The Cmd-K command palette
- * - The floating "Ask Spot" launcher
- * - The guided flow modal
- * - A bottom toast
- * - Global ⌘K / ⌘J keyboard shortcuts
- */
+function SpotRedirector() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const open = useSpotStore((s) => s.open);
+  const pendingTs = useSpotStore((s) => s.pendingQuery?.ts ?? null);
+  const threadLen = useSpotStore((s) => s.thread.length);
+  const closePanel = useSpotStore((s) => s.closePanel);
+
+  // Any signal that the user wants to talk to Spot → land on /spot.
+  // We watch `open` (askSpot, togglePanel), `pendingTs` (a new query was
+  // posted), and `threadLen` jumping from 0 (a thread was seeded by
+  // startLaunchFlow on a non-Spot route).
+  useEffect(() => {
+    const shouldGo = open || pendingTs !== null || threadLen > 0;
+    if (shouldGo && pathname !== "/spot") {
+      router.push("/spot");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pendingTs, threadLen]);
+
+  // Once we're on /spot, drop the `open` flag — the route is the
+  // surface now, no panel state needed.
+  useEffect(() => {
+    if (pathname === "/spot" && open) closePanel();
+  }, [pathname, open, closePanel]);
+
+  return null;
+}
+
 export function SpotRoot() {
+  const router = useRouter();
   const openPalette = useSpotStore((s) => s.openPalette);
-  const togglePanel = useSpotStore((s) => s.togglePanel);
   const toast = useSpotStore((s) => s.toast);
   const dismissToast = useSpotStore((s) => s.dismissToast);
 
-  // ⌘K → palette, ⌘J → toggle panel
+  // ⌘K → palette, ⌘J → navigate to /spot
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -32,12 +64,12 @@ export function SpotRoot() {
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
-        togglePanel();
+        router.push("/spot");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openPalette, togglePanel]);
+  }, [openPalette, router]);
 
   // Auto-dismiss toast after 2.4s
   useEffect(() => {
@@ -48,10 +80,8 @@ export function SpotRoot() {
 
   return (
     <>
-      <SpotPanel />
-      <SpotFloatingLauncher />
+      <SpotRedirector />
       <SpotCommandPalette />
-      <GuidedFlowModal />
       {toast && (
         <div
           className="fadeUp"

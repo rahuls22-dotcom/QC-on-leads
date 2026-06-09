@@ -9,6 +9,10 @@ export type SpotScope = {
   kind: ScopeKind;
   label: string;
   target?: string;
+  /** When kind is "project", an optional single campaign within it.
+   *  Absent = "All campaigns" (the whole project). */
+  campaignId?: string;
+  campaignLabel?: string;
 };
 
 export type Verdict = "ok" | "warn" | "err" | "info";
@@ -18,7 +22,54 @@ export type SpotPart =
   | { type: "headline"; text: string; verdict?: Verdict }
   | { type: "findings"; items: SpotFinding[] }
   | { type: "kpis"; items: SpotKpi[] }
-  | { type: "handoff"; kind: GuidedKind; label: string; reason: string };
+  | { type: "handoff"; kind: GuidedKind; label: string; reason: string }
+  // Inline workflow CTA — owns the "Approve & continue" action so the
+  // chat (not the right-pane workspace) is where decisions get made.
+  // Spent rendered the right-pane canvas as a place to *see* the work
+  // and the chat as the place to *act on it*, like Claude's flows.
+  | { type: "step-cta"; label: string; helper?: string; refineHint?: string }
+  // Multi-option branch — two or three mutually-exclusive choices in a
+  // single Spot message (e.g. "Import campaigns" vs "Launch new"). Each
+  // option carries an `action` key the renderer maps to a store call.
+  | { type: "choice"; prompt?: string; options: SpotChoiceOption[] }
+  // Inline import-campaigns picker — ad-account selection → campaign
+  // selection → imported, all rendered in the chat (left panel). Reads /
+  // writes the workflow's import state in the store; the right canvas
+  // stays on memory.md.
+  | { type: "import-picker" }
+  // Inline clarify questions — the 2-3 quick-pick questions for a
+  // diagnostic flow (scale / optimize / test-angles), rendered in the
+  // chat (left panel) so the user answers right where Spot is talking.
+  // The right canvas mirrors the captured brief.
+  | { type: "clarify-questions"; kind: "scale" | "optimize" | "test-angles" }
+  // Tool / agent call narration — renders a compact status row that
+  // says "Spawning Persona Researcher…" with a spinner. Status flips
+  // to "done" with a check once the workflow advances.
+  | {
+      type: "tool-call";
+      id: string;
+      agent: string;
+      detail?: string;
+      status: "running" | "done";
+    };
+
+/** Branch actions a `choice` part can trigger. Mapped to store calls in
+ *  the chat renderer (ChoicePart). */
+export type SpotChoiceAction =
+  | "launch-new" // kickoff → draft a fresh execution plan
+  | "import-campaigns" // open the import-campaigns canvas
+  | "launch-after-import" // after import → jump into the launch plan
+  | "analyse-performance"; // after import → open Campaigns
+
+export type SpotChoiceIcon = "rocket" | "download" | "chart" | "sparkles";
+
+export type SpotChoiceOption = {
+  label: string;
+  helper?: string;
+  action: SpotChoiceAction;
+  icon?: SpotChoiceIcon;
+  variant?: "primary" | "secondary";
+};
 
 export type SpotFinding = {
   tone?: "concern" | "positive" | "neutral";

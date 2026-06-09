@@ -333,7 +333,7 @@ function WorkspaceRollupTable() {
                       {r.workspace.name}
                     </div>
                     <div className="text-[11px] text-text-tertiary truncate">
-                      {r.workspace.region} · {r.projects} project{r.projects === 1 ? "" : "s"} ·{" "}
+                      {r.workspace.region} · {r.projects} product{r.projects === 1 ? "" : "s"} ·{" "}
                       {r.workspace.memberCount} members
                     </div>
                   </td>
@@ -431,7 +431,7 @@ function WorkspaceRollupTable() {
           onClick={() => router.push("/projects")}
           className="text-[12px] text-text-tertiary hover:text-text-primary inline-flex items-center gap-1"
         >
-          See projects across all workspaces
+          See products across all workspaces
           <ArrowRight size={11} strokeWidth={1.5} />
         </button>
       </div>
