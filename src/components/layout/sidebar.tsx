@@ -105,7 +105,13 @@ function WalletWidget() {
             role="button"
             onClick={(e) => {
               e.stopPropagation();
-              router.push("/settings/utilization");
+              // Route to Billing with ?topup=1 — the billing page reads
+              // the param on mount and opens the TopUpEstimatorModal so
+              // the user lands directly in the estimation flow. Sending
+              // them to /settings/utilization (units, no money) was the
+              // old behaviour and it left them one click short of what
+              // "Top up" promises.
+              router.push("/settings/billing?topup=1");
             }}
             className="inline-flex items-center gap-0.5 text-[10px] font-medium text-text-primary hover:underline cursor-pointer"
           >

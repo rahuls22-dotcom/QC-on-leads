@@ -21,7 +21,7 @@
  */
 
 import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   WALLETS,
   poolSummary,
@@ -40,7 +40,7 @@ import { LowBalanceModal } from "@/components/wallet/low-balance-modal";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { TopUpEstimatorModal } from "@/components/wallet/top-up-estimator-modal";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
-import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
 
 // The shared DateRangeSelector emits a preset string ("7", "30",
 // "thismonth", "lifetime", etc.). Our daily series is keyed by N-day
@@ -630,6 +630,30 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   // see. Adding credits is an explicit action, not a side effect of
   // navigating to the wallet.
   const [topupOpen, setTopupOpen] = useState(false);
+
+  // Deep-link entry from the sidebar wallet widget's "Top up" link —
+  // /settings/billing?topup=1 opens the estimator immediately so the
+  // user lands in the estimation flow rather than the listing page.
+  // We constrain this to the Billing view + prepaid mode so the link
+  // can't open the modal on Usage (where adding money makes no sense)
+  // or on a postpaid org (which has no wallet to top up). The param
+  // is consumed once and then dropped so a back-button + forward
+  // doesn't re-open it.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (v !== "billing") return;
+    if (searchParams?.get("topup") !== "1") return;
+    // Defer the open by one tick so the modal mounts after the page
+    // chrome (avoids a flash of empty modal during the route hop).
+    const id = setTimeout(() => setTopupOpen(true), 0);
+    // Drop the query param so the modal-state and URL stay consistent.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("topup");
+      window.history.replaceState({}, "", url.toString());
+    }
+    return () => clearTimeout(id);
+  }, [v, searchParams]);
 
   // (The "Utilization over time" chart used to derive its bucket
   // series from this page-level `range`, but it now owns its own
@@ -1863,9 +1887,27 @@ function PrepaidBalanceHero({
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Carried forward
-            </p>
+            <div className="inline-flex items-center gap-1 mb-1 group/cf relative">
+              <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]">
+                Carried forward
+              </p>
+              {/* Rollover policy tooltip — the "open question" the team
+                  raised: how do we explain that unused balance carries
+                  over? Plain-English hover that says exactly what
+                  rolls over (everything unused) and what doesn't
+                  (the plan baseline still resets each cycle). */}
+              <Info size={11} strokeWidth={1.75} className="text-text-tertiary/70 cursor-help" />
+              <div className="absolute left-0 top-full mt-1.5 w-[260px] bg-[#1a1a1a] text-white text-[11.5px] leading-relaxed px-3 py-2.5 rounded-card shadow-xl opacity-0 invisible group-hover/cf:opacity-100 group-hover/cf:visible transition-opacity duration-150 z-30 pointer-events-none">
+                <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide mb-1">
+                  Rollover policy
+                </div>
+                Unused balance from last cycle — including the unspent
+                portion of your plan and any top-ups you didn&apos;t use —
+                rolls over to this cycle. Your monthly plan amount still
+                resets fresh; only the tail carries over.
+                <div className="absolute -top-1.5 left-3 w-3 h-3 bg-[#1a1a1a] rotate-45" />
+              </div>
+            </div>
             <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
               {carriedForward > 0 ? `+ ${formatAmount(carriedForward, "INR")}` : formatAmount(0, "INR")}
             </p>
@@ -2240,7 +2282,11 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
   // trailing column reserved for future bits (share-of-product %,
   // daily-limit progress). For now it's empty but keeps the
   // structural similarity to the Billing table strong.
-  const gridCols = "grid-cols-[minmax(0,1fr)_180px_80px]";
+  // Four columns: module/cap name · units · amount (₹ cost) · share.
+  // Was three (no amount) — team decided to surface both units and
+  // amount on Usage so a single page tells the consumption + cost
+  // story without forcing a hop to Billing.
+  const gridCols = "grid-cols-[minmax(0,1fr)_150px_120px_80px]";
 
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
@@ -2258,8 +2304,9 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
 
       {/* Column headers */}
       <div className={`grid ${gridCols} gap-3 px-5 py-2 border-b border-border-subtle text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]`}>
-        <span>Product / capability</span>
+        <span>Module / capability</span>
         <span className="text-right">Units</span>
+        <span className="text-right">Amount</span>
         <span className="text-right">Share</span>
       </div>
 
@@ -2315,10 +2362,11 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
                   </div>
                 </div>
                 <div /> {/* Units col is blank on the product header */}
+                <div /> {/* Amount col is blank on the product header */}
                 <div /> {/* Share col is blank on the product header */}
               </div>
 
-              {/* Capability sub-rows — units only, no money. */}
+              {/* Capability sub-rows — units + amount side by side. */}
               {caps.map((c) => {
                 const capUnits = Math.round(c.unitCount * ratio);
                 const sharePct = productUnits > 0 ? (capUnits / productUnits) * 100 : 0;
@@ -2346,6 +2394,13 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
                           {c.unitLabel}{capUnits === 1 ? "" : "s"}
                         </span>
                       )}
+                    </div>
+                    <div className="text-right tabular-nums text-[13px] text-text-primary">
+                      {/* Amount = units × rate. Surfaced here so Usage
+                          tells the cost story too, not just consumption.
+                          Falls back to "—" when the capability has no
+                          rate (e.g. included throttles). */}
+                      {c.rate > 0 ? formatAmount(Math.round(capUnits * c.rate), "INR") : "—"}
                     </div>
                     <div className="text-right tabular-nums text-[11.5px] text-text-tertiary">
                       {sharePct.toFixed(0)}%
@@ -2521,13 +2576,13 @@ function ModulesTable({
           information to a chip under the product name when it
           exists. */}
       <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
-        <h3 className="text-[13px] font-semibold text-text-primary">Products</h3>
+        <h3 className="text-[13px] font-semibold text-text-primary">Modules</h3>
       </div>
 
       {/* Column headers — sort applies only to product rows. */}
       <div className={`grid ${gridCols} gap-3 px-5 py-2 border-b border-border-subtle text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]`}>
         <SortHeader
-          label="Product / capability"
+          label="Module / capability"
           colKey="name"
           activeKey={sortKey}
           onSort={setSortKey}

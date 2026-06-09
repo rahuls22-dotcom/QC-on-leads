@@ -23,7 +23,7 @@ import { WALLETS, RUPEES_PER_CREDIT } from "@/lib/credits-data";
 // this would come from /api/me or a workspace setting; for the
 // prototype we hard-code a sensible default so the success modal
 // looks real.
-const CSM_CONTACT = {
+const KAM_CONTACT = {
   name:  "Priya Nair",
   role:  "Key Account Manager",
   email: "priya.nair@revspot.ai",
@@ -54,7 +54,7 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
   const [qty, setQty] = useState<Record<string, number>>({});
 
   // Two-step flow inside the modal. The estimator is the default view;
-  // hitting "Send request" flips to a success card confirming the CSM
+  // hitting "Send request" flips to a success card confirming the KAM
   // has been notified. Reset on close so re-opening starts at the
   // estimator again.
   const [view, setView] = useState<"estimator" | "sent">("estimator");
@@ -357,7 +357,7 @@ function SentView({
         confirm and provision the balance shortly.
       </p>
 
-      {/* CSM card — name + role + email so the user can DM directly
+      {/* KAM card — name + role + email so the user can DM directly
           if they need to chase. */}
       <div className="w-full max-w-[400px] bg-surface-page border border-border-subtle rounded-card px-4 py-3 mb-5 text-left">
         <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1.5">
@@ -365,21 +365,21 @@ function SentView({
         </p>
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-accent text-white inline-flex items-center justify-center text-[11px] font-semibold shrink-0">
-            {CSM_CONTACT.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+            {KAM_CONTACT.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-medium text-text-primary truncate">
-              {CSM_CONTACT.name}
+              {KAM_CONTACT.name}
             </p>
             <p className="text-[11.5px] text-text-tertiary truncate">
-              {CSM_CONTACT.role}
+              {KAM_CONTACT.role}
             </p>
             <a
-              href={`mailto:${CSM_CONTACT.email}`}
+              href={`mailto:${KAM_CONTACT.email}`}
               className="text-[11.5px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1 mt-0.5 hover:underline"
             >
               <Mail size={11} strokeWidth={1.75} />
-              {CSM_CONTACT.email}
+              {KAM_CONTACT.email}
             </a>
           </div>
         </div>

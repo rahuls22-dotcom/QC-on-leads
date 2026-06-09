@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Building2, Sparkles, BarChart3, CreditCard, Plug } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Building2, Sparkles, BarChart3, CreditCard, Plug, UserCircle2, LogOut } from "lucide-react";
 
 const ACCOUNT_NAV = [
+  // Personal profile lives at the top of Account — it's the "what's
+  // mine" entry (name, email, password) before the team / agency-level
+  // settings that follow.
+  { name: "Profile", href: "/settings/profile", icon: UserCircle2 },
   { name: "Agency", href: "/settings/agency", icon: Building2 },
   { name: "Workspace", href: "/settings/workspace", icon: Sparkles },
   // "Usage" is the home for the consumption story (units only — calls,
@@ -21,6 +25,24 @@ const CONNECTIONS_NAV = [
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router   = useRouter();
+
+  const handleLogout = () => {
+    // Prototype-grade logout — clear demo localStorage flags and route
+    // to the public login page. A real implementation would call the
+    // auth provider's sign-out (and revoke server-side session).
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm("Log out of Revspot?");
+      if (!confirmed) return;
+      try {
+        // Clear any persisted demo state so a fresh session starts clean.
+        Object.keys(window.localStorage)
+          .filter((k) => k.startsWith("revspot:"))
+          .forEach((k) => window.localStorage.removeItem(k));
+      } catch { /* ignore */ }
+    }
+    router.push("/login");
+  };
 
   const renderLink = (item: { name: string; href: string; icon: typeof Building2 }) => {
     const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -63,6 +85,22 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 Connections
               </div>
               {CONNECTIONS_NAV.map(renderLink)}
+            </div>
+            {/* Logout — sits at the bottom of the nav so it's reachable
+                from any settings page but visually disconnected from
+                the navigable sections (it's an action, not a route).
+                Confirms before logging out to avoid an accidental click
+                wiping the demo state. */}
+            <div className="pt-3 mt-3 border-t border-border-subtle">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 px-2 h-8 rounded-[6px] text-text-secondary hover:bg-surface-secondary/60 hover:text-[#DC2626] transition-colors duration-150"
+                style={{ fontSize: "13.5px" }}
+              >
+                <LogOut size={16} strokeWidth={1.5} />
+                <span>Log out</span>
+              </button>
             </div>
           </nav>
         </aside>
