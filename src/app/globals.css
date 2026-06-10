@@ -142,19 +142,22 @@
 .hover-row { transition: background 120ms ease; }
 .hover-row:hover { background: var(--bg-page); }
 
-/* Spot mark — radial-gradient brand glyph */
+/* Spot mark — radial-gradient brand glyph · CIRCULAR.
+ * The brand glyph is a round orb (matches the loader cores). The
+ * inner cream dot scales proportionally via the ::after pseudo-
+ * element, so the mark stays visually consistent at any size. */
 .spot-mark {
-  width: 22px; height: 22px; border-radius: 5px;
+  width: 22px; height: 22px; border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 30%, #FFFCEC 0%, #E8E0C8 30%, #2A2620 80%);
-  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.4);
+    radial-gradient(circle at 30% 30%, #FFFCEC 0%, #E8E0C8 30%, #2A2620 85%);
+  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.4), 0 0 12px rgba(255,252,236,0.25);
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   position: relative;
 }
 .spot-mark::after {
-  content: ""; width: 5px; height: 5px; border-radius: 50%;
-  background: #FFFCEC; box-shadow: 0 0 6px rgba(255,252,236,0.6);
+  content: ""; width: 22%; height: 22%; border-radius: 50%;
+  background: #FFFCEC; box-shadow: 0 0 6px rgba(255,252,236,0.85);
 }
 
 /* Spot reply container (warm tint) */
@@ -229,6 +232,498 @@
 .fadeInScale { animation: fadeInScale 160ms ease-out forwards; }
 .slideInRight { animation: slideInRight 240ms ease-out forwards; }
 .spot-pulse { animation: spotPulse 1.6s ease-in-out infinite; }
+
+/* ─── Trail-end "agent working" indicator ────────────────────────
+ *
+ * The Spot mark sits at the end of the chat trail. When work is in
+ * progress, the mark gently breathes (subtle scale + warm halo) and a
+ * row of three dots fades in sequence next to it. When idle, both
+ * stop — just the static mark remains. No spinning rings.
+ */
+@keyframes spotBreath {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(232, 201, 122, 0));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 4px rgba(232, 201, 122, 0.55));
+  }
+}
+.spot-breath { animation: spotBreath 1.6s ease-in-out infinite; }
+
+@keyframes spotDot {
+  0%, 60%, 100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-1.5px);
+  }
+}
+.spot-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--text-2);
+  animation: spotDot 1.4s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* ─── Spot loaders ─────────────────────────────────────────────
+ *
+ * Reusable loader system — orbit · breathe · tilt · dots · fullscreen.
+ * Component lives at src/components/spot/spot-loader.tsx. See
+ * docs/loaders.md for the usage guide.
+ *
+ * Every variant takes a --size CSS variable on the wrapper. Rings,
+ * auras, and inner highlights scale proportionally so the same JSX
+ * works at 14px (toolbar) and 80px (full-screen).
+ */
+
+/* Shared core glyph — radial gradient with a bright inner highlight.
+ * Used by orbit / breathe / tilt. The `.spot-mark` class already
+ * provides the small inline version; this is the *bigger* form used
+ * inside loader wrappers.
+ */
+.spot-loader-core {
+  background: radial-gradient(circle at 30% 30%, #FFFCEC 0%, #E8E0C8 30%, #2A2620 80%);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4), 0 0 24px rgba(255, 252, 236, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+.spot-loader-core::after {
+  content: "";
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: #FFFCEC;
+  box-shadow: 0 0 12px rgba(255, 252, 236, 0.85);
+}
+.spot-loader-core.round { border-radius: 50%; }
+.spot-loader-core.round::after { width: 18%; height: 18%; }
+
+@keyframes spotCorePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4), 0 0 18px 4px rgba(255, 252, 236, 0.18);
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4), 0 0 28px 8px rgba(255, 252, 236, 0.32);
+  }
+}
+
+/* Orbit — two counter-rotating dashed frames around the core. */
+.spot-orbit {
+  position: relative;
+  width: calc(var(--size, 56px) * 1.85);
+  height: calc(var(--size, 56px) * 1.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* `.sl-ring` deliberately namespaced (not `.ring`) to avoid Tailwind's
+ * `ring` utility — that utility applies `box-shadow: 0 0 0 3px blue`,
+ * which was rendering our gold dashed frames as blue squares.
+ */
+.spot-orbit .sl-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.spot-orbit .sl-ring-outer { animation: spotOrbitRot 3.6s linear infinite; }
+.spot-orbit .sl-ring-inner { animation: spotOrbitRev 5.2s linear infinite; }
+.spot-orbit .core {
+  width: var(--size, 56px);
+  height: var(--size, 56px);
+  border-radius: calc(var(--size, 56px) * 0.22);
+  animation: spotCorePulse 2.4s ease-in-out infinite;
+}
+/* When .round is also on the core, fully circular wins. */
+.spot-orbit .core.round { border-radius: 50%; }
+@keyframes spotOrbitRot { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes spotOrbitRev { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+
+/* Breathe — soft pulsing aura around the core. Ambient. */
+.spot-breathe {
+  position: relative;
+  width: calc(var(--size, 56px) * 1.85);
+  height: calc(var(--size, 56px) * 1.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.spot-breathe .aura {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--size, 56px) * 0.5);
+  background: radial-gradient(circle, rgba(232, 224, 200, 0.45) 0%, transparent 65%);
+  animation: spotAura 2.2s ease-in-out infinite;
+}
+.spot-breathe.round .aura { border-radius: 50%; }
+.spot-breathe .sl-ring-pulse {
+  position: absolute;
+  inset: calc(var(--size, 56px) * 0.18);
+  border-radius: calc(var(--size, 56px) * 0.32);
+  border: 1px solid rgba(201, 168, 106, 0.55);
+  animation: spotAura 2.2s ease-in-out 0.4s infinite;
+}
+.spot-breathe.round .sl-ring-pulse { border-radius: 50%; }
+.spot-breathe .core {
+  width: var(--size, 56px);
+  height: var(--size, 56px);
+  border-radius: calc(var(--size, 56px) * 0.22);
+  animation: spotCorePulse 2.4s ease-in-out infinite;
+}
+.spot-breathe .core.round { border-radius: 50%; }
+@keyframes spotAura {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.08); opacity: 0.6; }
+}
+
+/* Slow sheen sweep used on the loader hero card · gives the surface
+ * a subtle sense of motion without being noisy. */
+@keyframes shimmerSweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Single-shot slide for the newest finding entering the live feed. */
+@keyframes findingSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Dark-mode markdown viewer ─────────────────────────────────
+ * Notion-style dark canvas for the right pane. We override the
+ * light-theme component styles by targeting tailwind utility
+ * classes inside `.md-dark`. Surface = soft-black, text = off-white,
+ * borders muted, with the gold accent kept for warmth.
+ * ───────────────────────────────────────────────────────────────── */
+
+.md-dark h1, .md-dark h2, .md-dark h3, .md-dark h4 {
+  color: #F5F4EF !important;
+}
+.md-dark p {
+  color: #CBCAC3 !important;
+}
+.md-dark .text-text-primary  { color: #F7F6F1 !important; }
+.md-dark .text-text-secondary { color: #CBCAC3 !important; }
+.md-dark .text-text-tertiary  { color: #AEADA5 !important; }
+.md-dark .bg-white            { background: #1F1F1D !important; }
+.md-dark .border-border        { border-color: #2E2E2A !important; }
+.md-dark .border-border-subtle { border-color: #26262300 !important; border-color: #262623 !important; }
+.md-dark .bg-surface-page      { background: #1A1A18 !important; }
+.md-dark .bg-surface-secondary { background: #26262300 !important; background: #262623 !important; }
+.md-dark .hover\:border-border:hover { border-color: #3A3A35 !important; }
+
+/* Inline code in dark mode gets a deeper sunken look. */
+.md-dark code {
+  background: #26262300 !important;
+  background: #1A1A18 !important;
+  border-color: #2E2E2A !important;
+  color: #E8E0C8 !important;
+}
+
+/* Properties-bar pills */
+.md-dark .uppercase.tracking-wider.text-text-tertiary {
+  color: #AEADA5 !important;
+}
+
+/* Strong text stays bright (we use `text-text-primary` in <strong>). */
+.md-dark strong { color: #F7F6F1 !important; }
+.md-dark em { color: #CBCAC3 !important; }
+
+/* ─── md-render block-level dark overrides ───────────────────── */
+
+/* Tagline callout · light cream → dark warm */
+.md-tagline {
+  background: linear-gradient(135deg, #FBF8F0 0%, #F5EFE0 100%);
+}
+.md-dark .md-tagline {
+  background: linear-gradient(135deg, #26261F 0%, #1F1F1A 100%);
+}
+
+/* Properties pills (Client · Category bar) */
+.md-property-pill {
+  background: var(--surface-page, #f5f3ee);
+  border: 1px solid var(--border-subtle, #e8e5dc);
+  color: var(--text-tertiary, #8a8980);
+}
+.md-dark .md-property-pill {
+  background: #1F1F1D !important;
+  border-color: #2E2E2A !important;
+  color: #C2C1B9 !important;
+}
+
+/* USP / Avoid insight cards */
+.md-insight-ok {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+}
+.md-dark .md-insight-ok {
+  background: #0E2A1A !important;
+  border-color: #1A4D2A !important;
+}
+.md-insight-warn {
+  background: #FFFBEB;
+  border-color: #FCE7A1;
+}
+.md-dark .md-insight-warn {
+  background: #2A2210 !important;
+  border-color: #4D3D1A !important;
+}
+.md-dark .md-insight-text {
+  color: #E8E0C8 !important;
+}
+.md-dark .md-insight-ok .md-insight-icon {
+  color: #34D399 !important;
+}
+.md-dark .md-insight-warn .md-insight-icon {
+  color: #F59E0B !important;
+}
+
+/* Persona avatar (gold gradient) */
+.md-persona-avatar {
+  background: linear-gradient(135deg, #FBF8F0 0%, #EBE2C9 100%);
+  border: 1px solid #E8E3D5;
+}
+.md-dark .md-persona-avatar {
+  background: linear-gradient(135deg, #2A2520 0%, #1F1B16 100%) !important;
+  border-color: #3A3530 !important;
+}
+.md-dark .md-persona-avatar-icon { color: #D4B566 !important; }
+
+/* Pain tag-pill inside persona cards */
+.md-pain-pill {
+  background: #FEF3C7;
+  color: #854D0E;
+  border: 1px solid #FCE7A1;
+}
+.md-dark .md-pain-pill {
+  background: #2A2210 !important;
+  color: #F59E0B !important;
+  border-color: #4D3D1A !important;
+}
+
+/* Pricing badge */
+.md-price-badge {
+  background: #FAF8F2;
+  border: 1px solid #E8E3D5;
+  color: #8C6D33;
+}
+.md-dark .md-price-badge {
+  background: #26261F !important;
+  border-color: #3A3530 !important;
+  color: #D4B566 !important;
+}
+
+/* Offer pills · amber → dark amber */
+.md-offer-pill {
+  background: #FEF3C7;
+  border: 1px solid #FCE7A1;
+  color: #854D0E;
+}
+.md-offer-pill-icon { color: #A16207; }
+.md-offer-pill-label { color: #854D0E; }
+.md-offer-pill-meta  { color: rgba(161, 98, 7, 0.8); }
+
+.md-dark .md-offer-pill {
+  background: #2A2210 !important;
+  border-color: #4D3D1A !important;
+  color: #FCD34D !important;
+}
+.md-dark .md-offer-pill-icon  { color: #FCD34D !important; }
+.md-dark .md-offer-pill-label { color: #FCD34D !important; }
+.md-dark .md-offer-pill-meta  { color: rgba(252, 211, 77, 0.75) !important; }
+
+/* List dots inside default bullets need to be visible on dark */
+.md-dark .md-render ul li > span:first-child[class*="bg-text-tertiary"],
+.md-dark .md-render ul li > span:first-child[class*="bg-border"] {
+  background: #4D4D45 !important;
+}
+
+/* H2 gold dot indicator stays gold in dark mode too — already inline. */
+
+/* ─── Diagnostic steps · dark canvas overrides ──────────────────
+ * The AnalyzeStep / ClarifyStep / PlanStep / LiveStep components
+ * were built for the light canvas and use Tailwind tokens like
+ * `bg-white`, `text-text-primary`, `border-border`. Now that they
+ * render on the dark right pane, this scoped wrapper class flips
+ * every token to its dark equivalent so white-on-white bugs go away.
+ * ─────────────────────────────────────────────────────────────── */
+
+.diagnostic-dark {
+  color: #F5F4EF;
+}
+
+/* Surfaces */
+.diagnostic-dark .bg-white            { background: #1A1A18 !important; }
+.diagnostic-dark .bg-surface-page     { background: #15140F !important; }
+.diagnostic-dark .bg-surface-secondary { background: #1F1F1D !important; }
+
+/* Text */
+.diagnostic-dark .text-text-primary   { color: #F5F4EF !important; }
+.diagnostic-dark .text-text-secondary { color: #B8B7B0 !important; }
+.diagnostic-dark .text-text-tertiary  { color: #8A8980 !important; }
+
+/* Borders */
+.diagnostic-dark .border-border         { border-color: #2E2E2A !important; }
+.diagnostic-dark .border-border-subtle  { border-color: #262623 !important; }
+.diagnostic-dark .border-border-hover   { border-color: #3A3A35 !important; }
+.diagnostic-dark .hover\:border-border:hover { border-color: #3A3A35 !important; }
+.diagnostic-dark .hover\:border-border-hover:hover { border-color: #4A4A45 !important; }
+
+/* Inputs and code-style spans */
+.diagnostic-dark input,
+.diagnostic-dark textarea,
+.diagnostic-dark select {
+  background: #1F1F1D !important;
+  color: #F5F4EF !important;
+  border-color: #2E2E2A !important;
+}
+.diagnostic-dark code {
+  background: #1F1F1D !important;
+  border-color: #2E2E2A !important;
+  color: #E8E0C8 !important;
+}
+
+/* Hover states on rows + buttons */
+.diagnostic-dark .hover\:bg-surface-secondary:hover { background: #1F1F1D !important; }
+.diagnostic-dark .hover-row:hover { background: #1F1F1D !important; }
+
+/* Pill / chip tones — keep the accent colors readable on dark */
+.diagnostic-dark .pill {
+  background: #1F1F1D !important;
+  border-color: #2E2E2A !important;
+  color: #D6D6CE !important;
+}
+.diagnostic-dark .pill-ok {
+  background: #0E2A1A !important;
+  border-color: #1A4D2A !important;
+  color: #34D399 !important;
+}
+.diagnostic-dark .pill-err {
+  background: #2A1010 !important;
+  border-color: #4D1A1A !important;
+  color: #F87171 !important;
+}
+.diagnostic-dark .pill-warn {
+  background: #2A2210 !important;
+  border-color: #4D3D1A !important;
+  color: #FCD34D !important;
+}
+.diagnostic-dark .pill-info {
+  background: #102A2A !important;
+  border-color: #1A4D4D !important;
+  color: #67E8F9 !important;
+}
+
+/* Tinted backgrounds used across AnalyzeStep / ClarifyStep / PlanStep.
+ * The Tailwind arbitrary-value class escapes are brittle across
+ * compilers, so we use [class*="<hex>"] attribute selectors which
+ * match the hex code as a substring of the class name — robust to
+ * however Tailwind chooses to output the class name. */
+.diagnostic-dark [class*="F0FDF4"] { background: #0E2A1A !important; }
+.diagnostic-dark [class*="FEE2E2"] { background: #2A1010 !important; }
+.diagnostic-dark [class*="FEF3C7"] { background: #2A2210 !important; }
+.diagnostic-dark [class*="FAF8F2"] { background: #1F1B14 !important; }
+.diagnostic-dark [class*="DCFCE7"] { background: #0E2A1A !important; }
+.diagnostic-dark [class*="FFFBEB"] { background: #2A2210 !important; }
+
+/* Tinted border accents that pair with the cream cards above */
+.diagnostic-dark [class*="E8E3D5"] { border-color: #3A3530 !important; }
+.diagnostic-dark [class*="BBF7D0"] { border-color: #1A4D2A !important; }
+.diagnostic-dark [class*="FECACA"] { border-color: #4D1A1A !important; }
+.diagnostic-dark [class*="FCD34D"] { border-color: #4D3D1A !important; }
+
+/* Primary CTA black-on-cream inverts to cream-on-dark */
+.diagnostic-dark [class*="bg-[#111]"],
+.diagnostic-dark .bg-\[\#111\] {
+  background: #FAFAF8 !important;
+  color: #0A0A09 !important;
+}
+.diagnostic-dark [class*="FAFAF8"]:not([class*="bg-"]) { color: #0A0A09 !important; }
+
+/* Brand gold / green inline backgrounds also need dark variants */
+.diagnostic-dark [class*="15803D"] { color: #34D399 !important; }
+.diagnostic-dark [class*="B91C1C"] { color: #F87171 !important; }
+.diagnostic-dark [class*="8C6D33"] { color: #D4B566 !important; }
+.diagnostic-dark [class*="92400E"] { color: #F59E0B !important; }
+
+/* Tabular numerics in metric cards */
+.diagnostic-dark .tabular { color: inherit; }
+
+/* Dividers */
+.diagnostic-dark .divide-y > * + * { border-top-color: #262623 !important; }
+
+/* Tilt — gentle wobble of the core. No halo. */
+.spot-tilt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.spot-tilt .core {
+  width: var(--size, 56px);
+  height: var(--size, 56px);
+  border-radius: calc(var(--size, 56px) * 0.22);
+  animation: spotTilt 1.8s ease-in-out infinite;
+}
+.spot-tilt .core.round { border-radius: 50%; }
+@keyframes spotTilt {
+  0%, 100% { transform: rotate(-3deg) scale(1); }
+  50% { transform: rotate(3deg) scale(1.04); }
+}
+
+/* Inline dots — three rounded-square pearls. Chat-bubble use only. */
+.spot-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  background: #FAF8F2;
+  border: 1px solid #E8E3D5;
+  border-radius: 10px;
+}
+.spot-dots > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: radial-gradient(circle at 30% 30%, #FFFCEC, #C9A86A 80%);
+  animation: spotDotBounce 1.2s ease-in-out infinite;
+}
+.spot-dots.round > span { border-radius: 50%; }
+.spot-dots > span:nth-child(2) { animation-delay: 0.16s; }
+.spot-dots > span:nth-child(3) { animation-delay: 0.32s; }
+@keyframes spotDotBounce {
+  0%, 80%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+  40% { transform: translateY(-3px) scale(1.1); opacity: 1; }
+}
+
+/* Full-screen container — orbit + title + cycling status row. */
+.spot-fullscreen {
+  position: relative;
+  width: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: linear-gradient(180deg, #FAF8F2 0%, #FAFAFA 100%);
+  border-radius: 12px;
+}
+.spot-fullscreen .status { text-align: center; }
+.spot-fullscreen .status .title { font-size: 16px; font-weight: 600; color: #0A0A0A; }
+.spot-fullscreen .status .msg { font-size: 12.5px; color: #9B9B9B; margin-top: 6px; min-height: 18px; }
 
 /* Deep-dive overlay — hide global app chrome while the deep-dive shell
    covers the viewport with its own header + full-width body. */

@@ -1,4 +1,4 @@
-// Multi-workspace model. Three regional teams under Godrej Properties; the
+// Multi-workspace model. Three regional teams under Guyju's; the
 // head of marketing has access to all, individual contributors only see one.
 
 export type Workspace = {
@@ -11,19 +11,19 @@ export type Workspace = {
 export const WORKSPACES: Workspace[] = [
   {
     id: "ws-south",
-    name: "Godrej South",
-    region: "Bangalore · Hyderabad",
+    name: "Guyju's South",
+    region: "Bangalore · Chennai · Hyderabad",
     memberCount: 8,
   },
   {
     id: "ws-ncr",
-    name: "Godrej NCR",
-    region: "Delhi · Gurugram",
+    name: "Guyju's North",
+    region: "Delhi · Gurugram · Kota",
     memberCount: 5,
   },
   {
     id: "ws-mmr",
-    name: "Godrej MMR",
+    name: "Guyju's West",
     region: "Mumbai · Pune",
     memberCount: 9,
   },
@@ -51,8 +51,8 @@ export type AppUser = {
 export const USERS: AppUser[] = [
   {
     id: "u-head-marketing",
-    name: "Priya Mehra",
-    email: "priya.mehra@godrejproperties.com",
+    name: "Ankit Purohit",
+    email: "ankit.purohit@guyjus.com",
     role: "admin",
     workspaceIds: WORKSPACES.map((w) => w.id),
     defaultWorkspaceId: "ws-south",
@@ -60,7 +60,7 @@ export const USERS: AppUser[] = [
   {
     id: "u-south-lead",
     name: "Arjun Rao",
-    email: "arjun.rao@godrejproperties.com",
+    email: "arjun.rao@guyjus.com",
     role: "member",
     workspaceIds: ["ws-south"],
     defaultWorkspaceId: "ws-south",
@@ -68,7 +68,7 @@ export const USERS: AppUser[] = [
   {
     id: "u-ncr-lead",
     name: "Neha Kapoor",
-    email: "neha.kapoor@godrejproperties.com",
+    email: "neha.kapoor@guyjus.com",
     role: "member",
     workspaceIds: ["ws-ncr"],
     defaultWorkspaceId: "ws-ncr",
@@ -76,7 +76,7 @@ export const USERS: AppUser[] = [
   {
     id: "u-mmr-lead",
     name: "Karthik Iyer",
-    email: "karthik.iyer@godrejproperties.com",
+    email: "karthik.iyer@guyjus.com",
     role: "member",
     workspaceIds: ["ws-mmr"],
     defaultWorkspaceId: "ws-mmr",
