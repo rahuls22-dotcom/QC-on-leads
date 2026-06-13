@@ -16,7 +16,7 @@ import { SpotMark } from "@/components/spot/spot-mark";
 //
 // Two more flags are watched here and flipped elsewhere in the app:
 //   • onboarding_agent_done    — set when the user creates their first
-//                                voice agent (via /agents-mvp)
+//                                voice agent (via /agents)
 //   • onboarding_outreach_done — set when the user launches their first
 //                                outreach (via /outreach/create)
 //
@@ -91,7 +91,7 @@ export default function WelcomePage() {
   // CTA wiring — each step navigates to its respective flow with an
   // ?onboarding=1 query param. The receiving page reads that flag and
   // (1) flips the matching done bit on success, (2) routes back here.
-  const startAgent    = () => router.push("/agents-mvp?create=1&onboarding=1");
+  const startAgent    = () => router.push("/agents?create=1&onboarding=1");
   const startOutreach = () => router.push("/outreach/create?onboarding=1");
 
   return (
@@ -159,7 +159,7 @@ export default function WelcomePage() {
           onCta={startAgent}
           doneLabel="Agent created"
           doneCtaLabel="View agents"
-          onDoneCta={() => router.push("/agents-mvp")}
+          onDoneCta={() => router.push("/agents")}
           locked={false}
         />
 

@@ -356,7 +356,7 @@ export function EditOutreachDrawer({
                   onChange={setAgentId}
                   onCreateNew={() => {
                     onClose();
-                    router.push("/agents-mvp?create=1");
+                    router.push("/agents?create=1");
                   }}
                 />
               </div>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Variants } from "framer-motion";
 import {
-  ArrowLeft, ArrowRight, Upload, FileSpreadsheet, X, Rocket, Save,
+  ArrowLeft, ArrowRight, Upload, FileSpreadsheet, X, Rocket,
   CheckCircle2, AlertCircle, Plus, Download, Check, Phone, Clock,
   Users, Calendar, Bot, FlaskConical, Loader2, FolderKanban,
   Info, ChevronDown, Sparkles, Pencil,
@@ -578,7 +578,7 @@ function CreateOutreachInner() {
   const [name, setName]               = useState("");
   const [agent, setAgent]             = useState("");
 
-  // Agent hand-off from /agents-mvp/create. When the user clicks
+  // Agent hand-off from /agents/create. When the user clicks
   // "Save & use in outreach" there, the agent id is encoded in the
   // URL and the agent name is stashed in sessionStorage. We pluck
   // both, prepend a synthetic entry to the agent picker list, and
@@ -1929,21 +1929,22 @@ function CreateOutreachInner() {
           {/* Nav buttons — hidden during the interstitial because the
               success card carries its own CTAs ("Add audience now" /
               "I'll add audience later"). Otherwise:
-                Step 1 form:    "Save as Draft"   → "Create outreach"
-                Step 2 form:    "Back"            → "Launch outreach" */}
+                Step 1 form:    (nothing on left) → "Create outreach"
+                Step 2 form:    "Back"            → "Launch outreach"
+              Save as Draft was dropped — the flow is short enough that
+              "draft" wasn't carrying its weight (users either created
+              the outreach or abandoned, almost no one came back to a
+              half-finished draft) and the button sat in awkward
+              isolation on step 1's left edge. */}
           {!(step === 2 && phase === "created") && (
             <div className="flex items-center justify-between mt-5">
               <div>
-                {step === 2 && phase === "form" ? (
+                {step === 2 && phase === "form" && (
                   <button
                     onClick={() => { setStep(1); setPhase("form"); }}
                     className="inline-flex items-center gap-1.5 h-10 px-4 text-[13px] font-medium text-text-secondary border border-border rounded-button bg-white hover:bg-surface-page transition-colors"
                   >
                     <ArrowLeft size={14} strokeWidth={1.5} /> Back
-                  </button>
-                ) : (
-                  <button className="inline-flex items-center gap-1.5 h-10 px-4 text-[13px] font-medium text-text-secondary border border-border rounded-button bg-white hover:bg-surface-page transition-colors">
-                    <Save size={14} strokeWidth={1.5} /> Save as Draft
                   </button>
                 )}
               </div>

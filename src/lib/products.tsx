@@ -17,12 +17,17 @@ import {
   type ReactNode,
 } from "react";
 
-export type ProductKey = "enrichment" | "ai_calling" | "campaigns";
+export type ProductKey =
+  | "enrichment"
+  | "contact_extraction"
+  | "ai_calling"
+  | "campaigns";
 
 export const ALL_PRODUCTS: { key: ProductKey; label: string }[] = [
-  { key: "enrichment", label: "Enrichment" },
-  { key: "ai_calling", label: "AI Calling" },
-  { key: "campaigns", label: "Campaigns" },
+  { key: "enrichment",         label: "Enrichment" },
+  { key: "contact_extraction", label: "Contact Extraction" },
+  { key: "ai_calling",         label: "AI Calling" },
+  { key: "campaigns",          label: "Campaigns" },
 ];
 
 interface ProductsContextValue {
@@ -35,7 +40,41 @@ interface ProductsContextValue {
   enrichmentOnly: boolean;
 }
 
-const DEFAULT_PRODUCTS: ProductKey[] = ["enrichment", "ai_calling", "campaigns"];
+const DEFAULT_PRODUCTS: ProductKey[] = [
+  "enrichment",
+  "contact_extraction",
+  "ai_calling",
+  "campaigns",
+];
+
+// Named presets — each maps to a "preview mode" toggle in the sidebar
+// footer. Lets the demo flip the whole workspace to a customer profile
+// in one click instead of toggling individual products. Sales loves
+// these because they mirror real customer mixes.
+export type ProductPreset =
+  | "full"
+  | "enrichment_only"
+  | "voice_only"
+  | "contact_extraction_only"
+  | "voice_plus_enrichment";
+
+export const PRODUCT_PRESETS: Record<ProductPreset, ProductKey[]> = {
+  full:                    ["enrichment", "contact_extraction", "ai_calling", "campaigns"],
+  enrichment_only:         ["enrichment"],
+  voice_only:              ["ai_calling", "campaigns"],
+  contact_extraction_only: ["contact_extraction"],
+  voice_plus_enrichment:   ["enrichment", "ai_calling", "campaigns"],
+};
+
+// Resolve which preset (if any) the current product set matches —
+// used to highlight the active toggle in the sidebar footer.
+export function currentPreset(products: ProductKey[]): ProductPreset | null {
+  const norm = [...products].sort().join(",");
+  for (const [key, list] of Object.entries(PRODUCT_PRESETS)) {
+    if ([...list].sort().join(",") === norm) return key as ProductPreset;
+  }
+  return null;
+}
 
 const ProductsContext = createContext<ProductsContextValue>({
   products: DEFAULT_PRODUCTS,
@@ -48,26 +87,55 @@ const ProductsContext = createContext<ProductsContextValue>({
 const STORAGE_KEY = "revspot:products";
 
 function isValidProduct(v: string): v is ProductKey {
-  return v === "enrichment" || v === "ai_calling" || v === "campaigns";
+  return (
+    v === "enrichment" ||
+    v === "contact_extraction" ||
+    v === "ai_calling" ||
+    v === "campaigns"
+  );
+}
+
+// Synchronous read of the persisted product set. Used by the lazy
+// useState initializer below so that the FIRST render already
+// reflects the workspace's preset — without this, route guards or
+// any has()-dependent UI would briefly render the "full" defaults
+// before a useEffect hydrate kicked in, producing a flash of an
+// unowned product surface before the redirect fires. SSR-safe: the
+// window check makes it a no-op on the server.
+function readStoredProducts(): ProductKey[] {
+  if (typeof window === "undefined") return DEFAULT_PRODUCTS;
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (!stored) return DEFAULT_PRODUCTS;
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return DEFAULT_PRODUCTS;
+    const valid = parsed.filter(
+      (x): x is ProductKey => typeof x === "string" && isValidProduct(x),
+    );
+    return valid.length > 0 ? valid : DEFAULT_PRODUCTS;
+  } catch {
+    return DEFAULT_PRODUCTS;
+  }
 }
 
 export function ProductsProvider({ children }: { children: ReactNode }) {
-  const [products, setProductsState] = useState<ProductKey[]>(DEFAULT_PRODUCTS);
+  // Lazy initializer reads localStorage on the very first render so
+  // the sidebar and any product-route guard see the right entitlement
+  // on mount, not after a useEffect tick later.
+  const [products, setProductsState] = useState<ProductKey[]>(() => readStoredProducts());
 
-  // Hydrate from localStorage so plan selection survives navs.
+  // Re-read once on mount as a belt-and-braces measure. The lazy
+  // initializer above handles the common case; this catches edge
+  // cases where storage is written between the initial render and
+  // the effect tick (e.g. another tab toggled the preset). Skips
+  // the state update if nothing actually changed so React doesn't
+  // re-render needlessly.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        const valid = parsed.filter((x): x is ProductKey => typeof x === "string" && isValidProduct(x));
-        if (valid.length > 0) setProductsState(valid);
-      }
-    } catch {
-      // ignore malformed storage
-    }
+    const next = readStoredProducts();
+    setProductsState((prev) =>
+      prev.length === next.length && prev.every((p, i) => p === next[i]) ? prev : next,
+    );
   }, []);
 
   const persist = useCallback((next: ProductKey[]) => {

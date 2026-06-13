@@ -108,7 +108,7 @@ const defaultChecklist: ChecklistItem[] = [
   { key: "company", label: "Set up your organization", completed: false, href: "/onboarding" },
   { key: "ad_account", label: "Connect ad account", completed: false, href: "/onboarding" },
   { key: "project", label: "Create your first project", completed: false, href: "/onboarding" },
-  { key: "agent", label: "Set up a voice agent", completed: false, href: "/agents-mvp" },
+  { key: "agent", label: "Set up a voice agent", completed: false, href: "/agents" },
 ];
 
 export const useAppStore = create<AppState>((set) => ({

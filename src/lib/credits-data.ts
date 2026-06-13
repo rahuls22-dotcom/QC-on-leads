@@ -250,16 +250,38 @@ function generateDailySeries(
 }
 
 // ────────────────────────────────────────────────────────────────────────
-//  Period — current calendar month for the demo
+//  Period — billing cycle for the demo
 // ────────────────────────────────────────────────────────────────────────
+//
+// Customers don't all bill on the calendar month. A workspace can sign
+// up mid-month and have their cycle reset on, e.g., the 13th of each
+// month — running 13 May → 13 Jun, 13 Jun → 13 Jul, and so on. The
+// `cycleStartDay` argument lets the helpers express that. Default
+// remains 1 so any caller that hasn't been converted still gets the
+// classic calendar-month windows.
 
-// Pin to a deterministic month for the demo (so the UI doesn't drift on
-// month rollovers in screenshots). We use today's month/year but anchor
-// start to the 1st.
-function currentPeriod(): { start: string; end: string } {
+// Compute the cycle window that contains `now`, given a start-day.
+// Rule: cycles start at `cycleStartDay` of each month. If today's day
+// is >= cycleStartDay, the current cycle started this month; otherwise
+// it started last month. The end is one day before the next cycle's
+// start (cycleStartDay of the following month, minus 1ms).
+function currentPeriod(cycleStartDay: number = 1): { start: string; end: string } {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  const day = now.getDate();
+  // Year/month of the cycle start. If today is before this month's
+  // cycleStartDay, we're still inside the cycle that began last month.
+  const startMonthOffset = day >= cycleStartDay ? 0 : -1;
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth() + startMonthOffset,
+    cycleStartDay,
+  );
+  const end = new Date(
+    start.getFullYear(),
+    start.getMonth() + 1,
+    cycleStartDay,
+    0, 0, 0, -1, // one millisecond before the next cycle's start
+  );
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
@@ -528,18 +550,80 @@ export function moduleSplitInRange(days: number): {
   }));
 }
 
-// Total credits utilized across all modules within a window.
+// Total credits utilized across modules within a window.
 // `offsetFromEnd` slides the window back from "today" — pass 0 (default)
 // for "last N days", or N>0 to look at a window that ended N days ago
 // (used by the billing month selector — e.g. "May 2026" passes the days
 // in May as `days` and the days back from today to end-of-May as
 // `offsetFromEnd`).
-export function utilizedInRange(days: number, offsetFromEnd: number = 0): number {
-  return MODULES.reduce(
+//
+// `moduleIds` optionally restricts the sum to a subset — drives the
+// "module mix" demo so a customer on, say, voice-only sees totals that
+// don't include extraction or enrichment they never bought.
+export function utilizedInRange(
+  days: number,
+  offsetFromEnd: number = 0,
+  moduleIds?: readonly string[],
+): number {
+  const list = moduleIds ? MODULES.filter((m) => moduleIds.includes(m.id)) : MODULES;
+  return list.reduce(
     (sum, m) =>
       sum + sliceDailyToRange(m.daily, days, offsetFromEnd).reduce((s, d) => s + d.amount, 0),
     0
   );
+}
+
+// ─── Current-cycle wallet (single source of truth) ─────────────────────
+//
+// Both the Billing hero and the sidebar widget call this so they can
+// never disagree. Inputs are the demo state knobs (plan type, carry-
+// forward, enabled modules) and the cycle's day count + offset; the
+// function returns a fully-derived wallet snapshot for that cycle.
+//
+// The math mirrors the billing hero exactly:
+//   planBaseline    = subscription? totalCredits : 0
+//   topupBalance    = subscription? 20% of totalCredits : totalCredits
+//   carriedForward  = carryForward enabled? 7.5% of totalCredits : 0
+//   totalAvailable  = planBaseline + topupBalance + carriedForward
+//   used            = min(utilizedInRange(...), totalAvailable)
+//   remaining       = max(0, totalAvailable - used)
+//
+// `used` is clamped at `totalAvailable` so the impossible state
+// "used > available" never reaches the UI — for a prepaid wallet
+// you can't spend more than the cap; once you hit it, new actions
+// block and the displayed total ceiling is what's actually true.
+export function currentCycleWallet(opts: {
+  planType:        "subscription" | "pure";
+  carryForward:    "enabled" | "disabled";
+  cycleDays:       number;
+  cycleOffsetFromEnd?: number;
+  enabledModuleIds?: readonly string[];
+}): {
+  used:           number;
+  totalAvailable: number;
+  remaining:      number;
+  pctUsed:        number;
+  planBaseline:   number;
+  topupBalance:   number;
+  carriedForward: number;
+} {
+  const { planType, carryForward, cycleDays, cycleOffsetFromEnd = 0, enabledModuleIds } = opts;
+  const { totalCredits } = poolSummary();
+  const planBaseline   = planType === "subscription" ? totalCredits : 0;
+  const topupBalance   = planType === "subscription"
+    ? Math.round(totalCredits * 0.2)
+    : totalCredits;
+  const carriedForward = carryForward === "enabled"
+    ? Math.round(totalCredits * 0.075)
+    : 0;
+  const totalAvailable = planBaseline + topupBalance + carriedForward;
+  const rawUsed        = utilizedInRange(cycleDays, cycleOffsetFromEnd, enabledModuleIds);
+  const used           = Math.min(rawUsed, totalAvailable);
+  const remaining      = Math.max(0, totalAvailable - used);
+  const pctUsed        = totalAvailable > 0
+    ? Math.max(0, Math.min(100, (used / totalAvailable) * 100))
+    : 0;
+  return { used, totalAvailable, remaining, pctUsed, planBaseline, topupBalance, carriedForward };
 }
 
 // ─── Billing month options ──────────────────────────────────────────────
@@ -566,46 +650,78 @@ export interface BillingMonth {
   offsetFromEnd: number;
 }
 
-// Build a BillingMonth for any (year, month) pair. Used by the Custom
-// picker on the Billing page when the user reaches for a month outside
-// the most-recent six. Same shape as billingMonthOptions returns, so
-// downstream code doesn't need a separate path for "custom" months.
-export function billingMonthFor(year: number, monthIdx: number): BillingMonth {
+// Build a BillingMonth (really: billing *cycle*) anchored to the
+// (year, monthIdx, cycleStartDay) tuple. The cycle starts on
+// `cycleStartDay` of (year, monthIdx) and runs up to the day before
+// `cycleStartDay` of the following month. When cycleStartDay = 1 the
+// cycle exactly matches the calendar month and the labels read the
+// classic way; when cycleStartDay > 1 the labels read as a span
+// ("13 Jun – 13 Jul 2026") because the cycle crosses a month boundary.
+export function billingMonthFor(
+  year: number,
+  monthIdx: number,
+  cycleStartDay: number = 1,
+): BillingMonth {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const monthStart = new Date(year, monthIdx, 1);
-  const monthEnd   = new Date(year, monthIdx + 1, 0);
-  monthEnd.setHours(0, 0, 0, 0);
-  const monthName  = monthStart.toLocaleDateString("en-IN", { month: "short" });
+  const cycleStart = new Date(year, monthIdx, cycleStartDay);
+  // End is the day BEFORE the next cycle starts. For cycleStartDay = 1
+  // that's the last day of the month; for cycleStartDay = 13 that's
+  // the 12th of the next month.
+  const cycleEndPlusOne = new Date(year, monthIdx + 1, cycleStartDay);
+  const cycleEnd = new Date(cycleEndPlusOne);
+  cycleEnd.setDate(cycleEnd.getDate() - 1);
+  cycleEnd.setHours(0, 0, 0, 0);
 
-  // Same labelling rules as the preset options — "This month" / "Last
-  // month" if the picked month matches, otherwise "MMM YYYY". That way
-  // a user who picks the current month via Custom gets the same label
-  // they'd see in the preset list.
-  const monthsAgo =
-      (today.getFullYear() - monthStart.getFullYear()) * 12
-    + (today.getMonth() - monthStart.getMonth());
+  const startMonthName = cycleStart.toLocaleDateString("en-IN", { month: "short" });
+  const endMonthName   = cycleEnd.toLocaleDateString("en-IN",   { month: "short" });
+  const isWholeMonth   = cycleStartDay === 1;
 
-  const isCurrent  = monthsAgo === 0;
-  const isLast     = monthsAgo === 1;
-  const label =
-      isCurrent ? "This month"
-    : isLast    ? "Last month"
-    : `${monthName} ${monthStart.getFullYear()}`;
+  // Which cycle this falls relative to "today" — drives This/Last
+  // labels and the days/offsetFromEnd math. We compare today against
+  // the cycle window directly so the labels stay correct when the
+  // cycle crosses a month boundary.
+  const isCurrent = today.getTime() >= cycleStart.getTime() && today.getTime() <= cycleEnd.getTime();
+  const isLast    = !isCurrent && today.getTime() > cycleEnd.getTime() && (
+    // "Last cycle" = the cycle that ended in the same month as the
+    // current cycle's start, OR the immediately preceding cycle.
+    () => {
+      const nextCycleStart = new Date(year, monthIdx + 1, cycleStartDay);
+      const nextCycleEnd   = new Date(year, monthIdx + 2, cycleStartDay);
+      nextCycleEnd.setDate(nextCycleEnd.getDate() - 1);
+      nextCycleEnd.setHours(0, 0, 0, 0);
+      return today.getTime() >= nextCycleStart.getTime() && today.getTime() <= nextCycleEnd.getTime();
+    }
+  )();
 
-  // For current month, the window ends today and only spans days-elapsed.
-  // For past months, the window covers the full month and slides back to
-  // end at month-end.
-  const days = isCurrent ? today.getDate() : monthEnd.getDate();
+  const label = isCurrent
+    ? (isWholeMonth ? "This month" : "This cycle")
+    : isLast
+    ? (isWholeMonth ? "Last month" : "Last cycle")
+    : isWholeMonth
+    ? `${startMonthName} ${cycleStart.getFullYear()}`
+    : `${cycleStartDay} ${startMonthName} – ${cycleStartDay} ${endMonthName} ${cycleEnd.getFullYear()}`;
+
+  // For an in-progress current cycle, the window ends today and spans
+  // days-elapsed; for a closed past cycle, it spans the full cycle.
+  const totalCycleDays = Math.round(
+    (cycleEndPlusOne.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const elapsedThisCycle = Math.max(
+    1,
+    Math.round((today.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+  );
+  const days = isCurrent ? Math.min(totalCycleDays, elapsedThisCycle) : totalCycleDays;
   const offsetFromEnd = isCurrent
     ? 0
-    : Math.round((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
+    : Math.round((today.getTime() - cycleEnd.getTime()) / (1000 * 60 * 60 * 24));
 
-  const lastDay = isCurrent ? today.getDate() : monthEnd.getDate();
-  const range = `1 – ${lastDay} ${monthName}`;
+  const range = isWholeMonth
+    ? `1 – ${isCurrent ? today.getDate() : totalCycleDays} ${startMonthName}`
+    : `${cycleStartDay} ${startMonthName} – ${cycleStartDay} ${endMonthName}`;
 
   return {
-    id: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`,
+    id: `${cycleStart.getFullYear()}-${String(cycleStart.getMonth() + 1).padStart(2, "0")}`,
     label,
     range,
     days,
@@ -613,18 +729,31 @@ export function billingMonthFor(year: number, monthIdx: number): BillingMonth {
   };
 }
 
-// Returns the most recent `count` calendar months, newest first.
-// Index 0 is always the current month ("This month"); index 1 is
-// "Last month"; older months are labelled "MMM YYYY". Older or
-// other-year months are reachable via billingMonthFor (Custom picker
-// on the UI).
-export function billingMonthOptions(count: number = 6): BillingMonth[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+// Returns the most recent `count` billing cycles, newest first.
+// Index 0 is always the current cycle ("This month" / "This cycle");
+// index 1 is the immediately preceding cycle.
+export function billingMonthOptions(
+  count: number = 6,
+  cycleStartDay: number = 1,
+): BillingMonth[] {
+  const now = new Date();
+  // Find the month that the CURRENT cycle starts in. With
+  // cycleStartDay = 1 that's just this month; with cycleStartDay > 1
+  // we're either still inside last month's cycle (today.day <
+  // cycleStartDay) or we've crossed into this month's cycle.
+  const currentCycleStartMonthOffset = now.getDate() >= cycleStartDay ? 0 : -1;
   const out: BillingMonth[] = [];
   for (let i = 0; i < count; i++) {
-    const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    out.push(billingMonthFor(monthStart.getFullYear(), monthStart.getMonth()));
+    const cycleStartMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + currentCycleStartMonthOffset - i,
+      1,
+    );
+    out.push(billingMonthFor(
+      cycleStartMonth.getFullYear(),
+      cycleStartMonth.getMonth(),
+      cycleStartDay,
+    ));
   }
   return out;
 }
@@ -653,9 +782,11 @@ export function moduleSplit(): {
   }));
 }
 
-// Days elapsed and remaining in the active period. Drives the small
-// "18 days left" pill next to the period header.
-export function periodProgress(): {
+// Days elapsed and remaining in the active billing cycle. When called
+// with no arg, falls back to the module-load defaults (cycleStartDay
+// = 1, i.e. classic calendar month). Pass the workspace's actual
+// cycle start day to get the period-aware window.
+export function periodProgress(cycleStartDay?: number): {
   start:        Date;
   end:          Date;
   daysElapsed:  number;
@@ -663,8 +794,11 @@ export function periodProgress(): {
   daysLeft:     number;
   pctElapsed:   number;
 } {
-  const start = new Date(PERIOD_START);
-  const end   = new Date(PERIOD_END);
+  const { start: s, end: e } = cycleStartDay !== undefined
+    ? currentPeriod(cycleStartDay)
+    : { start: PERIOD_START, end: PERIOD_END };
+  const start = new Date(s);
+  const end   = new Date(e);
   const now   = new Date();
   const MS    = 24 * 60 * 60 * 1000;
   const total = Math.max(1, Math.round((end.getTime() - start.getTime()) / MS));
@@ -711,6 +845,72 @@ export function totalInRange(
   offsetFromEnd: number = 0,
 ): number {
   return sliceDailyToRange(daily, days, offsetFromEnd).reduce((s, d) => s + d.amount, 0);
+}
+
+// ─── Invoice line items ────────────────────────────────────────────────
+//
+// Resolves per-capability spend for a given calendar month so an invoice
+// PDF can list real numbers (units × rate = amount), not a placeholder.
+// Same windowing logic as UtilizationByProductTable on screen — we slice
+// each module's daily series to the month's (days, offsetFromEnd), then
+// scale the stored `unitCount` by the spend ratio so capability counts
+// move with the month. That way the downloadable invoice matches what
+// the user sees in the Modules table for the same month: no drift
+// between what we display and what we put on the invoice.
+
+export interface InvoiceCapability {
+  id:        string;
+  name:      string;
+  unitCount: number;
+  unitLabel: string;
+  rate:      number;
+  amount:    number;
+}
+
+export interface InvoiceModuleSection {
+  id:           string;
+  name:         string;
+  capabilities: InvoiceCapability[];
+  subtotal:     number;
+}
+
+export interface InvoiceUsageBreakdown {
+  sections: InvoiceModuleSection[];
+  total:    number;
+}
+
+export function invoiceLineItemsFor(
+  month: BillingMonth,
+  moduleIds?: readonly string[],
+): InvoiceUsageBreakdown {
+  const sections: InvoiceModuleSection[] = [];
+  const list = moduleIds ? MODULES.filter((m) => moduleIds.includes(m.id)) : MODULES;
+  let total = 0;
+  for (const m of list) {
+    const used = sliceDailyToRange(m.daily, month.days, month.offsetFromEnd)
+      .reduce((s, d) => s + d.amount, 0);
+    const ratio = m.utilized > 0 ? used / m.utilized : 0;
+    const capabilities: InvoiceCapability[] = m.capabilities
+      // Skip `included` rows (capacity-only, e.g. concurrent calls)
+      // and zero-rate rows — they don't translate to billable lines.
+      .filter((c) => !c.included && c.rate > 0)
+      .map((c) => {
+        const capUnits = Math.round(c.unitCount * ratio);
+        const amount   = Math.round(capUnits * c.rate);
+        return {
+          id:        c.id,
+          name:      c.label,
+          unitCount: capUnits,
+          unitLabel: c.unitLabel,
+          rate:      c.rate,
+          amount,
+        };
+      });
+    const subtotal = capabilities.reduce((s, c) => s + c.amount, 0);
+    sections.push({ id: m.id, name: m.name, capabilities, subtotal });
+    total += subtotal;
+  }
+  return { sections, total };
 }
 
 // Re-export icon for the page module — saves the page importing both

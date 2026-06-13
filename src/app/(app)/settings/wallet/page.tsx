@@ -32,15 +32,40 @@ import {
   billingMonthFor,
   CURRENCIES,
   formatMoney,
+  invoiceLineItemsFor,
 } from "@/lib/credits-data";
 import type { Currency, BillingMonth } from "@/lib/credits-data";
 import { useCurrencyStore } from "@/lib/currency-store";
-import { useBillingModeStore, type BillingMode, type WalletBalanceState, isBalanceBlocking } from "@/lib/billing-mode-store";
+import {
+  useBillingModeStore,
+  isBalanceBlocking,
+  type BillingMode,
+  type WalletBalanceState,
+} from "@/lib/billing-mode-store";
+import { useProducts } from "@/lib/products";
 import { LowBalanceModal } from "@/components/wallet/low-balance-modal";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { TopUpEstimatorModal } from "@/components/wallet/top-up-estimator-modal";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
-import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, Timer, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
+
+// Demo: this workspace's billing cycle starts on the 13th of each
+// month — i.e. 13 May → 13 Jun, 13 Jun → 13 Jul, and so on. In a
+// real product this would be per-customer config sourced from the
+// backend; pinning it here keeps the demo concrete and the billing
+// surface honest about cycles that don't align to the calendar.
+const CYCLE_START_DAY = 13;
+
+// "{label} cycle" reads as "Apr 2026 cycle" when the label is a
+// calendar month, and as "This cycle cycle" when the label already
+// carries the word — the latter is doubled. Only append the suffix
+// when the label doesn't already end with "cycle" or "month".
+function appendCycleSuffix(label?: string): string {
+  if (!label) return "";
+  const lower = label.toLowerCase();
+  if (lower.endsWith("cycle") || lower.endsWith("month")) return label;
+  return `${label} cycle`;
+}
 
 // The shared DateRangeSelector emits a preset string ("7", "30",
 // "thismonth", "lifetime", etc.). Our daily series is keyed by N-day
@@ -64,6 +89,15 @@ function presetToDays(preset: string): number {
   }
 }
 
+// Whether a preset describes a closed past window (yesterday / last
+// week / last month) vs an in-progress rolling window (today, this
+// week, this month, last 7/14/30 days, lifetime). Drives whether
+// "Remaining" is meaningful: a closed cycle has no live runway, so
+// the Usage hero hides Remaining there and just shows what was used.
+function isPastPreset(preset: string): boolean {
+  return preset === "yesterday" || preset === "lastweek" || preset === "lastmonth";
+}
+
 // Indian comma-grouping number format — used everywhere a raw
 // ₹ amount needs the en-IN grouping ("1,00,000" not "100,000").
 function formatNum(n: number): string {
@@ -72,29 +106,132 @@ function formatNum(n: number): string {
 
 // ── Invoice PDF builder ─────────────────────────────────────────────────────
 //
-// Generates a real, valid PDF as a Blob from a list of text lines. No external
-// dep — the PDF spec is text-based and a minimal one-page document fits in
-// ~50 lines of hand-crafted PDF source. Used by the "Download invoice" button
-// on past-month postpaid billing rows. For the prototype this is enough; a
-// production version would render through a server-side renderer or a
-// proper PDF library with styling, tables, GSTIN, etc.
-function buildInvoicePdf(title: string, lines: string[]): Blob {
-  // Build the page content stream. Each line is placed at descending Y so
-  // text flows top-to-bottom. PDF coordinate origin is bottom-left.
-  const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-  const TOP_Y = 780;
-  const LINE_H = 18;
-  const TITLE_LINE = `BT /F2 16 Tf 50 ${TOP_Y} Td (${escapeText(title)}) Tj ET`;
-  const bodyLines = lines.map((line, i) =>
-    `BT /F1 11 Tf 50 ${TOP_Y - 30 - i * LINE_H} Td (${escapeText(line)}) Tj ET`
-  );
-  const stream = [TITLE_LINE, ...bodyLines].join("\n");
+// Generates a real, valid PDF as a Blob from a list of structured rows. No
+// external dep — the PDF spec is text-based and a one-page invoice fits in a
+// hand-crafted stream. Used by the "Download PDF" button on the Billing
+// hero. For the prototype this is enough; a production version would render
+// through a server-side renderer with proper typography, GSTIN, etc.
+//
+// The row model supports a real invoice layout (title + section headings +
+// two-column line items + horizontal rules + spacers) rather than just a
+// flat list of pre-padded strings. Right-aligned amounts are positioned by
+// approximating Helvetica character widths — close enough that columns
+// visually line up to within a pixel or two, which is what people read
+// invoices for.
 
-  // Build the PDF objects. xref offsets are tracked as we append.
+// Approximate width of a string in points at 11pt Helvetica. PDF doesn't
+// give us font metrics for free, so we eyeball it: digits / lowercase ≈
+// 6.1pt, uppercase ≈ 7.3pt, punctuation/spaces ≈ 3pt. Used only to
+// right-align the amount column on each line — being off by a couple of
+// points is invisible to readers.
+function approxWidth11(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    if (ch === " ") w += 3.1;
+    else if (ch === "." || ch === ",") w += 3.0;
+    else if (ch >= "A" && ch <= "Z") w += 7.3;
+    else if (ch >= "0" && ch <= "9") w += 6.1;
+    else w += 6.0;
+  }
+  return w;
+}
+
+// Strip non-ASCII glyphs that the Helvetica core font can't render — we
+// keep the on-screen UI using ₹, but PDF text in standard Helvetica
+// encoding silently drops codepoints outside Latin-1. Substituting ₹ →
+// "Rs " up front is more honest than letting the symbol disappear.
+function asciifyForPdf(s: string): string {
+  return s.replace(/₹\s*/g, "Rs ");
+}
+
+type InvoiceRow =
+  | { type: "title";   text: string }
+  | { type: "section"; text: string }
+  | { type: "text";    text: string; muted?: boolean }
+  | { type: "kv";      left: string; right: string; bold?: boolean; indent?: number }
+  | { type: "rule" }
+  | { type: "spacer";  h?: number };
+
+function buildInvoicePdf(rows: InvoiceRow[]): Blob {
+  // PDF page is 595×842 (A4). Origin is bottom-left. We lay rows out
+  // top-down from `cursorY`, advancing by each row's natural height.
+  const PAGE_W      = 595;
+  const PAGE_H      = 842;
+  const MARGIN_L    = 50;
+  const MARGIN_R    = 50;
+  const RIGHT_X     = PAGE_W - MARGIN_R;
+  const LINE_H      = 16;
+  const TITLE_H     = 30;
+  const SECTION_H   = 22;
+  const RULE_GAP    = 8;
+
+  // Escape parens and backslashes; replace currency glyph (see asciifyForPdf
+  // note above). The result is safe to wrap in `( )` inside a PDF literal.
+  const escape = (s: string) =>
+    asciifyForPdf(s)
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
+
+  const ops: string[] = [];
+  let cursorY = PAGE_H - 60;
+
+  // Emit a single text run at (x, y) in (size, font). Font code is "F1"
+  // (Helvetica), "F2" (Helvetica-Bold), or "F3" (Helvetica-Oblique for
+  // the muted footer).
+  const drawText = (x: number, y: number, size: number, font: string, text: string) => {
+    ops.push(`BT /${font} ${size} Tf ${x} ${y} Td (${escape(text)}) Tj ET`);
+  };
+
+  for (const row of rows) {
+    if (row.type === "title") {
+      drawText(MARGIN_L, cursorY, 20, "F2", row.text);
+      cursorY -= TITLE_H;
+      continue;
+    }
+    if (row.type === "section") {
+      cursorY -= 4;
+      drawText(MARGIN_L, cursorY, 11, "F2", row.text.toUpperCase());
+      cursorY -= SECTION_H;
+      continue;
+    }
+    if (row.type === "text") {
+      drawText(MARGIN_L, cursorY, row.muted ? 9 : 11, row.muted ? "F3" : "F1", row.text);
+      cursorY -= LINE_H;
+      continue;
+    }
+    if (row.type === "kv") {
+      const indent = (row.indent ?? 0) * 14;
+      const leftX  = MARGIN_L + indent;
+      const font   = row.bold ? "F2" : "F1";
+      drawText(leftX, cursorY, 11, font, row.left);
+      if (row.right) {
+        const w = approxWidth11(asciifyForPdf(row.right));
+        // Bold runs ~6% wider than regular Helvetica; nudge a touch so
+        // bold totals still right-align cleanly with the rule above.
+        const rightX = RIGHT_X - w * (row.bold ? 1.06 : 1.0);
+        drawText(rightX, cursorY, 11, font, row.right);
+      }
+      cursorY -= LINE_H;
+      continue;
+    }
+    if (row.type === "rule") {
+      cursorY -= RULE_GAP / 2;
+      ops.push(`0.85 0.85 0.85 RG 0.6 w ${MARGIN_L} ${cursorY} m ${RIGHT_X} ${cursorY} l S`);
+      cursorY -= RULE_GAP;
+      continue;
+    }
+    if (row.type === "spacer") {
+      cursorY -= row.h ?? 8;
+      continue;
+    }
+  }
+
+  const stream = ops.join("\n");
+
   const objects: string[] = [];
   let pdf = "%PDF-1.4\n%âãÏÓ\n";
   const xref: number[] = [];
-
   const addObj = (body: string) => {
     xref.push(pdf.length);
     const idx = objects.length + 1;
@@ -102,18 +239,18 @@ function buildInvoicePdf(title: string, lines: string[]): Blob {
     objects.push(body);
   };
 
-  // 1: Catalog → 2: Pages → 3: Page → 4: Helvetica → 5: Bold → 6: Content stream.
+  // 1: Catalog → 2: Pages → 3: Page → 4: Helvetica → 5: Bold → 6: Oblique → 7: Stream.
   addObj("<</Type /Catalog /Pages 2 0 R>>");
   addObj("<</Type /Pages /Kids [3 0 R] /Count 1>>");
   addObj(
-    "<</Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
-    "/Resources <</Font <</F1 4 0 R /F2 5 0 R>>>> /Contents 6 0 R>>"
+    `<</Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
+    "/Resources <</Font <</F1 4 0 R /F2 5 0 R /F3 6 0 R>>>> /Contents 7 0 R>>"
   );
   addObj("<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>");
   addObj("<</Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold>>");
+  addObj("<</Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique>>");
   addObj(`<</Length ${stream.length}>>\nstream\n${stream}\nendstream`);
 
-  // xref table + trailer.
   const xrefStart = pdf.length;
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   for (const off of xref) {
@@ -122,6 +259,199 @@ function buildInvoicePdf(title: string, lines: string[]): Blob {
   pdf += `trailer\n<</Size ${objects.length + 1} /Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`;
 
   return new Blob([pdf], { type: "application/pdf" });
+}
+
+// PDF amounts: same en-IN comma grouping as the on-screen `formatAmount`,
+// but anchored to "Rs " so the rendered glyph is reliable. (₹ is outside
+// Helvetica's standard encoding and gets dropped silently by some PDF
+// readers — see asciifyForPdf above.)
+function pdfAmount(value: number): string {
+  return `Rs ${Math.round(value).toLocaleString("en-IN")}`;
+}
+
+// ── Invoice content ─────────────────────────────────────────────────────────
+//
+// Assemble an invoice PDF for one (BillingMonth × BillingMode × planType)
+// combination. The document shape shifts so the file matches what the user
+// sees on screen for that month:
+//
+//   Postpaid, past month       → Tax invoice — usage line items only,
+//                                 status Settled.
+//   Postpaid, current month    → Estimated bill — same line items as
+//                                 above but flagged In progress, dated
+//                                 to-date.
+//   Prepaid subscription       → Tax invoice — fixed monthly plan
+//                                 baseline as a line item, then usage
+//                                 line items (drawn from the plan).
+//                                 Adds an "amount billed this cycle"
+//                                 reconciliation block at the bottom.
+//   Prepaid pure               → Account statement — usage line items
+//                                 only (no fixed cost; the wallet is
+//                                 funded by ad-hoc top-ups).
+//
+// Every per-capability number comes from `invoiceLineItemsFor(month)`,
+// which is the same windowing that drives the Modules table on screen
+// — so the PDF can't drift from what the user just read.
+
+function buildInvoiceForMonth(opts: {
+  month:    BillingMonth;
+  mode:     BillingMode;
+  planType: "subscription" | "pure";
+  isPast:   boolean;
+  /** Monthly subscription baseline — only used when planType is
+   *  "subscription". Passed in (not derived) so this function stays
+   *  pure and the page can swap the value when the demo plan changes. */
+  planBaseline: number;
+  /** Carry-forward policy on the subscription plan. When "disabled" the
+   *  Plan reconciliation block reports the unused tail as forfeited
+   *  rather than carried into the next cycle. Defaults to "enabled" for
+   *  back-compat with any caller that hasn't started passing it yet. */
+  carryForward?: "enabled" | "disabled";
+  /** Modules the customer actually has (per the module-mix demo).
+   *  Filters out line items for products the customer never bought
+   *  — a voice-only org's invoice shouldn't list extraction or
+   *  enrichment. Omit to include all modules (default).  */
+  enabledModuleIds?: readonly string[];
+}): { blob: Blob; filename: string } {
+  const { month, mode, planType, isPast, planBaseline, enabledModuleIds } = opts;
+  const carryForward = opts.carryForward ?? "enabled";
+  const { sections, total: usageTotal } = invoiceLineItemsFor(month, enabledModuleIds);
+
+  // Figure out the [start, end] for the month, plus a readable cycle
+  // label and a sensible invoice number.
+  const [yearStr, mStr] = month.id.split("-");
+  const year   = parseInt(yearStr, 10);
+  const mIdx   = parseInt(mStr, 10) - 1;
+  const start  = new Date(year, mIdx, 1);
+  const end    = new Date(year, mIdx + 1, 0);
+  const today  = new Date(); today.setHours(0, 0, 0, 0);
+  const fmt    = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  const fmtShort = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const cycleLabel = `${fmtShort(start)} – ${fmtShort(end)}`;
+  const invoiceId  = `INV-${year}-${String(mIdx + 1).padStart(2, "0")}`;
+
+  // Document kind — drives the title at the top of the PDF and the
+  // filename suffix. Subscription always reads as a tax invoice (there's
+  // a fixed bill), even in the current month, because the plan baseline
+  // is charged on cycle start regardless of usage. Postpaid current
+  // month is an "Estimated bill". Pure prepaid is a Statement (no
+  // periodic bill — it's just a record of drawdown).
+  const isSubscription = mode === "prepaid" && planType === "subscription";
+  const docKind =
+      isSubscription                       ? "Tax invoice"
+    : mode === "postpaid" && isPast        ? "Tax invoice"
+    : mode === "postpaid"                  ? "Estimated bill"
+    :                                        "Account statement";
+
+  // What the bottom-line "amount" means depends on the mode. For
+  // subscription, the customer is billed the plan baseline regardless of
+  // usage (and unused balance carries forward). For everyone else, the
+  // bill is exactly the usage total.
+  const billed = isSubscription ? planBaseline : usageTotal;
+
+  const statusLine = (() => {
+    if (mode === "postpaid" && isPast) return "Settled";
+    if (mode === "postpaid")           return "In progress · closes end of cycle";
+    if (isSubscription && isPast)      return "Settled · within plan";
+    if (isSubscription)                return "Active · in current cycle";
+    return isPast ? "Closed" : "Active";
+  })();
+
+  const issuedOn = isPast
+    ? fmt(end)
+    : isSubscription
+      ? fmt(start)        // subscription invoices are cut on cycle start
+      : fmt(today);       // statement is dated as of today
+
+  // ── Compose rows ────────────────────────────────────────────────────
+  const rows: InvoiceRow[] = [];
+  rows.push({ type: "title", text: docKind });
+  rows.push({ type: "spacer", h: 4 });
+
+  // Header — workspace + cycle + identifiers
+  rows.push({ type: "kv", left: "Workspace",      right: "Godrej South · Bangalore" });
+  rows.push({ type: "kv", left: "Billing mode",   right: mode === "postpaid" ? "Postpaid" : `Prepaid · ${planType === "subscription" ? "Subscription" : "Top-up"}` });
+  rows.push({ type: "kv", left: "Billing cycle",  right: cycleLabel });
+  rows.push({ type: "kv", left: "Invoice no.",    right: invoiceId });
+  rows.push({ type: "kv", left: "Issued",         right: issuedOn });
+  rows.push({ type: "kv", left: "Status",         right: statusLine });
+  rows.push({ type: "spacer", h: 10 });
+
+  // Fixed charges section — subscription only. This is the "fixed cost
+  // line item" the user explicitly called out: when the org pays a
+  // monthly plan, the invoice has to show that baseline as its own line,
+  // not bury it inside the usage rollup.
+  if (isSubscription) {
+    rows.push({ type: "section", text: "Fixed charges" });
+    rows.push({ type: "kv", left: "Monthly plan baseline", right: pdfAmount(planBaseline) });
+    rows.push({ type: "text", text: "  Includes balance to draw against during this cycle.", muted: true });
+    rows.push({ type: "spacer", h: 6 });
+  }
+
+  // Usage charges — per module, with each capability as a sub-line. The
+  // sub-line shows the math out loud ("43,317 mins x Rs 4 = Rs 1,73,269")
+  // so the customer can reconcile each line back to a unit count.
+  rows.push({ type: "section", text: "Usage charges" });
+
+  for (const sec of sections) {
+    rows.push({ type: "kv", left: sec.name, right: pdfAmount(sec.subtotal), bold: true });
+    for (const c of sec.capabilities) {
+      const unitWord = c.unitLabel + (c.unitCount === 1 ? "" : "s");
+      const left = `${c.name} — ${c.unitCount.toLocaleString("en-IN")} ${unitWord} x Rs ${c.rate}`;
+      rows.push({ type: "kv", left, right: pdfAmount(c.amount), indent: 1 });
+    }
+    rows.push({ type: "spacer", h: 4 });
+  }
+
+  rows.push({ type: "rule" });
+  rows.push({ type: "kv", left: "Usage total", right: pdfAmount(usageTotal), bold: true });
+
+  // Subscription reconciliation — plan covers up to X, you used Y, the
+  // difference carries forward (or, if overage, is added to next bill).
+  // This block is what makes the subscription invoice tie out: the
+  // amount billed = plan baseline, with the carry-forward shown as the
+  // bridge. Without it the reader would see "Usage Rs 2L" + "Billed
+  // Rs 5L" and wonder where the gap went.
+  if (isSubscription) {
+    rows.push({ type: "spacer", h: 6 });
+    rows.push({ type: "section", text: "Plan reconciliation" });
+    rows.push({ type: "kv", left: "Rollover policy",     right: carryForward === "enabled" ? "Carry-forward enabled" : "No rollover · use it or lose it" });
+    rows.push({ type: "kv", left: "Plan covers up to",   right: pdfAmount(planBaseline) });
+    rows.push({ type: "kv", left: "Usage in this cycle", right: pdfAmount(usageTotal) });
+    if (usageTotal <= planBaseline) {
+      const tail = planBaseline - usageTotal;
+      rows.push({ type: "kv", left: "Within plan", right: "Yes" });
+      if (carryForward === "enabled") {
+        rows.push({ type: "kv", left: "Carries forward to next cycle", right: pdfAmount(tail) });
+      } else {
+        // Forfeit case — surface the amount so finance can see what they
+        // left on the table. Keeps the invoice honest about the cost of
+        // the no-rollover policy.
+        rows.push({ type: "kv", left: "Forfeited at cycle end", right: pdfAmount(tail) });
+      }
+    } else {
+      const over = usageTotal - planBaseline;
+      rows.push({ type: "kv", left: "Over plan (extra charge)", right: pdfAmount(over) });
+    }
+    rows.push({ type: "spacer", h: 6 });
+    rows.push({ type: "rule" });
+    rows.push({ type: "kv", left: "Amount billed this cycle", right: pdfAmount(billed), bold: true });
+  } else {
+    // Non-subscription closing block — billed equals usage by definition.
+    rows.push({ type: "spacer", h: 2 });
+    rows.push({ type: "kv", left: mode === "postpaid"
+        ? (isPast ? "Amount due"                : "Estimated amount due")
+        : (isPast ? "Total drawn this cycle"    : "Drawn to date this cycle"),
+      right: pdfAmount(billed), bold: true });
+  }
+
+  rows.push({ type: "spacer", h: 14 });
+  rows.push({ type: "text", text: "Generated by Revspot. Numbers reflect Modules table for the same cycle. Queries: billing@revspot.ai", muted: true });
+
+  return {
+    blob:     buildInvoicePdf(rows),
+    filename: `${invoiceId}-${mode}${isSubscription ? "-subscription" : ""}.pdf`,
+  };
 }
 
 // Trigger a browser download of a Blob with the given filename.
@@ -216,6 +546,17 @@ function BillingMonthSelector({
               <>
                 {options.map((opt) => {
                   const isActive = opt.id === value.id;
+                  // "This cycle" / "Last cycle" carry a named label;
+                  // the actual range goes in brackets next to it. For
+                  // older entries the label IS the range (e.g.
+                  // "13 Mar – 13 Apr 2026"), so showing range as a
+                  // separate right-aligned column is a duplicate.
+                  // Render single-column for those.
+                  const isNamedCycle =
+                    opt.label === "This cycle" ||
+                    opt.label === "Last cycle" ||
+                    opt.label === "This month" ||
+                    opt.label === "Last month";
                   return (
                     <button
                       key={opt.id}
@@ -224,12 +565,14 @@ function BillingMonthSelector({
                         onChange(opt);
                         close();
                       }}
-                      className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
                         isActive ? "bg-surface-secondary" : ""
                       }`}
                     >
                       <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
-                      <span className="text-[11px] text-text-tertiary tabular-nums">{opt.range}</span>
+                      {isNamedCycle && (
+                        <span className="text-[11px] text-text-tertiary tabular-nums">({opt.range})</span>
+                      )}
                     </button>
                   );
                 })}
@@ -302,7 +645,7 @@ function BillingMonthSelector({
                         type="button"
                         disabled={isFuture}
                         onClick={() => {
-                          onChange(billingMonthFor(pickerYear, idx));
+                          onChange(billingMonthFor(pickerYear, idx, CYCLE_START_DAY));
                           close();
                         }}
                         className={`h-8 rounded-[6px] text-[12px] font-medium transition-colors duration-100 ${
@@ -400,7 +743,10 @@ function formatAmount(credits: number, currency: Currency): string {
   const { symbol, perCredit, position } = CURRENCIES[currency];
   const amount = credits * perCredit;
   let display: string;
-  if (amount < 1)        display = amount.toFixed(3);
+  // Exact zero gets the bare symbol — "₹0.000" was reading as a
+  // formatting glitch on past-invoice rows that had no spend.
+  if (amount === 0)      display = "0";
+  else if (amount < 1)   display = amount.toFixed(3);
   else if (amount < 100) display = amount.toFixed(2);
   else                   display = Math.round(amount).toLocaleString("en-IN");
   return position === "prefix" ? `${symbol}${display}` : `${display}${symbol}`;
@@ -567,7 +913,7 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   const v: "utilization" | "billing" = view === "billing" ? "billing" : "utilization";
   // Single credit pool — drives the hero's big remaining number.
   const pool   = useMemo(() => poolSummary(), []);
-  const period = useMemo(() => periodProgress(), []);
+  const period = useMemo(() => periodProgress(CYCLE_START_DAY), []);
 
   // Page-level date range. Drives the chart and the "utilized in
   // range" stat in the hero. The pool's remaining / total figures are
@@ -575,14 +921,24 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   // billing cycle, not whatever window you're looking at. Stored as
   // a day count so the existing data helpers don't care which
   // DateRangeSelector preset triggered the change.
-  const [range, setRange] = useState<number>(30);
+  // Defaults to "thismonth" (mirrors how Billing defaults to the
+  // current calendar cycle) — Usage and Billing live next to each
+  // other in Settings and the user expects them to anchor to the
+  // same window unless they pick otherwise. presetToDays collapses
+  // the preset to a day count for downstream helpers.
+  const [range, setRange] = useState<number>(presetToDays("thismonth"));
+  // Track the raw preset string in parallel so any caption that
+  // reads "used …" can echo the actual filter the user picked
+  // ("today" / "this month" / "last month") instead of always
+  // collapsing to "last N days". Plumbed down to WalletUsageChart.
+  const [rangePreset, setRangePreset] = useState<string>("thismonth");
 
   // Billing month — Billing is anchored to monthly invoice cycles, so the
   // header on the Billing view exposes a Months dropdown (not the dynamic
   // DateRangeSelector). Default = current month ("This month"). We keep
   // both selectors' state independent so the user can toggle Utilization ↔
   // Billing without one resetting the other.
-  const billingMonths      = useMemo(() => billingMonthOptions(6), []);
+  const billingMonths      = useMemo(() => billingMonthOptions(6, CYCLE_START_DAY), []);
   const [billingMonth, setBillingMonth] = useState<BillingMonth>(billingMonths[0]);
 
   // Effective window. Utilization always uses `range` from the DateRangeSelector
@@ -592,12 +948,6 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   const isBilling       = v === "billing";
   const effectiveDays   = isBilling ? billingMonth.days          : range;
   const effectiveOffset = isBilling ? billingMonth.offsetFromEnd : 0;
-
-  // Range-windowed total — recomputed when either selector changes.
-  const rangeUtilized = useMemo(
-    () => utilizedInRange(effectiveDays, effectiveOffset),
-    [effectiveDays, effectiveOffset],
-  );
 
   // Hydrate the currency store once on mount so the user's last
   // chosen currency (INR or USD) sticks across reloads.
@@ -611,10 +961,43 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   // Usage block above. We also pull the balance state — only prepaid
   // uses it, but it drives the empty/expired hero takeover and the
   // low-balance modal that blocks any new product action.
-  const billingMode    = useBillingModeStore((s) => s.mode);
-  const balanceState   = useBillingModeStore((s) => s.balance);
-  const hydrateMode    = useBillingModeStore((s) => s.hydrate);
+  const billingMode      = useBillingModeStore((s) => s.mode);
+  const balanceState     = useBillingModeStore((s) => s.balance);
+  // Page-level reads — Activity & invoices below needs these to know
+  // what kind of document to build for each row's download (Tax invoice
+  // for subscription, Account statement for pure top-up, etc.), and
+  // whether to surface a "rolls forward" or "forfeit" reconciliation.
+  const prepaidPlanType  = useBillingModeStore((s) => s.prepaidPlanType);
+  const carryForward     = useBillingModeStore((s) => s.carryForward);
+  // Enabled modules — drives which rows / chart series / line items /
+  // table rows surface across Usage and Billing. Sourced from the
+  // workspace's product entitlement (the sidebar's preview-mode
+  // presets) so the demo doesn't need a separate ModuleMix toggle:
+  // flipping to "Voice AI only" in the sidebar collapses every
+  // wallet/billing surface to AI Calling in one place. Mapping
+  // ProductKey → wallet moduleId is fixed here because the wallet
+  // doesn't expose a "campaigns" module — campaigns spend rolls into
+  // AI Calling, which is the meter that actually fires when an
+  // outreach dials. So "campaigns without ai_calling" is impossible
+  // by design; any preset that owns campaigns also owns ai_calling.
+  const { products } = useProducts();
+  const enabledModuleIds = useMemo<readonly string[]>(() => {
+    const ids: string[] = [];
+    if (products.includes("enrichment"))         ids.push("enrichment");
+    if (products.includes("contact_extraction")) ids.push("contact-extraction");
+    if (products.includes("ai_calling"))         ids.push("ai-calling");
+    return ids;
+  }, [products]);
+  const hydrateMode      = useBillingModeStore((s) => s.hydrate);
   useEffect(() => { hydrateMode(); }, [hydrateMode]);
+
+  // Range-windowed total — recomputed when either selector or the
+  // module mix changes (a "voice-only" customer's hero stops summing
+  // extraction/enrichment they don't have).
+  const rangeUtilized = useMemo(
+    () => utilizedInRange(effectiveDays, effectiveOffset, enabledModuleIds),
+    [effectiveDays, effectiveOffset, enabledModuleIds],
+  );
 
   // Low-balance / expired modal — shown when a prepaid org tries to
   // run any new action while its wallet is blocking. The modal also
@@ -701,8 +1084,11 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           ) : (
             <DateRangeSelector
               compact
-              defaultPreset="30"
-              onChange={(preset) => setRange(presetToDays(preset))}
+              defaultPreset="thismonth"
+              onChange={(preset) => {
+                setRange(presetToDays(preset));
+                setRangePreset(preset);
+              }}
             />
           )}
           {/* Add money is a billing/wallet action — only relevant on
@@ -741,8 +1127,15 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
                 Demo controls
                 <ChevronDown size={11} strokeWidth={2} className="transition-transform duration-150 group-open:rotate-180" />
               </summary>
+              {/* ModuleMix toggle dropped: the workspace's product mix
+                  is now driven by the sidebar's "Product preview"
+                  presets, so a duplicate switcher here would let the
+                  two diverge. Pick the mix from the sidebar and every
+                  surface — wallet, modules table, billing line items —
+                  follows. */}
               <div className="mt-3 flex items-center gap-6 flex-wrap">
                 <PrepaidPlanTypeSwitch />
+                <CarryForwardSwitch />
                 <BalanceStateDemoSwitch />
               </div>
             </details>
@@ -758,7 +1151,21 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           gets billed for it doesn't change what was consumed).
       */}
       {v === "utilization" && (
-        <UtilizationByProductTable rangeDays={range} />
+        <div className="space-y-4">
+          {/* Top widget — total used across all enabled products in
+              the active DateRangeSelector window. Pure usage story:
+              just the amount, no Remaining / balance comparison.
+              Past closed presets (yesterday / last week / last
+              month) read as "USED LAST MONTH" etc.; rolling presets
+              collapse to "USED TILL NOW" so the cycle's running
+              total reads at a glance. */}
+          <UsageHero
+            rangeUtilized={rangeUtilized}
+            isPast={isPastPreset(rangePreset)}
+            productCount={enabledModuleIds.length}
+          />
+          <UtilizationByProductTable rangeDays={range} enabledModuleIds={enabledModuleIds} />
+        </div>
       )}
 
       {/* ── Billing route ──────────────────────────────────────────────
@@ -775,6 +1182,22 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           The Products spend table + invoices below the hero are
           shared across both modes.
       */}
+      {/* ── Billing model strip ─────────────────────────────────────
+          A compact one-line summary of how this workspace is billed
+          (model · plan · cycle dates · carry-forward). Sits at the
+          very top of the page so the user can read the "context"
+          before getting into the hero numbers below. Render only on
+          the Billing view — the Usage view doesn't need it. */}
+      {v === "billing" && (
+        <BillingModelStrip
+          billingMode={billingMode}
+          planType={prepaidPlanType}
+          carryForward={carryForward}
+          planBaseline={pool.totalCredits}
+          cycleStart={period.start}
+          cycleEnd={period.end}
+        />
+      )}
       {v === "billing" && billingMode === "prepaid" && isBalanceBlocking(billingMode, balanceState) && (
         <PrepaidEmptyHero
           balance={balanceState}
@@ -785,37 +1208,35 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
         <PrepaidBalanceHero
           rangeUtilized={rangeUtilized}
           range={effectiveDays}
+          rangeOffset={effectiveOffset}
           rangeLabel={billingMonth.label}
           pool={pool}
           period={period}
           periodLabel={periodLabel}
+          billingMonth={billingMonth}
+          billingMode={billingMode}
+          enabledModuleIds={enabledModuleIds}
         />
       )}
       {v === "billing" && billingMode === "postpaid" && (
         <BillingSpendHero
           rangeUtilized={rangeUtilized}
           range={effectiveDays}
+          rangeOffset={effectiveOffset}
           rangeLabel={billingMonth.label}
           billingMode={billingMode}
           period={period}
           periodLabel={periodLabel}
           billingMonth={billingMonth}
+          enabledModuleIds={enabledModuleIds}
         />
       )}
 
-      {/* Products spend table — universal flat tree, same chrome in
-          both modes; only the second column heading shifts ("% of
-          plan" in prepaid, "vs cap" in postpaid). Currency pinned
-          to INR. */}
-      {v === "billing" && (
-        <ModulesTable
-          rangeDays={effectiveDays}
-          rangeOffset={effectiveOffset}
-          totalPool={pool.totalCredits}
-          currency="INR"
-          billingMode={billingMode}
-        />
-      )}
+      {/* Per-product breakdown — used to live here as a sibling card
+          below the hero, but now embedded directly inside the hero
+          itself (PrepaidBalanceHero / BillingSpendHero) so the user
+          reads the headline number and the drill-down as one block.
+          See HeroProductBreakdown. */}
 
       {/* ── Old wallet card grid — kept disabled in case we need to
           revert. Not rendered. */}
@@ -846,35 +1267,28 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
           and its own inline date filter. Lives only on the
           Utilization page because it visualises consumption rather
           than money. */}
-      {v === "utilization" && <WalletUsageChart />}
+      {v === "utilization" && (
+        <WalletUsageChart
+          range={range}
+          enabledModuleIds={enabledModuleIds}
+        />
+      )}
 
-      {/* ── Activity / invoices footer ────────────────────────────────
-          Lives only on the Billing route. The wallet route is the
-          recharge story; invoices belong on the spend side. */}
+      {/* ── Billing history ──────────────────────────────────────────
+          Lives only on the Billing route. Modelled on Shopify Partners'
+          billing page: a subscription summary card at the top (only
+          relevant for subscription plans), then a list of recent
+          settled bills as expandable rows that drop into a per-line
+          breakdown + Download. A month picker handles older bills so
+          the user isn't capped at the five-most-recent default. */}
       {v === "billing" && (
-        <div className="bg-white border border-border rounded-card p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Receipt size={13} strokeWidth={1.6} className="text-text-tertiary" />
-            <h3 className="text-[13px] font-semibold text-text-primary">Activity &amp; invoices</h3>
-          </div>
-          <p className="text-[12px] text-text-secondary mb-3">
-            Detailed ledger view with line-item history is on the way. For now, individual wallets show their own breakdown.
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="h-8 px-3 text-[12px] font-medium border border-border rounded-button bg-white text-text-secondary hover:bg-surface-page transition-colors"
-            >
-              Download invoices
-            </button>
-            <button
-              type="button"
-              className="h-8 px-3 text-[12px] font-medium border border-border rounded-button bg-white text-text-secondary hover:bg-surface-page transition-colors"
-            >
-              Export usage CSV
-            </button>
-          </div>
-        </div>
+        <BillingHistorySection
+          billingMode={billingMode}
+          planType={prepaidPlanType}
+          carryForward={carryForward}
+          planBaseline={pool.totalCredits}
+          enabledModuleIds={enabledModuleIds}
+        />
       )}
 
       {/* Top-up estimator — mounted at the page root so the overlay
@@ -1081,23 +1495,33 @@ function WalletUtilizationSection({ rangeDays }: { rangeDays: number }) {
 //  - Drops the "≈ ₹X" caption next to the credit total — money
 //    lives at the top of the page, repeating it here was noise.
 // ────────────────────────────────────────────────────────────────────
-function WalletUsageChart() {
-  // Independent date filter — the chart owns its own time window so
-  // the user can scope the trend without scrolling back to the page
-  // header. Defaults to the same 30-day preset as the page so the
-  // first view is consistent with the per-product widget above.
-  const [range, setRange] = useState<number>(30);
+function WalletUsageChart({
+  range,
+  enabledModuleIds,
+}: {
+  range: number;
+  enabledModuleIds: readonly string[];
+}) {
+  // Filter WALLETS down to the modules the customer actually has.
+  // Doing this at the top so every downstream variable (activeWallet,
+  // tabs, totals) is automatically scoped — no "this exists in data
+  // but not in mix" gotchas later in the function. The chart returns
+  // an empty-state card when no modules remain (e.g. a hypothetical
+  // mix with zero enabled).
+  const visibleWallets = useMemo(
+    () => WALLETS.filter((w) => enabledModuleIds.includes(w.id)),
+    [enabledModuleIds],
+  );
 
-  // Active product tab. Defaults to WALLETS[0] (Contact Extraction —
-  // the topmost product in the per-product utilization widget), per
-  // explicit user request that "the default will be the topmost
-  // product listed at the top in the first widget".
+  // Active product tab. Clamped to the visible set so flipping the
+  // module mix doesn't leave the chart stuck on a hidden tab.
   const [activeIdx, setActiveIdx] = useState<number>(0);
+  const safeActiveIdx = Math.min(activeIdx, Math.max(0, visibleWallets.length - 1));
 
   // Bucket the daily series for the chart's local range. Reuses the
   // page-level helper so the bucketing logic stays in one place.
   const days = useMemo(() => buildChartBuckets(range), [range]);
-  const activeWallet = WALLETS[activeIdx];
+  const activeWallet = visibleWallets[safeActiveIdx] ?? WALLETS[0];
 
   // Capabilities of the active product (filtering out plan-feature
   // rows like AI Calling's "Concurrency"). These drive the stacked
@@ -1112,7 +1536,13 @@ function WalletUsageChart() {
   // (from credits-data) across the active range. The bucket-to-bucket
   // shape stays identical to the rupee series; only the scale flips
   // from money to actions.
-  const totalRangeRupees = days.walletTotals[activeIdx] ?? 0;
+  // `walletTotals` / `b.perWallet` from `buildChartBuckets` are keyed
+  // by the FULL WALLETS array, not the filtered set we render. Look
+  // up the active wallet's index in the full array so the bucket
+  // numbers are the right product's. Without this the chart would
+  // silently pull another module's data when a partial mix is active.
+  const fullActiveIdx = WALLETS.findIndex((w) => w.id === activeWallet.id);
+  const totalRangeRupees = days.walletTotals[fullActiveIdx] ?? 0;
 
   // Each capability's unit count for the active date range. The
   // static seed counts are for the full period; we scale them down
@@ -1126,7 +1556,7 @@ function WalletUsageChart() {
   // range total across buckets weighted by the bucket's share of the
   // range's ₹ — so a bucket with double the spend gets double the
   // units of that capability.
-  const rupeeSeries = days.buckets.map((b) => b.perWallet[activeIdx] ?? 0);
+  const rupeeSeries = days.buckets.map((b) => b.perWallet[fullActiveIdx] ?? 0);
   const capSeries: number[][] = activeCaps.map((_, capIdx) =>
     rupeeSeries.map((v) =>
       totalRangeRupees > 0 ? (v / totalRangeRupees) * capRangeUnits[capIdx] : 0
@@ -1149,14 +1579,21 @@ function WalletUsageChart() {
 
   // Active product's display unit suffix. When all capabilities share
   // a unit (Enrichment: both "enrichment", AI Calling: just "min") we
-  // use that unit. When they differ (Contact Extraction: phones vs
-  // emails) the sum doesn't share a meaningful unit, so we fall back
-  // to "actions".
+  // use that unit + plural. When they differ (Contact Extraction:
+  // phones + emails) we fall back to the product's own action verb —
+  // "extractions" — instead of the generic "actions", so the caption
+  // reads as a product-native count rather than a category label.
+  const productFallbackLabel: Record<string, string> = {
+    "contact-extraction": "extraction",
+    "enrichment":         "enrichment",
+    "ai-calling":         "min",
+  };
   const productUnitLabel = (() => {
     if (activeCaps.length === 0) return "";
     const first = activeCaps[0].unitLabel;
     const allSame = activeCaps.every((c) => c.unitLabel === first);
-    return allSame ? `${first}${total === 1 ? "" : "s"}` : "actions";
+    const base = allSame ? first : (productFallbackLabel[activeWallet.id] ?? "action");
+    return `${base}${total === 1 ? "" : "s"}`;
   })();
 
   // Pad the raw max up to a round number so the Y-axis labels can be
@@ -1259,24 +1696,20 @@ function WalletUsageChart() {
 
   return (
     <div className="bg-white border border-border rounded-card p-5">
-      {/* Header — title + inline date filter. The DateRangeSelector
-          lives in the widget chrome so the user can scope the trend
-          right where they're reading it. */}
-      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-        <div className="min-w-0">
-          <h3 className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
-            <TrendingUp size={13} strokeWidth={1.6} className="text-text-tertiary" />
-            Usage over time
-          </h3>
-          <p className="text-[11.5px] text-text-secondary mt-0.5">
-            {unitWord} consumption in units for one product at a time. Switch products via the tabs below.
-          </p>
-        </div>
-        <DateRangeSelector
-          compact
-          defaultPreset="30"
-          onChange={(preset) => setRange(presetToDays(preset))}
-        />
+      {/* Header — title only. The local date filter has been removed
+          in favour of the page-level DateRangeSelector at the top of
+          /settings/utilization — two filters competing for "what
+          window am I looking at?" was confusing. */}
+      <div className="mb-3">
+        <h3 className="text-[13px] font-semibold text-text-primary flex items-center gap-1.5">
+          <TrendingUp size={13} strokeWidth={1.6} className="text-text-tertiary" />
+          Usage over time
+        </h3>
+        {/* Subtitle removed — the product tabs immediately below the
+            title already communicate "pick a product to see its
+            series", and the chart itself shows whether bars are
+            daily or hourly. The description was repeating both
+            without adding new information. */}
       </div>
 
       {/* Product tabs — three tabs (Contact Extraction · Enrichment ·
@@ -1289,8 +1722,8 @@ function WalletUsageChart() {
         role="tablist"
         aria-label="Product"
       >
-        {WALLETS.map((w, i) => {
-          const active = i === activeIdx;
+        {visibleWallets.map((w, i) => {
+          const active = i === safeActiveIdx;
           return (
             <button
               key={w.id}
@@ -1330,7 +1763,13 @@ function WalletUsageChart() {
           (AI Calling → Talk time only) the legend would be noise. */}
       <div className="mb-4">
         <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] tabular-nums">
-          {activeWallet.name} · used in last {range} days
+          {/* Neutral period phrasing — the actual window (dates,
+              named preset, custom range) is already named in the
+              page-level filter at the top. Echoing it here as
+              "used this month" or "used in last 7 days" tied the
+              caption to specific presets and broke for the rest
+              (custom ranges, "today and yesterday", lifetime). */}
+          {activeWallet.name} · used in this period
         </p>
         <p className="text-[24px] font-semibold text-text-primary leading-none mt-1 tabular-nums">
           {formatNum(Math.round(total))}
@@ -1690,7 +2129,7 @@ function PrepaidPlanTypeSwitch() {
   const setPlanType = useBillingModeStore((s) => s.setPrepaidPlanType);
   const opts: { id: typeof planType; label: string }[] = [
     { id: "subscription", label: "Subscription" },
-    { id: "pure",         label: "Pure prepaid" },
+    { id: "pure",         label: "Pay as you go" },
   ];
   return (
     <div className="inline-flex items-center gap-2">
@@ -1720,6 +2159,63 @@ function PrepaidPlanTypeSwitch() {
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────
+//  CarryForwardSwitch — demo control to flip the rollover policy on
+//  whichever prepaid plan is active. With carry-forward on, the tail
+//  of one cycle's balance survives into the next; with it off it's
+//  forfeited at cycle close. Used to be gated to Subscription only
+//  because Pure top-up was modelled as a non-resetting wallet —
+//  with the demo now supporting "Pure top-up with a monthly reset"
+//  too, the toggle is live regardless of plan type.
+// ────────────────────────────────────────────────────────────────────
+function CarryForwardSwitch() {
+  const carryForward    = useBillingModeStore((s) => s.carryForward);
+  const setCarryForward = useBillingModeStore((s) => s.setCarryForward);
+  // Carry-forward is no longer gated on plan type. A pure-prepaid
+  // top-up customer can also have a balance that doesn't expire
+  // (it just doesn't get a fixed monthly reset like Subscription
+  // does), and the team wants to demo both behaviours from the
+  // same control. The toggle is now always live.
+  const opts: { id: typeof carryForward; label: string }[] = [
+    { id: "enabled",  label: "On" },
+    { id: "disabled", label: "Off" },
+  ];
+  return (
+    <div className="inline-flex items-center gap-2">
+      <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.4px]">
+        Carry forward
+      </span>
+      <div className="inline-flex items-center bg-surface-secondary rounded-input p-0.5">
+        {opts.map((o) => {
+          const active = carryForward === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setCarryForward(o.id)}
+              aria-pressed={active}
+              className={`h-7 px-2.5 text-[11.5px] font-medium rounded-[6px] transition-colors ${
+                active
+                  ? "bg-white text-text-primary shadow-sm"
+                  : "text-text-tertiary hover:text-text-secondary"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// NOTE: ModuleMixSwitch removed — the workspace's product mix is now
+// owned by the sidebar's "Product preview" presets (useProducts).
+// Every consumer that used `moduleMix` for filtering now reads
+// `products` instead, so there's a single source of truth and the
+// demo can't get into a state where the sidebar says "Voice AI only"
+// but the wallet still shows enrichment rows.
 
 // ────────────────────────────────────────────────────────────────────
 //  PrepaidEmptyHero — takes the place of the normal balance card
@@ -1795,13 +2291,21 @@ function PrepaidEmptyHero({
 function PrepaidBalanceHero({
   rangeUtilized,
   range,
+  rangeOffset = 0,
   rangeLabel,
   pool,
   period,
   periodLabel,
+  billingMonth,
+  billingMode,
+  enabledModuleIds,
 }: {
   rangeUtilized: number;
   range: number;
+  /** Days back from today where the window *ends*. Threaded through
+   *  to the embedded product-breakdown drilldown so it scopes to the
+   *  same calendar slice the hero is summarising. 0 = ends today. */
+  rangeOffset?: number;
   /** Optional override for the "Used in …" column header. Set by the
    *  Billing-view's MonthSelector (e.g. "This month", "May 2026") so the
    *  card reads as a calendar month instead of "Used in last N days". */
@@ -1809,12 +2313,29 @@ function PrepaidBalanceHero({
   pool: { totalCredits: number; remaining: number };
   period: { daysLeft: number; end: Date };
   periodLabel: string;
+  /** Selected billing month — drives the invoice/statement download.
+   *  Optional because this hero also renders on the Utilization page
+   *  (which doesn't have a month picker yet). */
+  billingMonth?: BillingMonth;
+  /** Mode is fixed to "prepaid" anywhere this hero shows, but we accept
+   *  it as a prop so the download helper has it without us hard-coding
+   *  the value in two places. */
+  billingMode?: BillingMode;
+  /** Modules the customer actually has — threaded into the invoice
+   *  download so a voice-only customer's PDF doesn't list extraction
+   *  or enrichment line items. */
+  enabledModuleIds?: readonly string[];
 }) {
   // Prepaid plan type drives the layout. "subscription" shows the
   // breakdown of a fixed monthly fee + any in-cycle top-ups; "pure"
   // collapses to a simpler balance + used view since there's no plan
   // baseline to compare against.
-  const planType = useBillingModeStore((s) => s.prepaidPlanType);
+  const planType     = useBillingModeStore((s) => s.prepaidPlanType);
+  // Carry-forward policy. With "enabled" (default) last cycle's unused
+  // tail rolls into this cycle's balance; with "disabled" it's
+  // forfeited at cycle close. Only changes anything for Subscription
+  // orgs (Pure top-up never resets, so there's nothing to forfeit).
+  const carryForward = useBillingModeStore((s) => s.carryForward);
 
   // Demo numbers. In a real backend these would come from the billing
   // ledger; here we derive them from the static poolSummary so they
@@ -1829,168 +2350,248 @@ function PrepaidBalanceHero({
   const topupBalance = planType === "subscription"
     ? Math.round(pool.totalCredits * 0.2)
     : pool.totalCredits;
-  // Carried forward — unused balance from the previous cycle that rolls
-  // over to this cycle. Only meaningful for Subscription orgs (Pure
-  // prepaid never resets, so there's no "last cycle" to carry from —
-  // the wallet just runs continuously). Sized as ~7.5% of the plan for
-  // a credible "we underused a bit last month" number.
-  const carriedForward = planType === "subscription"
-    ? Math.round(pool.totalCredits * 0.075)
-    : 0;
+  // Carried forward — unused balance from the previous cycle. With
+  // carry-forward DISABLED that unused tail was forfeited at last
+  // cycle's close, so we start this cycle with zero from it. Gated
+  // ONLY on the carry-forward flag now — Pure top-up customers can
+  // also opt into a monthly reset with rollover, so the flag drives
+  // the math regardless of plan type. (Earlier this was gated to
+  // Subscription too, which made the toggle look broken in Pure
+  // mode — flipping it changed nothing.)
+  const carriedForward =
+    carryForward === "enabled" ? Math.round(pool.totalCredits * 0.075) : 0;
   const totalAvailable = planBaseline + topupBalance + carriedForward;
 
   // Used + remaining are computed off the combined available pool so
-  // the math ties out: used + remaining = totalAvailable.
-  const used         = rangeUtilized;
+  // the math ties out: used + remaining = totalAvailable. `used` is
+  // clamped at `totalAvailable` because a prepaid wallet physically
+  // can't spend more than its cap — once usage events hit the
+  // ceiling, new actions block. The displayed total reads as that
+  // ceiling, not a hypothetical over-spend.
+  const used         = Math.min(rangeUtilized, totalAvailable);
   const remaining    = Math.max(0, totalAvailable - used);
   const usedPct      = totalAvailable > 0
     ? Math.max(0, Math.min(100, (used / totalAvailable) * 100))
     : 0;
-  const barTone =
-      usedPct >= 90 ? "#DC2626"
-    : usedPct >= 75 ? "#D97706"
-    :                 "rgba(15, 23, 42, 0.85)";
+  // Bar stays a single neutral tone regardless of % used. We used to
+  // escalate to amber at 75% and red at 90% so the colour itself
+  // signalled "running low", but the demo has too many ranges +
+  // toggles + carry-forward combinations to keep that mapping honest
+  // — a 91% bar reading red while everything else is fine made the
+  // page feel alarmed when it wasn't. The number (91%) and the
+  // remaining/runway copy carry the urgency; the bar stays neutral.
+  const barTone = "rgba(15, 23, 42, 0.85)";
+
+  // Cycle metadata for the download — lets us decide whether to label
+  // the PDF as a settled statement (past cycle) or "to date" (current
+  // cycle). BillingMonth.offsetFromEnd is 0 for the active cycle and
+  // positive once the cycle has closed, so it's the direct signal —
+  // and it stays correct for non-calendar-aligned cycles (13-to-13,
+  // etc.) where the old "last day of month" check would mis-label.
+  const monthInfo = (() => {
+    if (!billingMonth) return null;
+    const [yearStr, mStr] = billingMonth.id.split("-");
+    const year   = parseInt(yearStr, 10);
+    const month  = parseInt(mStr, 10) - 1;
+    // Reconstruct the actual cycle end (cycleStartDay-1 of next month)
+    // so callers that need it for date formatting still have it.
+    const cycleEnd = new Date(year, month + 1, CYCLE_START_DAY);
+    cycleEnd.setDate(cycleEnd.getDate() - 1);
+    // Settlement falls a few days after the cycle ends — invoices are
+    // issued at cycle close, then paid within the org's settlement
+    // window. A deterministic 7-day offset matches a typical net-7
+    // term and reads as the actual "paid on" date.
+    const paidOn = new Date(cycleEnd);
+    paidOn.setDate(paidOn.getDate() + 7);
+    return {
+      year, month, end: cycleEnd, paidOn,
+      isPast: billingMonth.offsetFromEnd > 0,
+    };
+  })();
+
+  // Download a real PDF for whichever month the user picked. Subscription
+  // orgs get a tax invoice with the plan baseline as a fixed-cost line +
+  // usage line items; pure top-up orgs get an account statement (usage
+  // only). Works for any month — current, last, anything from the
+  // Custom picker — so the user can grab a copy whenever they need one.
+  const downloadInvoice = () => {
+    if (!billingMonth || !monthInfo || !billingMode) return;
+    const { blob, filename } = buildInvoiceForMonth({
+      month:        billingMonth,
+      mode:         billingMode,
+      planType,
+      isPast:       monthInfo.isPast,
+      planBaseline: pool.totalCredits,
+      carryForward,
+      enabledModuleIds,
+    });
+    downloadBlob(blob, filename);
+  };
+
+  // Button label is just "Invoice" now — the verb-noun "Download
+  // invoice" felt redundant when the action chrome (arrow icon,
+  // clickable button) already says "download". The PDF is still
+  // a statement under the hood for pure top-up cycles, but the
+  // user-facing label stays single-word for both modes.
 
   return (
     <div className="bg-white border border-border rounded-card p-5">
-      {/* Top row — cycle chip + days left + reset date */}
+      {/* Top row — days-left + (for past cycles) the closed badge +
+          per-month download. The left "Current cycle [dates]" label
+          used to live here too, but the page-level BillingModelStrip
+          above the hero now carries that meta, so showing it again
+          here was a duplicate. Past cycles still need to surface
+          their own label (the strip always shows the active cycle),
+          so the left side renders for those. */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Calendar size={13} strokeWidth={1.6} className="text-text-tertiary" />
-          <span className="text-[12px] font-medium text-text-secondary">Current cycle</span>
-          <span className="text-[12px] text-text-primary font-medium">{periodLabel}</span>
+        {monthInfo?.isPast ? (
+          <div className="flex items-center gap-2">
+            <Calendar size={13} strokeWidth={1.6} className="text-text-tertiary" />
+            <span className="text-[12px] font-medium text-text-secondary">
+              {appendCycleSuffix(billingMonth?.label)}
+            </span>
+            <span className="text-[12px] text-text-primary font-medium">{periodLabel}</span>
+          </div>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {!monthInfo?.isPast && (
+            <span className="text-[11px] font-medium text-text-tertiary">
+              <span className="text-text-secondary">{period.daysLeft}</span> days left · {planType === "subscription" ? "renews" : "resets"} {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
+            </span>
+          )}
+          {monthInfo?.isPast && (
+            <span className="text-[11px] font-medium text-text-secondary inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary" />
+              Closed cycle
+              {/* Paid-on lands after the cycle ends — the invoice is
+                  issued at close and settles within the org's payment
+                  window, so this date sits later than the period the
+                  PDF covers. */}
+              <span className="text-text-tertiary">
+                · Paid on {monthInfo.paidOn.toLocaleString("en-IN", { day: "numeric", month: "short" })}
+              </span>
+            </span>
+          )}
+          {/* Download only on closed cycles. The current cycle is still
+              accruing — a PDF generated mid-month would go stale within
+              hours, and the user can't pay from it anyway. Past months
+              are settled and worth keeping. */}
+          {billingMonth && billingMode && monthInfo?.isPast && (
+            <button
+              type="button"
+              onClick={downloadInvoice}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 text-[11.5px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150"
+            >
+              <ArrowDown size={11.5} strokeWidth={1.75} />
+              Invoice
+            </button>
+          )}
         </div>
-        <span className="text-[11px] font-medium text-text-tertiary">
-          <span className="text-text-secondary">{period.daysLeft}</span> days left · {planType === "subscription" ? "renews" : "resets"} {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}
-        </span>
       </div>
 
-      {/* Five-column breakdown for subscription, two-column for pure
-          prepaid. The whole row tells the budget story left-to-right:
-          how much money came in (plan + top-ups + carried forward),
-          how much went out (used), and what's left.
-          Carried forward = unused balance from the previous cycle that
-          rolled over — Subscription orgs accumulate it; the plan
-          baseline still resets each cycle, but the unused tail doesn't
-          get clawed back. */}
-      {planType === "subscription" ? (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-5 mb-4">
-          <div>
+      {/* Past month — render a stripped-down "this is what was
+          charged" card. The customer can't change a closed cycle, so
+          a Remaining number, a progress bar against a current
+          balance, and an inflow breakdown are all dead weight: the
+          only useful information is the bill itself plus how to
+          archive it (the Download button up top). For a subscription
+          customer the bill is the fixed monthly plan; for pure
+          top-up it's the sum of drawdowns. */}
+      {monthInfo?.isPast && (() => {
+        const isSubscription = planType === "subscription";
+        const billed = isSubscription ? planBaseline : used;
+        const monthLabel = billingMonth?.label ?? "this cycle";
+        const invoiceId = monthInfo
+          ? `INV-${monthInfo.year}-${String(monthInfo.month + 1).padStart(2, "0")}`
+          : "";
+        const settledOn = monthInfo
+          ? monthInfo.end.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+          : "";
+        return (
+          <div className="mb-4">
             <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Monthly plan
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
-              {formatAmount(planBaseline, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1.5">
-              charged on cycle start
-            </p>
-          </div>
-          <div>
-            <div className="inline-flex items-center gap-1 mb-1 group/cf relative">
-              <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]">
-                Carried forward
-              </p>
-              {/* Rollover policy tooltip — the "open question" the team
-                  raised: how do we explain that unused balance carries
-                  over? Plain-English hover that says exactly what
-                  rolls over (everything unused) and what doesn't
-                  (the plan baseline still resets each cycle). */}
-              <Info size={11} strokeWidth={1.75} className="text-text-tertiary/70 cursor-help" />
-              <div className="absolute left-0 top-full mt-1.5 w-[260px] bg-[#1a1a1a] text-white text-[11.5px] leading-relaxed px-3 py-2.5 rounded-card shadow-xl opacity-0 invisible group-hover/cf:opacity-100 group-hover/cf:visible transition-opacity duration-150 z-30 pointer-events-none">
-                <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide mb-1">
-                  Rollover policy
-                </div>
-                Unused balance from last cycle — including the unspent
-                portion of your plan and any top-ups you didn&apos;t use —
-                rolls over to this cycle. Your monthly plan amount still
-                resets fresh; only the tail carries over.
-                <div className="absolute -top-1.5 left-3 w-3 h-3 bg-[#1a1a1a] rotate-45" />
-              </div>
-            </div>
-            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
-              {carriedForward > 0 ? `+ ${formatAmount(carriedForward, "INR")}` : formatAmount(0, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1.5">
-              unused from last cycle
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Top-ups this cycle
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
-              {topupBalance > 0 ? `+ ${formatAmount(topupBalance, "INR")}` : formatAmount(0, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1.5">
-              added via recharge
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              {rangeLabel ? `Used in ${rangeLabel.toLowerCase()}` : `Used in last ${range} days`}
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
-              {formatAmount(used, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1.5 tabular-nums">
-              {usedPct.toFixed(1)}% of available
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Remaining
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary leading-none tabular-nums">
-              {formatAmount(remaining, "INR")}
-            </p>
-            <p className="text-[11px] text-text-tertiary mt-1.5">
-              available now
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5 items-end mb-4">
-          <div>
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              {rangeLabel ? `Used in ${rangeLabel.toLowerCase()}` : `Used in last ${range} days`}
+              {isSubscription ? "Charged in" : "Drawn in"} {monthLabel}
             </p>
             <p
               className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
-              {formatAmount(used, "INR")}
+              {formatAmount(billed, "INR")}
             </p>
-            <p className="text-[11.5px] text-text-tertiary mt-1.5 tabular-nums">
-              {usedPct.toFixed(1)}% of your {formatAmountShort(totalAvailable, "INR")} top-up balance
+            <p className="text-[11.5px] text-text-tertiary mt-1.5">
+              {isSubscription
+                ? <>Tax invoice <span className="font-mono tabular-nums">{invoiceId}</span> · settled {settledOn}.</>
+                : <>Statement <span className="font-mono tabular-nums">{invoiceId}</span> · drawn from your prepaid balance.</>}
             </p>
           </div>
-          <div className="text-left md:text-right">
-            <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
-              Remaining
-            </p>
-            <p className="text-[20px] font-semibold text-text-primary tabular-nums">
-              {formatAmount(remaining, "INR")}
-            </p>
+        );
+      })()}
+
+      {/* Current cycle — answer-first hero with Used as the headline
+          and Remaining on the right. Hidden on past months because
+          there's no live runway to surface. Same shape for both
+          plan types; only the subtitle copy and breakdown disclosure
+          below adjust. */}
+      {!monthInfo?.isPast && (
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5 items-end mb-4">
+        <div>
+          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+            {rangeLabel ? `Used in ${rangeLabel.toLowerCase()}` : `Used in last ${range} days`}
+          </p>
+          <p
+            className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {formatAmount(used, "INR")}
+          </p>
+          <p className="text-[11.5px] text-text-tertiary mt-1.5 tabular-nums">
+            {usedPct.toFixed(1)}% of your {formatAmountShort(totalAvailable, "INR")} {planType === "subscription" ? "available balance" : "top-up balance"}
+          </p>
+        </div>
+        <div className="text-left md:text-right">
+          <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+            Remaining
+          </p>
+          <p className="text-[20px] font-semibold text-text-primary tabular-nums">
+            {formatAmount(remaining, "INR")}
+          </p>
+          {/* The hint under Remaining only reads when there's
+              something honest to say: pure prepaid → "top up to
+              extend runway"; subscription + carry-forward on →
+              "rolls into next cycle if unused". When carry-forward
+              is OFF we deliberately render nothing rather than name
+              the policy ("forfeits at cycle end") — surfacing the
+              alternative would imply a toggle that isn't part of
+              this product surface. */}
+          {(planType !== "subscription" || carryForward === "enabled") && (
             <p className="text-[11px] text-text-tertiary mt-1">
-              top up to extend runway
+              {planType !== "subscription"
+                ? "top up to extend runway"
+                : "rolls into next cycle if unused"}
             </p>
-          </div>
+          )}
+        </div>
         </div>
       )}
 
-      {/* Single progress bar — fraction of available pool that's been
-          used. Colour escalates from grey → amber → red as the org
-          approaches the ceiling. */}
+      {/* Progress bar + math footer + breakdown — only relevant on
+          the current cycle. A past cycle has no "runway", and the
+          inflow breakdown ("plan + carry-forward + top-ups = balance")
+          describes a balance that's already been depleted by the time
+          you're looking at past data, so showing it on a past month
+          confuses more than it clarifies. */}
+      {!monthInfo?.isPast && (
       <div className="h-2.5 rounded-full bg-surface-secondary overflow-hidden">
         <div
           className="h-full transition-all"
           style={{ width: `${usedPct.toFixed(2)}%`, background: barTone }}
         />
       </div>
+      )}
 
-      {/* Math footer — used/total to make the ratio explicit. Helps
-          the user reconcile the columns above with the bar. */}
+      {!monthInfo?.isPast && (
       <div className="flex items-center justify-between mt-2 text-[10.5px] text-text-tertiary tabular-nums">
         <span>
           <span className="text-text-secondary font-medium">{formatAmount(used, "INR")}</span> used
@@ -2001,6 +2602,111 @@ function PrepaidBalanceHero({
           {usedPct.toFixed(0)}%
         </span>
       </div>
+      )}
+
+      {/* Inflow breakdown — Carried forward (live amount) + Top-ups
+          this cycle + Total available. The Monthly plan column used
+          to live here too, but the BillingModelStrip above the hero
+          already names the plan amount, so showing it again was a
+          duplicate. The column count is now the same for subscription
+          and pure prepaid (the difference between them was the plan
+          column). */}
+      {!monthInfo?.isPast && (
+        <div
+          className={`mt-4 pt-4 border-t border-border-subtle grid gap-x-4 gap-y-3 ${
+            carryForward === "enabled"
+              ? "grid-cols-1 md:grid-cols-3"
+              : "grid-cols-1 md:grid-cols-2"
+          }`}
+        >
+          {/* Carried-forward column only renders when the policy is on
+              — when disabled, the user explicitly asked for it to drop
+              out of the breakdown entirely (no "Off" placeholder). The
+              policy detail still lives on the demo controls toggle and
+              the downloaded invoice's reconciliation block. */}
+          {carryForward === "enabled" && (
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-0.5 group/cf relative">
+                Carried forward
+                <Info size={10} strokeWidth={1.75} className="text-text-tertiary/70 cursor-help" />
+                <div className="absolute left-0 top-full mt-1.5 w-[260px] bg-[#1a1a1a] text-white text-[11.5px] leading-relaxed px-3 py-2.5 rounded-card shadow-xl opacity-0 invisible group-hover/cf:opacity-100 group-hover/cf:visible transition-opacity duration-150 z-30 pointer-events-none normal-case">
+                  <div className="text-[10px] font-semibold text-white/60 uppercase tracking-wide mb-1">
+                    Rollover policy
+                  </div>
+                  Unused balance from last cycle — including the unspent
+                  portion of your plan and any top-ups you didn&apos;t use —
+                  rolls over to this cycle. Your monthly plan amount still
+                  resets fresh; only the tail carries over.
+                  <div className="absolute -top-1.5 left-3 w-3 h-3 bg-[#1a1a1a] rotate-45" />
+                </div>
+              </div>
+              <p className="text-[14px] font-semibold text-text-primary tabular-nums leading-tight">
+                {carriedForward > 0 ? `+ ${formatAmount(carriedForward, "INR")}` : formatAmount(0, "INR")}
+              </p>
+              <p className="text-[10.5px] text-text-tertiary mt-0.5">unused from last cycle</p>
+            </div>
+          )}
+          <BreakdownCell
+            label="Top-ups this cycle"
+            hint="added via recharge"
+            value={topupBalance > 0 ? `+ ${formatAmount(topupBalance, "INR")}` : formatAmount(0, "INR")}
+          />
+          <BreakdownCell
+            label="Total available"
+            hint="across this cycle"
+            value={formatAmount(totalAvailable, "INR")}
+            emphasis
+          />
+        </div>
+      )}
+
+      {/* Embedded product breakdown disclosure — sits inside the hero
+          card itself so the user reads the answer and the drill-down
+          as one continuous block. Only rendered on Billing (where
+          billingMode is passed); on the Usage page the per-product
+          chart already lives below the hero. */}
+      {billingMode && (
+        <HeroProductBreakdown
+          rangeDays={range}
+          rangeOffset={rangeOffset}
+          totalPool={totalAvailable}
+          billingMode={billingMode}
+          billingMonth={billingMonth}
+          enabledModuleIds={enabledModuleIds ?? []}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── BreakdownCell ──────────────────────────────────────────────────
+// Single column in the prepaid-hero inflow breakdown strip. Pulled
+// out so the three "flat" cells share one definition; the rollover
+// cell is bespoke because it can render an "Off" pill instead of an
+// amount.
+function BreakdownCell({
+  label, hint, value, emphasis,
+}: {
+  label:    string;
+  hint:     string;
+  value:    string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-0.5">
+        {label}
+      </p>
+      <p
+        className={`tabular-nums leading-tight ${
+          emphasis
+            ? "text-[14px] font-semibold text-text-primary"
+            : "text-[14px] font-semibold text-text-primary"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="text-[10.5px] text-text-tertiary mt-0.5">{hint}</p>
     </div>
   );
 }
@@ -2054,14 +2760,20 @@ function BillingPrimaryCta({ onAddMoney }: { onAddMoney: () => void }) {
 function BillingSpendHero({
   rangeUtilized,
   range,
+  rangeOffset = 0,
   rangeLabel,
   billingMode,
   period,
   periodLabel,
   billingMonth,
+  enabledModuleIds,
 }: {
   rangeUtilized: number;
   range: number;
+  /** Days back from today where the window *ends*. Threaded through
+   *  to the embedded product-breakdown drilldown so it scopes to the
+   *  same calendar slice the hero is summarising. 0 = ends today. */
+  rangeOffset?: number;
   /** Optional override for "Spent in last X days". Set by the Billing-view
    *  MonthSelector — e.g. "This month", "May 2026" — so the postpaid hero
    *  reads as a calendar month, not a sliding window. */
@@ -2073,13 +2785,27 @@ function BillingSpendHero({
    *  whether the bill is shown as "estimated" (current month) or
    *  "settled invoice" (any past month). */
   billingMonth?: BillingMonth;
+  /** Modules the customer has — threads into the invoice download so
+   *  the PDF mirrors the customer's actual module set. */
+  enabledModuleIds?: readonly string[];
 }) {
-  // For postpaid, derive the actual cycle the user picked from the
-  // billingMonth id ("2026-05" → start = 1 May, end = 31 May). Past-month
-  // selections show settled invoices with a download CTA; the current
-  // month still reads as an estimated bill that hasn't been invoiced yet.
+  // Read the prepaid plan type from the store — drives whether the
+  // downloaded invoice carries a fixed-cost line item (Subscription) or
+  // is a pure statement of usage (Top-up). Ignored on postpaid.
+  const prepaidPlanType    = useBillingModeStore((s) => s.prepaidPlanType);
+  // Carry-forward policy threads into the invoice's Plan reconciliation
+  // block so the downloaded PDF reflects the rollover state the user
+  // can see on screen. Ignored on postpaid and on pure top-up where
+  // there's no cycle to forfeit.
+  const prepaidCarryForward = useBillingModeStore((s) => s.carryForward);
+
+  // Derive the cycle the user picked from billingMonth (e.g. "2026-05"
+  // → 1 May – 31 May). This was previously postpaid-only because only
+  // postpaid past months had a download CTA. Now it runs for every
+  // mode + month — prepaid statements and current-cycle bills are both
+  // downloadable, so the cycle metadata has to be available either way.
   const monthInfo = (() => {
-    if (!billingMonth || billingMode !== "postpaid") return null;
+    if (!billingMonth) return null;
     const [yearStr, mStr] = billingMonth.id.split("-");
     const year   = parseInt(yearStr, 10);
     const month  = parseInt(mStr, 10) - 1;
@@ -2099,54 +2825,63 @@ function BillingSpendHero({
     };
   })();
 
-  // Download a real PDF invoice for the selected past month. Only relevant
-  // when the cycle has closed — there's no invoice for a month that's
-  // still in progress.
+  // Pool drives the subscription plan baseline that ends up as the
+  // "fixed charges" line item on the PDF for prepaid Subscription orgs.
+  // Reads the same number the on-screen Utilization hero shows for
+  // Monthly plan, so the downloaded invoice can't disagree with the UI.
+  const planBaseline = poolSummary().totalCredits;
+
+  // Download an invoice / statement / estimated-bill PDF for the selected
+  // month. The doc kind, line items, and totals all derive from the
+  // (mode, planType, isPast) combination — see buildInvoiceForMonth for
+  // the full content shape. Works on every month and mode now (previously
+  // only postpaid past months had this).
   const downloadInvoice = () => {
     if (!monthInfo || !billingMonth) return;
-    const lines = [
-      `Invoice number     ${monthInfo.invoiceId}`,
-      `Workspace          Godrej South`,
-      `Billing cycle      ${monthInfo.cycleLabel}`,
-      `Settled on         ${monthInfo.settledOn}`,
-      ``,
-      `Line items`,
-      `  Contact Extraction   (extraction units)        — see Usage page`,
-      `  Enrichment           (lookup units)            — see Usage page`,
-      `  AI Calling           (voice minutes)           — see Usage page`,
-      ``,
-      `Total                  ${formatAmount(rangeUtilized, "INR")}`,
-      ``,
-      `Status                 Settled`,
-      ``,
-      `This is a system-generated invoice from Revspot. For queries,`,
-      `contact billing@revspot.ai.`,
-    ];
-    const blob = buildInvoicePdf(`Invoice ${monthInfo.invoiceId}`, lines);
-    downloadBlob(blob, `${monthInfo.invoiceId}.pdf`);
+    const { blob, filename } = buildInvoiceForMonth({
+      month:        billingMonth,
+      mode:         billingMode,
+      planType:     prepaidPlanType,
+      isPast:       monthInfo.isPast,
+      planBaseline,
+      carryForward: prepaidCarryForward,
+      enabledModuleIds,
+    });
+    downloadBlob(blob, filename);
   };
 
-  // Top-row labels:
-  //   Current month (postpaid)  → "Current cycle · 1 Jun – 30 Jun"  + days left
-  //   Past month  (postpaid)    → "May 2026 cycle · 1 May – 31 May" + Settled
-  //   Prepaid                   → "Spend window · <periodLabel>"
-  const topLeftLabel =
-      billingMode !== "postpaid" ? "Spend window"
-    : monthInfo?.isPast          ? `${billingMonth?.label ?? ""} cycle`
-    :                              "Current cycle";
+  // Button label — only rendered for past months (the current cycle
+  // is still accruing and has no settled bill to issue against), so
+  // we don't need an "estimate" / "to-date statement" branch here.
+  // "Invoice" alone (no "Download") — the arrow icon already implies
+  // the action.
+  const downloadButtonLabel = "Invoice";
 
-  const topLeftPeriod =
-      billingMode === "postpaid" && monthInfo
-    ? monthInfo.cycleLabel
-    : periodLabel;
+  // Top-row labels — works for every (mode, isPast) combination now that
+  // monthInfo is always computed.
+  const topLeftLabel =
+      !monthInfo                       ? "Spend window"
+    : monthInfo.isPast                 ? appendCycleSuffix(billingMonth?.label)
+    :                                    "Current cycle";
+
+  const topLeftPeriod = monthInfo ? monthInfo.cycleLabel : periodLabel;
 
   const topRightMeta = (() => {
-    if (billingMode !== "postpaid" || !monthInfo) return null;
+    if (!monthInfo) return null;
     if (monthInfo.isPast) {
+      // Past months on either mode read as closed — green "Settled" for
+      // postpaid (where a bill was actually issued), neutral "Closed"
+      // for prepaid (where the cycle ended but there's no bill to settle
+      // — the wallet just drew down).
+      const label = billingMode === "postpaid" ? "Settled" : "Closed";
+      const tone  = billingMode === "postpaid"
+        ? "text-[#15803D]"
+        : "text-text-secondary";
+      const dot   = billingMode === "postpaid" ? "bg-[#22C55E]" : "bg-text-tertiary";
       return (
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#15803D]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-          Settled on {monthInfo.settledOn}
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${tone}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+          {label} on {monthInfo.settledOn}
         </span>
       );
     }
@@ -2158,26 +2893,48 @@ function BillingSpendHero({
     );
   })();
 
-  // Hero label + subtitle for postpaid changes based on past vs current.
-  const heroLabel =
-      billingMode !== "postpaid"
-    ? (rangeLabel ? `Spend in ${rangeLabel.toLowerCase()}` : `Spend in last ${range} days`)
-    : monthInfo?.isPast
-      ? `Invoice — ${billingMonth?.label}`
-      : "Estimated bill this cycle";
+  // Hero label — answers "what number am I looking at?" The shape shifts
+  // with mode + past/current so the headline reads as the right kind of
+  // total. For an in-progress postpaid cycle we say "Bill till now" —
+  // it's the live running total against the open invoice window, not
+  // a projection, so framing it as an "estimate" was misleading.
+  const heroLabel = (() => {
+    if (billingMode === "postpaid") {
+      return monthInfo?.isPast
+        ? `Invoice — ${billingMonth?.label}`
+        : "Bill till now";
+    }
+    // Prepaid (subscription or top-up) — past months read as the cycle's
+    // total draw, current month as the draw to date.
+    if (monthInfo?.isPast) return `Drawn in ${billingMonth?.label}`;
+    return rangeLabel ? `Drawn in ${rangeLabel.toLowerCase()}` : `Drawn in last ${range} days`;
+  })();
 
-  const heroSubtitle =
-      billingMode !== "postpaid"
-    ? "Drawn from your prepaid balance over this window."
-    : monthInfo?.isPast
-      ? <>Invoice <span className="font-mono tabular-nums">{monthInfo.invoiceId}</span> · settled {monthInfo.settledOn}. Download to keep a copy.</>
-      : <>Invoiced on {period.end.toLocaleString("en-IN", { day: "numeric", month: "short" })}. You&apos;ll be charged exactly what you use.</>;
+  const heroSubtitle = (() => {
+    if (billingMode === "postpaid") {
+      // Past cycle = an invoice that's already been settled.
+      // Current cycle = a live running total. We deliberately don't
+      // repeat the cycle-closes date or days-left here — the top-row
+      // chip already carries that and the only thing left to say is
+      // that the number is the live draw to date.
+      return monthInfo?.isPast
+        ? <>Invoice <span className="font-mono tabular-nums">{monthInfo.invoiceId}</span> · settled {monthInfo.settledOn}. Download to keep a copy.</>
+        : <>Live draw against your open invoice. You&apos;ll be charged exactly this.</>;
+    }
+    // Prepaid framing — the fixed cost (if any) lives separately on the
+    // Utilization page; here we're just narrating the draw.
+    if (monthInfo?.isPast) {
+      return prepaidPlanType === "subscription"
+        ? <>Drawn from your monthly plan. Statement <span className="font-mono tabular-nums">{monthInfo.invoiceId}</span>. Download for your records.</>
+        : <>Drawn from your prepaid balance. Statement <span className="font-mono tabular-nums">{monthInfo.invoiceId}</span>. Download for your records.</>;
+    }
+    return "Drawn from your prepaid balance over this window.";
+  })();
 
   return (
     <div className="bg-white border border-border rounded-card p-5">
-      {/* Top row — cycle label + supporting meta. For postpaid past-month
-          views we surface "settled on" with a green dot; for the current
-          cycle we surface days left until invoice. */}
+      {/* Top row — cycle label + supporting meta. Past months read as
+          "settled" / "closed"; the current cycle reads as days remaining. */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Calendar size={13} strokeWidth={1.6} className="text-text-tertiary" />
@@ -2187,7 +2944,7 @@ function BillingSpendHero({
         {topRightMeta}
       </div>
 
-      {/* Hero number — bill or invoice depending on month state. */}
+      {/* Hero number — the actual headline figure for this month + mode. */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
@@ -2202,19 +2959,38 @@ function BillingSpendHero({
           <p className="text-[11.5px] text-text-tertiary mt-1.5">{heroSubtitle}</p>
         </div>
 
-        {/* Download invoice — only for past months. Current cycle has no
-            invoice yet; the bill is still accruing. */}
-        {billingMode === "postpaid" && monthInfo?.isPast && (
+        {/* Download — only on closed cycles. The current cycle is
+            still accruing usage, so an in-cycle PDF would be stale by
+            the next call and there's no settled bill to issue against
+            it. Past months read as a real invoice / statement worth
+            archiving. The PDF content still adapts: subscription orgs
+            get a fixed-cost line plus usage; pure-prepaid and postpaid
+            get usage only. */}
+        {monthInfo?.isPast && (
           <button
             type="button"
             onClick={downloadInvoice}
             className="inline-flex items-center gap-1.5 h-9 px-3.5 text-[12.5px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong hover:bg-surface-secondary transition-colors duration-150 shrink-0"
           >
             <ArrowDown size={13} strokeWidth={1.75} />
-            Download PDF
+            {downloadButtonLabel}
           </button>
         )}
       </div>
+
+      {/* Embedded product breakdown — sits inside the same hero card
+          so the user reads the headline (Bill till now / Invoice for X)
+          and the per-product drill-down as one block instead of two
+          separate widgets. Defaults to collapsed; opening it expands
+          the same ModulesTable that owns the Usage page. */}
+      <HeroProductBreakdown
+        rangeDays={range}
+        rangeOffset={rangeOffset}
+        totalPool={planBaseline}
+        billingMode={billingMode}
+        billingMonth={billingMonth}
+        enabledModuleIds={enabledModuleIds ?? []}
+      />
     </div>
   );
 }
@@ -2264,66 +3040,118 @@ function PostpaidUtilizationEmpty() {
 //  Daily limits live as a small chip under the product name (same
 //  treatment as the Billing table).
 // ────────────────────────────────────────────────────────────────────
-function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
+
+// ────────────────────────────────────────────────────────────────────
+//  UsageHero — top-of-page total summary for the Usage tab. Mirrors
+//  the answer-first shape of the Billing hero but stripped to just
+//  the consumption story across ALL enabled products in the selected
+//  window. Headline = sum of usage across modules in the period.
+//  Remaining renders on the right only when the window is rolling
+//  (today / this week / this month / last N / lifetime). Past
+//  closed presets (yesterday / last week / last month) drop the
+//  Remaining column because there's no live runway against them —
+//  the cycle in question is already done.
+// ────────────────────────────────────────────────────────────────────
+function UsageHero({
+  rangeUtilized,
+  isPast,
+  productCount,
+}: {
+  rangeUtilized: number;
+  /** True when the selected window is a closed past period
+   *  (yesterday / last week / last month). The phrasing changes
+   *  meaningfully: ongoing windows read as a *running tally*
+   *  ("used till now"), while past windows are a *settled total*
+   *  ("usage in this period") — calling a closed total "till now"
+   *  was misleading. */
+  isPast: boolean;
+  /** Number of products the customer has enabled. Used in the
+   *  past-period body line so the figure is unambiguous about
+   *  what it was summed across. */
+  productCount: number;
+}) {
+  // "Used till now" only makes sense while the window is still
+  // accumulating. For a closed past period, the label flips to a
+  // settled-total framing so the reader doesn't mistake the figure
+  // for a running total. The body line for past also names the
+  // exact product count so the number reads as a complete answer.
+  const labelPhrase = isPast ? "USAGE IN THIS PERIOD" : "USED TILL NOW";
+  const productSuffix = productCount === 1 ? "product" : "products";
+  const bodyCopy = isPast
+    ? `Across ${productCount} ${productSuffix}.`
+    : "Across all your products.";
+  return (
+    <div className="bg-white border border-border rounded-card p-5">
+      <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-1">
+        {labelPhrase}
+      </p>
+      <p
+        className="text-[36px] font-semibold text-text-primary leading-none tracking-[-0.01em] tabular-nums"
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        {formatAmount(rangeUtilized, "INR")}
+      </p>
+      <p className="text-[11.5px] text-text-tertiary mt-1.5">
+        {bodyCopy}
+      </p>
+    </div>
+  );
+}
+
+function UtilizationByProductTable({
+  rangeDays,
+  enabledModuleIds,
+}: {
+  rangeDays: number;
+  enabledModuleIds: readonly string[];
+}) {
   // Per-product derived rows. We scale each capability's units by
   // the ratio of range-spend to period-spend so the displayed unit
-  // count maps to the selected date range.
+  // count maps to the selected date range. Filtered to the modules
+  // this customer actually has — a voice-only org doesn't need to
+  // see extraction rows at zero.
   const rows = useMemo(() => {
-    return WALLETS.map((w) => {
-      const series = sliceDailyToRange(w.daily, rangeDays);
-      const used   = series.reduce((s, d) => s + d.amount, 0);
-      const ratio  = w.utilized > 0 ? used / w.utilized : 0;
-      const caps   = w.capabilities.filter((c) => !c.included);
-      return { module: w, ratio, caps };
-    });
-  }, [rangeDays]);
+    return WALLETS
+      .filter((w) => enabledModuleIds.includes(w.id))
+      .map((w) => {
+        const series = sliceDailyToRange(w.daily, rangeDays);
+        const used   = series.reduce((s, d) => s + d.amount, 0);
+        const ratio  = w.utilized > 0 ? used / w.utilized : 0;
+        const caps   = w.capabilities.filter((c) => !c.included);
+        return { module: w, ratio, caps };
+      });
+  }, [rangeDays, enabledModuleIds]);
 
-  // Three-column grid — name on the left, units in the middle, and a
-  // trailing column reserved for future bits (share-of-product %,
-  // daily-limit progress). For now it's empty but keeps the
-  // structural similarity to the Billing table strong.
-  // Four columns: module/cap name · units · amount (₹ cost) · share.
-  // Was three (no amount) — team decided to surface both units and
-  // amount on Usage so a single page tells the consumption + cost
-  // story without forcing a hop to Billing.
-  const gridCols = "grid-cols-[minmax(0,1fr)_150px_120px_80px]";
+  // Three columns: module/cap name · units · cost. Earlier versions
+  // had a Rate column and a Share column too, but both cluttered the
+  // table — Rate is a price-list lookup, and Share added a percentage
+  // whose denominator (per-product cap units) wasn't comparable
+  // across products. Units + Cost is the honest answer.
+  const gridCols = "grid-cols-[minmax(0,1fr)_140px_120px]";
 
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
-      {/* Header — the page is already titled "Usage" and the date
-          filter at the top of the page tells the user which window is
-          active. Both used to be repeated here ("Usage by product" +
-          "Last X days · successful actions only"); the cleaner version
-          drops the redundancy and just labels the breakdown. */}
-      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
-        <h3 className="text-[13px] font-semibold text-text-primary">By product</h3>
-        <span className="text-[11px] text-text-tertiary">
-          Successful actions only
-        </span>
-      </div>
+      {/* Section title row dropped entirely — the page is already
+          titled "Usage" and the column headers below carry the
+          structure. The "Successful actions only" scope note moves
+          to a footnote (*) anchored on the Units column header, then
+          a quiet legend line at the bottom of the card. */}
 
-      {/* Column headers */}
-      <div className={`grid ${gridCols} gap-3 px-5 py-2 border-b border-border-subtle text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]`}>
-        <span>Module / capability</span>
-        <span className="text-right">Units</span>
-        <span className="text-right">Amount</span>
-        <span className="text-right">Share</span>
+      {/* Column headers — bold to anchor the table. Units carries an
+          asterisk that ties to the footnote below; we deliberately
+          park the marker on Units rather than Amount because the
+          caveat is about what gets COUNTED (only successful actions),
+          not about pricing. */}
+      <div className={`grid ${gridCols} gap-3 px-5 py-2.5 border-b border-border-subtle text-[10px] font-semibold text-text-primary uppercase tracking-[0.4px]`}>
+        <span>Modules</span>
+        <span className="text-right">Units<sup className="text-text-tertiary font-normal ml-0.5">*</sup></span>
+        <span className="text-right">Cost</span>
       </div>
 
       {/* Rows */}
       <div>
         {rows.map(({ module: m, ratio, caps }, productIdx) => {
           const ModIcon = m.icon;
-          const dl      = m.dailyLimit;
-          const dlPct   = dl && dl.count > 0 ? Math.min(100, (dl.used / dl.count) * 100) : 0;
-          const dlTone  =
-              dl && dlPct >= 90 ? "#DC2626"
-            : dl && dlPct >= 75 ? "#D97706"
-            : null;
-          // Sum of capability units (only really comparable within a
-          // single product because units differ across products);
-          // used for the per-product share denominator.
-          const productUnits = caps.reduce((s, c) => s + Math.round(c.unitCount * ratio), 0);
           return (
             <div
               key={m.id}
@@ -2346,30 +3174,20 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
                     <p className="text-[13px] font-semibold text-text-primary truncate">
                       {m.name}
                     </p>
-                    {dl && (
-                      <p className="text-[10.5px] text-text-tertiary tabular-nums inline-flex items-center gap-1.5 mt-0.5">
-                        {dlTone && (
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ background: dlTone }}
-                            aria-hidden
-                          />
-                        )}
-                        <Timer size={10} strokeWidth={1.75} className="text-text-tertiary" />
-                        Daily {formatNum(dl.used)} / {formatNum(dl.count)} {dl.unit}{dl.count === 1 ? "" : "s"}
-                      </p>
-                    )}
+                    {/* Daily-limit chip used to live here as a sub-line
+                        on the product row. It's a per-module operational
+                        concern, not a usage / billing breakdown signal,
+                        so it now lives on the module's own page header
+                        (e.g. /enrichment) where it belongs. */}
                   </div>
                 </div>
                 <div /> {/* Units col is blank on the product header */}
-                <div /> {/* Amount col is blank on the product header */}
-                <div /> {/* Share col is blank on the product header */}
+                <div /> {/* Cost col is blank on the product header */}
               </div>
 
-              {/* Capability sub-rows — units + amount side by side. */}
+              {/* Capability sub-rows — units + cost side by side. */}
               {caps.map((c) => {
                 const capUnits = Math.round(c.unitCount * ratio);
-                const sharePct = productUnits > 0 ? (capUnits / productUnits) * 100 : 0;
                 // Drop the unit suffix on Enrichment (the label
                 // "Professional enrichment" already says everything;
                 // appending "enrichments" would be redundant). Keep
@@ -2381,8 +3199,11 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
                     key={c.id}
                     className={`grid ${gridCols} gap-3 px-5 py-2.5 items-center border-t border-border-subtle`}
                   >
-                    <div className="flex items-center gap-2 pl-7 min-w-0">
-                      <span className="text-text-tertiary/60 text-[11px] select-none shrink-0" aria-hidden>↳</span>
+                    <div className="flex items-center gap-3 pl-7 min-w-0">
+                      {/* Vertical guide line — a quiet tree-view tick
+                          that signals parent/child without the visual
+                          drama of an arrow glyph. */}
+                      <span className="w-px h-3.5 bg-border shrink-0" aria-hidden />
                       <span className="text-[12.5px] text-text-secondary truncate">
                         {c.label}
                       </span>
@@ -2396,14 +3217,11 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
                       )}
                     </div>
                     <div className="text-right tabular-nums text-[13px] text-text-primary">
-                      {/* Amount = units × rate. Surfaced here so Usage
+                      {/* Cost = units × rate. Surfaced here so Usage
                           tells the cost story too, not just consumption.
                           Falls back to "—" when the capability has no
                           rate (e.g. included throttles). */}
                       {c.rate > 0 ? formatAmount(Math.round(capUnits * c.rate), "INR") : "—"}
-                    </div>
-                    <div className="text-right tabular-nums text-[11.5px] text-text-tertiary">
-                      {sharePct.toFixed(0)}%
                     </div>
                   </div>
                 );
@@ -2411,6 +3229,13 @@ function UtilizationByProductTable({ rangeDays }: { rangeDays: number }) {
             </div>
           );
         })}
+      </div>
+
+      {/* Footnote — ties the Units column asterisk to the meaning.
+          Sits on the same surface tint as the product header rows so
+          it reads as part of the table chrome, not a separate widget. */}
+      <div className="px-5 py-2.5 border-t border-border-subtle bg-surface-page/40 text-[10.5px] text-text-tertiary">
+        <span className="font-semibold">*</span> Only successful actions are charged.
       </div>
     </div>
   );
@@ -2469,7 +3294,9 @@ const CurrencySwitcher = ({ hideRate = false }: { hideRate?: boolean }) => {
 // printing a stale rate line.
 const CurrencyRateCaption = () => null;
 
-type SortKey = "used" | "name" | "pct";
+// "pct" sort key removed alongside the % of plan / vs cap column —
+// nothing left on the table sorts by it.
+type SortKey = "used" | "name";
 
 /**
  * Clickable column header. Active column gets a small ↓ arrow + the
@@ -2512,62 +3339,148 @@ const SortHeader = ({
   );
 };
 
+// ────────────────────────────────────────────────────────────────────
+//  HeroProductBreakdown — quiet "View product breakdown" disclosure
+//  rendered INSIDE a hero card (PrepaidBalanceHero / BillingSpendHero).
+//  Used to live as a separate sibling widget below the hero, but the
+//  designer wanted it attached to the hero itself so the user reads
+//  the answer (final amount) and the drill-down ("where did this
+//  come from?") as one continuous story instead of two cards.
+//
+//  Renders no outer card chrome — the chrome is supplied by whatever
+//  wraps it. We add a `-mx-5` to push the chevron bar full-bleed
+//  against the hero card edges and a `border-t` to separate it from
+//  the hero content above. The expanded body reuses ModulesTable so
+//  there's only one truth for the per-product split.
+// ────────────────────────────────────────────────────────────────────
+function HeroProductBreakdown({
+  rangeDays,
+  rangeOffset,
+  totalPool,
+  billingMode,
+  billingMonth,
+  enabledModuleIds,
+}: {
+  rangeDays: number;
+  rangeOffset: number;
+  totalPool: number;
+  billingMode: BillingMode;
+  billingMonth?: BillingMonth;
+  enabledModuleIds: readonly string[];
+}) {
+  const [open, setOpen] = useState(false);
+  // Period label — varies with whether the hero is showing the
+  // current cycle ("this month's bill") or a past one ("May 2026's
+  // bill"). Keeps the disclosure copy honest about what window the
+  // breakdown will summarise.
+  const periodCopy = billingMonth?.label
+    ? `${billingMonth.label.toLowerCase()}'s bill`
+    : "this cycle's bill";
+  return (
+    <div className="mt-4 -mx-5 -mb-5 border-t border-border-subtle">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-surface-page/60 transition-colors"
+      >
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-semibold text-text-primary">
+            View product breakdown
+          </p>
+          <p className="text-[11px] text-text-tertiary mt-0.5">
+            See what each product contributed to {periodCopy}.
+          </p>
+        </div>
+        <ChevronDown
+          size={14}
+          strokeWidth={1.75}
+          className={`text-text-tertiary shrink-0 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="border-t border-border-subtle p-4 bg-surface-page/40 rounded-b-card">
+          <ModulesTable
+            rangeDays={rangeDays}
+            rangeOffset={rangeOffset}
+            totalPool={totalPool}
+            currency="INR"
+            billingMode={billingMode}
+            enabledModuleIds={enabledModuleIds}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ModulesTable({
   rangeDays,
   rangeOffset = 0,
-  totalPool,
+  totalPool: _totalPool,
   currency,
-  billingMode = "prepaid",
+  billingMode: _billingMode = "prepaid",
+  enabledModuleIds,
 }: {
   rangeDays: number;
   /** Days back from today where the window *ends*. 0 = window ends today
    *  (last N days). Non-zero slides the window back — set by the billing
    *  Months selector when the user picks a past month. */
   rangeOffset?: number;
+  // Kept on the API for callers; unused inside the table now that the
+  // "% of plan" / "vs cap" column has been dropped. Renamed to
+  // _totalPool to silence the unused-arg lint.
   totalPool: number;
   currency: Currency;
-  // Same table chrome for both modes; only the second column heading
-  // shifts: "% of plan" for prepaid (vs the top-up cap), "vs cap"
-  // for postpaid (vs the cycle spend cap). The body cell shows the
-  // same math under the hood for now.
+  // Kept on the API for callers that already pass it; no longer
+  // changes the table after the "% of plan" / "vs cap" column was
+  // dropped. Renamed to _billingMode to silence the unused-arg lint.
   billingMode?: BillingMode;
+  /** Modules the customer has — rows for any module outside this set
+   *  are dropped so a voice-only org doesn't see extraction/enrichment
+   *  zero rows. Omit to render all modules (default behaviour). */
+  enabledModuleIds?: readonly string[];
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("used");
 
-  // One row per product, with embedded capability sub-rows that
-  // always render. Earlier this table hid the capability detail
-  // behind an expand chevron; the user asked for the spend story
-  // to be visible at a glance, so we flatten it into a tree table
-  // where products are headers and capabilities are indented rows
-  // underneath them. Sort applies only to product order — capability
-  // rows always stay attached to their parent product.
+  // One row per product (restricted to the customer's module set),
+  // with embedded capability sub-rows that always render. Earlier this
+  // table hid the capability detail behind an expand chevron; the
+  // user asked for the spend story to be visible at a glance, so we
+  // flatten it into a tree table where products are headers and
+  // capabilities are indented rows underneath them. Sort applies only
+  // to product order — capability rows always stay attached to their
+  // parent product.
   const rows = useMemo(() => {
-    return WALLETS.map((w) => {
-      const series    = sliceDailyToRange(w.daily, rangeDays, rangeOffset);
-      const used      = series.reduce((s, d) => s + d.amount, 0);
-      const pctOfPool = totalPool > 0 ? (used / totalPool) * 100 : 0;
+    const list = enabledModuleIds
+      ? WALLETS.filter((w) => enabledModuleIds.includes(w.id))
+      : WALLETS;
+    return list.map((w) => {
+      const series = sliceDailyToRange(w.daily, rangeDays, rangeOffset);
+      const used   = series.reduce((s, d) => s + d.amount, 0);
       // Scale capability rows proportionally so the per-capability
       // numbers in the range sum to the product's range total.
-      const ratio     = w.utilized > 0 ? used / w.utilized : 0;
-      const caps      = w.capabilities.filter((c) => !c.included);
-      return { module: w, used, pctOfPool, ratio, caps };
+      const ratio  = w.utilized > 0 ? used / w.utilized : 0;
+      const caps   = w.capabilities.filter((c) => !c.included);
+      return { module: w, used, ratio, caps };
     }).sort((a, b) => {
       if (sortKey === "used") return b.used - a.used;
-      if (sortKey === "pct")  return b.pctOfPool - a.pctOfPool;
       return a.module.name.localeCompare(b.module.name);
     });
-  }, [rangeDays, rangeOffset, totalPool, sortKey]);
+  }, [rangeDays, rangeOffset, sortKey, enabledModuleIds]);
 
-  // Shared grid template for all rows + header + footer. Five
-  // columns: name | units | rate | used | % of plan. Tweaking the
-  // template here keeps everything aligned.
-  const gridCols = "grid-cols-[minmax(0,1fr)_140px_100px_120px_80px]";
+  // Shared grid template for all rows + header + footer. Four
+  // columns now: name | units | rate | used. The old fifth column
+  // (% of plan / vs cap) was dropped — the spend headline above the
+  // table already answers "how much of my plan have I used", and
+  // repeating the percentage per row added noise without giving the
+  // user a new decision.
+  const gridCols = "grid-cols-[minmax(0,1fr)_140px_140px]";
 
   // Total spend across all products in the range — used by the
   // footer. Kept as a separate calc so the footer can render
   // independently of the row mapping.
   const totalUsed = rows.reduce((s, r) => s + Math.round(r.used), 0);
-  const totalPct  = rows.reduce((s, r) => s + r.pctOfPool, 0);
 
   return (
     <div className="bg-white border border-border rounded-card overflow-hidden">
@@ -2576,29 +3489,23 @@ function ModulesTable({
           information to a chip under the product name when it
           exists. */}
       <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
-        <h3 className="text-[13px] font-semibold text-text-primary">Modules</h3>
+        <h3 className="text-[13px] font-medium text-text-secondary">Modules</h3>
       </div>
 
-      {/* Column headers — sort applies only to product rows. */}
-      <div className={`grid ${gridCols} gap-3 px-5 py-2 border-b border-border-subtle text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px]`}>
+      {/* Column headers — sort applies only to product rows. Bold to
+          anchor the table; first column reads plainly as "Modules" so
+          users don't trip on the older "Module / capability" path. */}
+      <div className={`grid ${gridCols} gap-3 px-5 py-2 border-b border-border-subtle text-[10px] font-semibold text-text-primary uppercase tracking-[0.4px]`}>
         <SortHeader
-          label="Module / capability"
+          label="Modules"
           colKey="name"
           activeKey={sortKey}
           onSort={setSortKey}
         />
         <div className="text-right">Units</div>
-        <div className="text-right">Rate</div>
         <SortHeader
           label="Used"
           colKey="used"
-          activeKey={sortKey}
-          onSort={setSortKey}
-          align="right"
-        />
-        <SortHeader
-          label={billingMode === "postpaid" ? "vs cap" : "% of plan"}
-          colKey="pct"
           activeKey={sortKey}
           onSort={setSortKey}
           align="right"
@@ -2609,18 +3516,8 @@ function ModulesTable({
           The product header sits on a soft tint so the eye can group
           a product with its children when scanning vertically. */}
       <div>
-        {rows.map(({ module: m, used, pctOfPool, ratio, caps }, productIdx) => {
+        {rows.map(({ module: m, used, ratio, caps }, productIdx) => {
           const ModIcon = m.icon;
-          const dl      = m.dailyLimit;
-          // Daily-limit chip tone — only escalates when the org is
-          // genuinely close to the ceiling so the colour means
-          // something when it appears.
-          const dlPct   = dl && dl.count > 0 ? Math.min(100, (dl.used / dl.count) * 100) : 0;
-          const dlTone  =
-              dl && dlPct >= 90 ? "#DC2626"
-            : dl && dlPct >= 75 ? "#D97706"
-            : null;
-
           return (
             <div
               key={m.id}
@@ -2646,35 +3543,21 @@ function ModulesTable({
                     <p className="text-[13px] font-semibold text-text-primary truncate">
                       {m.name}
                     </p>
-                    {dl && (
-                      <p className="text-[10.5px] text-text-tertiary tabular-nums inline-flex items-center gap-1.5 mt-0.5">
-                        {dlTone && (
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ background: dlTone }}
-                            aria-hidden
-                          />
-                        )}
-                        <Timer size={10} strokeWidth={1.75} className="text-text-tertiary" />
-                        Daily {formatNum(dl.used)} / {formatNum(dl.count)} {dl.unit}{dl.count === 1 ? "" : "s"}
-                      </p>
-                    )}
+                    {/* Daily-limit chip used to live here as a sub-line
+                        on the product row. It's a per-module operational
+                        concern, not a usage / billing breakdown signal,
+                        so it now lives on the module's own page header
+                        (e.g. /enrichment) where it belongs. */}
                   </div>
                 </div>
                 {/* Units column — blank on the product header (the
                     breakdown lives in the capability rows). */}
-                <div />
-                {/* Rate column — blank on the product header. */}
                 <div />
                 {/* Used — product total */}
                 <div className="text-right tabular-nums">
                   <span className="text-[13px] font-semibold text-text-primary">
                     {formatAmount(Math.round(used), currency)}
                   </span>
-                </div>
-                {/* % of plan — product total */}
-                <div className="text-right tabular-nums text-[12.5px] font-medium text-text-secondary">
-                  {pctOfPool.toFixed(1)}%
                 </div>
               </div>
 
@@ -2686,10 +3569,6 @@ function ModulesTable({
                 // wallet's daily series.
                 const capCredits = Math.round(c.creditsUsed * ratio);
                 const capUnits   = Math.round(c.unitCount * ratio);
-                const capPct     = totalPool > 0 ? (capCredits / totalPool) * 100 : 0;
-                const rateLabel  = Number.isInteger(c.rate)
-                  ? `₹${c.rate}`
-                  : `₹${c.rate.toFixed(2)}`;
                 return (
                   <div
                     key={c.id}
@@ -2697,8 +3576,11 @@ function ModulesTable({
                   >
                     {/* Capability name — indented + a quiet leader
                         glyph to read as a child row. */}
-                    <div className="flex items-center gap-2 pl-7 min-w-0">
-                      <span className="text-text-tertiary/60 text-[11px] select-none shrink-0" aria-hidden>↳</span>
+                    <div className="flex items-center gap-3 pl-7 min-w-0">
+                      {/* Vertical guide line — a quiet tree-view tick
+                          that signals parent/child without the visual
+                          drama of an arrow glyph. */}
+                      <span className="w-px h-3.5 bg-border shrink-0" aria-hidden />
                       <span className="text-[12.5px] text-text-secondary truncate">
                         {c.label}
                       </span>
@@ -2708,17 +3590,9 @@ function ModulesTable({
                       <span className="text-text-primary font-medium">{formatNum(capUnits)}</span>{" "}
                       <span className="text-text-tertiary">{c.unitLabel}{capUnits === 1 ? "" : "s"}</span>
                     </div>
-                    {/* Rate per unit */}
-                    <div className="text-right tabular-nums text-[12px] text-text-tertiary">
-                      {rateLabel}
-                    </div>
                     {/* Used */}
                     <div className="text-right tabular-nums text-[12.5px] text-text-primary">
                       {formatAmount(capCredits, currency)}
-                    </div>
-                    {/* % of plan */}
-                    <div className="text-right tabular-nums text-[11.5px] text-text-tertiary">
-                      {capPct.toFixed(1)}%
                     </div>
                   </div>
                 );
@@ -2741,16 +3615,662 @@ function ModulesTable({
           </span>
         </div>
         <div />
-        <div />
         <div className="text-right tabular-nums">
           <span className="text-[14.5px] font-semibold text-text-primary">
             {formatAmount(totalUsed, currency)}
           </span>
         </div>
-        <div className="text-right tabular-nums text-[12.5px] font-semibold text-text-primary">
-          {totalPct.toFixed(1)}%
-        </div>
       </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  BillingHistorySection — Shopify-style billings list
+//
+//  Layout follows Shopify Partners' billing page:
+//
+//    1. Subscription summary card (only when on a subscription plan):
+//       plan name, monthly amount, cycle dates, active badge.
+//    2. Billings — the last 5 settled bills as expandable rows. Each
+//       row's collapsed view shows PERIOD, Created date, Invoiced
+//       date, and the billed amount. Expanding reveals the line items
+//       (plan baseline, usage, carry-forward/forfeit) and a primary
+//       Download action.
+//    3. Older bills — a year-navigated month picker. Picking a month
+//       pins it to the top of the list as a one-off row so the user
+//       can both *see* the bill (line items, amount) and grab the
+//       PDF without losing context on the recent five.
+//
+//  Postpaid and pure top-up modes also render here: rows + picker work
+//  identically, the summary card simply hides (no fixed monthly
+//  baseline to summarise) and line items show usage only.
+// ════════════════════════════════════════════════════════════════════
+
+// ── BillingModelStrip ───────────────────────────────────────────────
+//
+// Single-line fact strip rendered at the top of the Billing page.
+// The previous version used 4 fact cards in a row, which packed a
+// lot of vertical space (each card had label + value + hint stacked)
+// for what's ultimately a handful of metadata bullets. This compact
+// version reads as one row of label-value pairs separated by dots,
+// the way a status bar would — much less real estate, same info.
+//
+// The pairs reshape per mode (Subscription gets a Plan amount; Pure
+// prepaid + Postpaid don't; only prepaid surfaces Carry-forward) so
+// the strip never carries fields that don't apply.
+// ────────────────────────────────────────────────────────────────────
+function BillingModelStrip({
+  billingMode,
+  planType,
+  carryForward,
+  planBaseline,
+  cycleStart,
+  cycleEnd,
+}: {
+  billingMode: BillingMode;
+  planType: "subscription" | "pure";
+  carryForward: "enabled" | "disabled";
+  planBaseline: number;
+  cycleStart: Date;
+  cycleEnd: Date;
+}) {
+  const fmtShort = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const isSubscription = billingMode === "prepaid" && planType === "subscription";
+  const isPostpaid     = billingMode === "postpaid";
+
+  const modelLabel = isPostpaid     ? "Postpaid"
+                   : isSubscription ? "Subscription"
+                   : "Pay as you go";
+
+  // Each pair is a tight (label, value) — rendered as
+  // "LABEL value" with the label in tertiary tracking-uppercase and
+  // the value as primary text. Dots between pairs come from the
+  // wrapping flex.
+  const Pair = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <span className="inline-flex items-center gap-1.5 min-w-0">
+      <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.5px] shrink-0">
+        {label}
+      </span>
+      <span className="text-[12.5px] font-medium text-text-primary tabular-nums truncate">
+        {value}
+      </span>
+    </span>
+  );
+
+  const Divider = () => (
+    <span className="text-text-tertiary/60 select-none" aria-hidden>·</span>
+  );
+
+  return (
+    <div className="bg-white border border-border rounded-card px-4 py-2.5 flex items-center gap-3 flex-wrap">
+      <Pair
+        label="Billing model"
+        value={
+          <span className="inline-flex items-center gap-1.5">
+            {modelLabel}
+            {isSubscription && (
+              <span className="inline-flex items-center gap-1 text-[9.5px] font-medium px-1.5 py-0.5 rounded-badge bg-[#F0FDF4] text-[#15803D]">
+                <span className="w-1 h-1 rounded-full bg-[#22C55E]" />
+                Active
+              </span>
+            )}
+          </span>
+        }
+      />
+
+      {isSubscription && (
+        <>
+          <Divider />
+          <Pair label="Plan" value={`${formatAmount(planBaseline, "INR")} / 30 days`} />
+        </>
+      )}
+
+      <Divider />
+      <Pair
+        label="Current cycle"
+        value={`${fmtShort(cycleStart)} – ${fmtShort(cycleEnd)}`}
+      />
+
+      {/* Carry-forward only surfaces when ON. When it's off we hide
+          the pair entirely — exposing "Disabled" would suggest there
+          is a toggle the user could turn on, which isn't the
+          intended product surface here. */}
+      {!isPostpaid && carryForward === "enabled" && (
+        <>
+          <Divider />
+          <Pair label="Carry-forward" value="Enabled" />
+        </>
+      )}
+    </div>
+  );
+}
+
+interface BillingHistorySectionProps {
+  billingMode:      BillingMode;
+  planType:         "subscription" | "pure";
+  carryForward:     "enabled" | "disabled";
+  planBaseline:     number;
+  enabledModuleIds: readonly string[];
+}
+
+function BillingHistorySection({
+  billingMode, planType, carryForward, planBaseline, enabledModuleIds,
+}: BillingHistorySectionProps) {
+  // 24 cycles of history — the table paginates so we can comfortably
+  // show this much without crowding the page. Cycles are anchored to
+  // CYCLE_START_DAY so a workspace on a 13-to-13 cycle sees periods
+  // that match its actual invoicing windows (not the calendar).
+  const allMonths = useMemo(() => billingMonthOptions(24, CYCLE_START_DAY), []);
+  // "Past" means the cycle has already closed — its window ends
+  // before today. BillingMonth.offsetFromEnd is 0 for the current
+  // cycle and positive for any cycle that ended in the past, so it's
+  // the direct signal here.
+  const isPastMonth = (m: BillingMonth) => m.offsetFromEnd > 0;
+
+  const isSubscription = billingMode === "prepaid"  && planType === "subscription";
+  const isPostpaid     = billingMode === "postpaid";
+
+  // Active-cycle metadata. Sourced from periodProgress so the dates
+  // stay in sync with the rest of the page (hero, modules table).
+  const period = useMemo(() => periodProgress(CYCLE_START_DAY), []);
+
+  // ── All invoices (current + past) ───────────────────────────────
+  // The list combines the still-open current cycle (postpaid only —
+  // subscription pays upfront, pure prepaid doesn't recur) with every
+  // past cycle that produced a bill. We tag each one with a status
+  // following Stripe's vocabulary so the UI can render the right
+  // badge: Open (not yet settled), Paid (settled), Uncollectible
+  // (settled-with-write-off — included for demo realism so the
+  // status column doesn't read as a binary).
+  type InvoiceRow = {
+    month:     BillingMonth;
+    invoiceId: string;
+    createdAt: Date;
+    amount:    number;
+    status:    "open" | "paid" | "uncollectible";
+    isCurrent: boolean;
+  };
+
+  const allInvoices: InvoiceRow[] = useMemo(() => {
+    const list: InvoiceRow[] = [];
+
+    // Current cycle row — only for postpaid (invoiced at cycle end).
+    // Subscription was already paid up-front at cycle start so it
+    // doesn't show as Open here. Pure prepaid is "draw down a wallet"
+    // — no recurring invoice. allMonths[0] is the current month
+    // (billingMonthOptions returns newest-first), so we reuse that
+    // BillingMonth rather than synthesising one.
+    if (isPostpaid && allMonths.length > 0) {
+      const current = allMonths[0];
+      const { total } = invoiceLineItemsFor(current, enabledModuleIds);
+      const [yC, mC] = current.id.split("-").map(Number);
+      list.push({
+        month:     current,
+        invoiceId: `INV-${yC}-${String(mC).padStart(2, "0")}`,
+        // Open invoice is dated the cycle start — Stripe's "created"
+        // timestamp on an open invoice is when it was drafted.
+        createdAt: period.start,
+        amount:    total,
+        status:    "open",
+        isCurrent: true,
+      });
+    }
+
+    // Past cycles — paid or uncollectible. Only months with a real
+    // bill are surfaced: subscription always bills the plan baseline
+    // (never zero), postpaid + pure prepaid only get invoiced when
+    // there's actual usage. Skipping the empty ones avoids confusing
+    // "Paid · —" rows for cycles before the workspace started.
+    // A small fraction get marked "uncollectible" for demo realism so
+    // the status column shows the variety Stripe's does.
+    const past = allMonths.filter(isPastMonth);
+    let kept = 0;
+    past.forEach((m) => {
+      const { total } = invoiceLineItemsFor(m, enabledModuleIds);
+      const billed = isSubscription ? planBaseline : total;
+      if (billed === 0) return;
+      const [y, mn] = m.id.split("-").map(Number);
+      list.push({
+        month:     m,
+        invoiceId: `INV-${y}-${String(mn).padStart(2, "0")}`,
+        createdAt: new Date(y, mn - 1, CYCLE_START_DAY),  // cycle start day
+        amount:    billed,
+        // One in seven kept invoices reads as uncollectible — realistic
+        // spread for a demo, doesn't take over the column.
+        status:    kept > 0 && kept % 7 === 0 ? "uncollectible" : "paid",
+        isCurrent: false,
+      });
+      kept += 1;
+    });
+
+    return list;
+  }, [allMonths, period.start, period.end, isPostpaid, isSubscription, planBaseline, enabledModuleIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Pagination ──────────────────────────────────────────────────
+  // 10/page matches Stripe and keeps the table at a comfortable
+  // visual height. If we ever reach an invoice count where one row
+  // matters (small businesses), 10 is still enough to see the
+  // current cycle plus the last quarter on page 1.
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(allInvoices.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const pageRows   = allInvoices.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const rangeStart = allInvoices.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(safePage * PAGE_SIZE, allInvoices.length);
+
+  return (
+    <div className="space-y-3">
+      {/* ── Invoices table ──────────────────────────────────────────
+          Stripe-style paginated list. Columns: Invoice ID, Created,
+          Status, Amount. Rows expand inline to reveal line items +
+          PDF download (when settled). Pagination at the foot —
+          10/page, with Prev/Next + a "Showing X–Y of Z" readout
+          so the user always knows where they are in history. */}
+      <div className="bg-white border border-border rounded-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border-subtle">
+          <h3 className="text-[15px] font-semibold text-text-primary">Invoices</h3>
+          <p className="text-[12px] text-text-secondary mt-0.5">
+            All invoices on this account — current cycle and history.
+          </p>
+        </div>
+
+        {/* Column header row — sticky-feeling header on a scroll
+            container would be next-step polish; for now a single
+            header above the rows is plenty. */}
+        <div className="grid grid-cols-[1.4fr_1fr_0.9fr_1fr_28px] items-center gap-3 px-4 py-2 bg-surface-page/60 border-b border-border-subtle text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">
+          <div>Invoice ID</div>
+          <div>Created</div>
+          <div>Status</div>
+          <div className="text-right">Amount</div>
+          <div />
+        </div>
+
+        <div className="divide-y divide-border-subtle">
+          {pageRows.map((inv) => (
+            <BillingHistoryRow
+              key={inv.invoiceId}
+              month={inv.month}
+              invoiceId={inv.invoiceId}
+              createdAt={inv.createdAt}
+              status={inv.status}
+              amount={inv.amount}
+              isCurrent={inv.isCurrent}
+              billingMode={billingMode}
+              planType={planType}
+              carryForward={carryForward}
+              planBaseline={planBaseline}
+              enabledModuleIds={enabledModuleIds}
+            />
+          ))}
+          {pageRows.length === 0 && (
+            <div className="px-4 py-8 text-[12.5px] text-text-tertiary text-center">
+              No invoices yet. Your first invoice will appear here once your first billing cycle closes.
+            </div>
+          )}
+        </div>
+
+        {/* Pagination footer — matches Stripe's compact pattern:
+            range readout on the left, prev/next controls on the
+            right. Disabled state on the controls when at an edge so
+            the user can't fall off either end. */}
+        {allInvoices.length > 0 && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border-subtle">
+            <p className="text-[11.5px] text-text-tertiary">
+              Showing <span className="text-text-secondary font-medium tabular-nums">{rangeStart}–{rangeEnd}</span> of{" "}
+              <span className="text-text-secondary font-medium tabular-nums">{allInvoices.length}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="h-7 px-2.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-text-secondary border border-border rounded-button hover:bg-surface-page disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={12} strokeWidth={1.75} />
+                Prev
+              </button>
+              <span className="text-[11.5px] text-text-tertiary tabular-nums px-1">
+                {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="h-7 px-2.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-text-secondary border border-border rounded-button hover:bg-surface-page disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRight size={12} strokeWidth={1.75} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── BillingHistoryRow ────────────────────────────────────────────────
+//
+// A single Stripe-style invoice row. The collapsed surface is a
+// 4-column grid — Invoice ID, Created, Status, Amount — that lines
+// up against the table header above it. Clicking the row toggles
+// inline line items. Settled rows expose a Download PDF; the
+// current cycle's open invoice doesn't (no PDF yet — there's
+// nothing to settle until the cycle closes).
+// ────────────────────────────────────────────────────────────────────
+
+function BillingHistoryRow({
+  month, invoiceId, createdAt, status, amount, isCurrent,
+  billingMode, planType, carryForward, planBaseline, enabledModuleIds,
+}: {
+  month:            BillingMonth;
+  invoiceId:        string;
+  createdAt:        Date;
+  status:           "open" | "paid" | "uncollectible";
+  amount:           number;
+  isCurrent:        boolean;
+  billingMode:      BillingMode;
+  planType:         "subscription" | "pure";
+  carryForward:     "enabled" | "disabled";
+  planBaseline:     number;
+  enabledModuleIds: readonly string[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const fmtDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+  // Per-month numbers — same source the on-screen Modules table uses.
+  // The amount displayed in the table comes from the parent's
+  // pre-computed row data (so Open invoices show the running tally,
+  // not just settled totals), but the expanded body still pulls full
+  // line items so the breakdown matches what the customer sees.
+  const { total: usageTotal } = useMemo(
+    () => invoiceLineItemsFor(month, enabledModuleIds),
+    [month, enabledModuleIds],
+  );
+  const isSubscription = billingMode === "prepaid" && planType === "subscription";
+
+  const onDownload = () => {
+    const { blob, filename } = buildInvoiceForMonth({
+      month,
+      mode:        billingMode,
+      planType,
+      isPast:      true,
+      planBaseline,
+      carryForward,
+      enabledModuleIds,
+    });
+    downloadBlob(blob, filename);
+  };
+
+  return (
+    <div className={isCurrent ? "bg-amber-50/30" : "bg-white"}>
+      {/* Collapsed row — column layout matches the header above.
+          Same grid template so the columns visually align. */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="w-full grid grid-cols-[1.4fr_1fr_0.9fr_1fr_28px] items-center gap-3 px-4 py-3 text-left hover:bg-surface-page/60 transition-colors"
+      >
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-mono text-text-primary truncate">
+            {invoiceId}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[12.5px] text-text-secondary tabular-nums">
+            {fmtDate(createdAt)}
+          </p>
+        </div>
+        <div>
+          <InvoiceStatusBadge status={status} />
+        </div>
+        <div className="text-right">
+          <p className="text-[13px] font-semibold text-text-primary tabular-nums">
+            {amount > 0 ? formatAmount(amount, "INR") : "—"}
+          </p>
+        </div>
+        <div className="flex items-center justify-end">
+          <ChevronDown
+            size={15}
+            strokeWidth={1.75}
+            className={`text-text-tertiary transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+          />
+        </div>
+      </button>
+
+      {/* Expanded body — line items + actions. Layout unchanged from
+          before; only the row chrome around it was restructured. */}
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 border-t border-border-subtle bg-surface-page/40">
+          <div className="flex items-center justify-between text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mt-3 mb-2">
+            <span>Line items {isCurrent && <span className="normal-case text-text-tertiary">· running tally</span>}</span>
+            <span className="font-mono normal-case tracking-normal text-[11px]">
+              {invoiceId}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {isSubscription && (
+              <BillingLineRow
+                label="Monthly plan baseline"
+                hint="charged on cycle start"
+                value={formatAmount(planBaseline, "INR")}
+              />
+            )}
+            <BillingLineRow
+              label={isCurrent ? "Usage so far" : "Usage drawn"}
+              hint={`across ${month.range}`}
+              value={formatAmount(usageTotal, "INR")}
+            />
+            {isSubscription && usageTotal <= planBaseline && (
+              <BillingLineRow
+                label={carryForward === "enabled" ? "Carries forward to next cycle" : "Forfeited at cycle end"}
+                hint={carryForward === "enabled" ? "rollover policy is on" : "no rollover on this plan"}
+                value={formatAmount(planBaseline - usageTotal, "INR")}
+                muted={carryForward === "disabled"}
+              />
+            )}
+            {isSubscription && usageTotal > planBaseline && (
+              <BillingLineRow
+                label="Over plan (extra charge)"
+                hint="usage exceeded the monthly plan"
+                value={formatAmount(usageTotal - planBaseline, "INR")}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-border-subtle">
+            <p className="text-[11.5px] text-text-tertiary">
+              <span className="text-text-secondary font-medium">
+                {isCurrent ? "Estimated total" : "Amount billed"}
+              </span>{" "}
+              <span className="text-text-primary font-semibold tabular-nums">{formatAmount(amount, "INR")}</span>
+            </p>
+            {/* Download only for settled rows. Open invoices don't
+                have a PDF — there's nothing finalised to print. */}
+            {!isCurrent && (
+              <button
+                type="button"
+                onClick={onDownload}
+                className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-accent text-white rounded-button hover:bg-accent-hover transition-colors"
+              >
+                <ArrowDown size={12} strokeWidth={1.8} />
+                Invoice
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── InvoiceStatusBadge ───────────────────────────────────────────────
+// Stripe-style status pill. Three states map to three colour
+// families: Paid (green = settled), Open (amber = pending),
+// Uncollectible (red = won't be collected, written off). Kept
+// compact so the column doesn't crowd the row.
+function InvoiceStatusBadge({ status }: { status: "open" | "paid" | "uncollectible" }) {
+  const style = {
+    paid:          { bg: "bg-[#DCFCE7]", text: "text-[#15803D]", dot: "bg-[#15803D]", label: "Paid" },
+    open:          { bg: "bg-[#FEF3C7]", text: "text-[#92400E]", dot: "bg-[#D97706]", label: "Open" },
+    uncollectible: { bg: "bg-[#FEE2E2]", text: "text-[#991B1B]", dot: "bg-[#DC2626]", label: "Uncollectible" },
+  }[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-badge ${style.bg} ${style.text} text-[10.5px] font-medium`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+      {style.label}
+    </span>
+  );
+}
+
+function BillingLineRow({
+  label, hint, value, muted,
+}: { label: string; hint: string; value: string; muted?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 text-[12.5px] ${muted ? "opacity-60" : ""}`}>
+      <span className="text-text-secondary inline-flex flex-col">
+        {label}
+        <span className="text-[10.5px] text-text-tertiary">{hint}</span>
+      </span>
+      <span className="text-text-primary font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+// ── OlderMonthPicker ─────────────────────────────────────────────────
+//
+// Year-navigable month grid for jumping to any past billing cycle —
+// modelled on the payslip pickers in HRMS tools like Keka and greytHR
+// (year arrow nav at the top, then a 12-month grid). The user thinks
+// "let me grab last July's invoice", not "let me filter by a date
+// range", so we surface a calendar metaphor instead of a date range
+// picker. Past months are clickable (pins the row at the top of the
+// invoices list); the current month + future months are dimmed
+// because no settled bill exists yet.
+// ────────────────────────────────────────────────────────────────────
+
+function OlderMonthPicker({
+  onPick, isPastMonth,
+}: {
+  onPick: (m: BillingMonth) => void;
+  isPastMonth: (m: BillingMonth) => boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+
+  const monthShortNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium text-text-secondary border border-border rounded-button bg-white hover:border-border-strong hover:bg-surface-page transition-colors"
+      >
+        <Calendar size={12} strokeWidth={1.75} className="text-text-tertiary" />
+        Pick a month
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`text-text-tertiary transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <>
+          {/* Click-outside scrim */}
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl w-[300px] overflow-hidden">
+            {/* Title row — sets the user's expectation that they're
+                picking ONE month (a settled cycle) not a range. */}
+            <div className="px-4 pt-3 pb-2">
+              <p className="text-[12px] font-semibold text-text-primary">
+                Select a month
+              </p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">
+                Open the invoice for any past cycle.
+              </p>
+            </div>
+
+            {/* Year nav — left/right arrows around a centred year. The
+                right arrow disables at the current year because future
+                cycles haven't happened yet; the left arrow has no lower
+                bound so a 2-year-old account can walk back across as
+                many years as they need. */}
+            <div className="flex items-center justify-between gap-2 px-3 pb-2 border-b border-border-subtle">
+              <button
+                type="button"
+                onClick={() => setYear((y) => y - 1)}
+                aria-label="Previous year"
+                className="h-7 w-7 rounded-button text-text-secondary hover:bg-surface-page hover:text-text-primary inline-flex items-center justify-center"
+              >
+                <ChevronLeft size={14} strokeWidth={1.75} />
+              </button>
+              <span className="text-[14px] font-semibold text-text-primary tabular-nums">
+                {year}
+              </span>
+              <button
+                type="button"
+                onClick={() => setYear((y) => Math.min(y + 1, today.getFullYear()))}
+                disabled={year >= today.getFullYear()}
+                aria-label="Next year"
+                className="h-7 w-7 rounded-button text-text-secondary hover:bg-surface-page hover:text-text-primary inline-flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              >
+                <ChevronRight size={14} strokeWidth={1.75} />
+              </button>
+            </div>
+
+            {/* Month grid — 3 columns × 4 rows. Past months read as
+                primary text on a hover-able surface (real cycles you
+                can pull an invoice for); the current month and any
+                future months are dimmed and unclickable because
+                there's no settled bill to show yet. */}
+            <div className="grid grid-cols-3 gap-1.5 p-3">
+              {monthShortNames.map((mon, idx) => {
+                const m = billingMonthFor(year, idx, CYCLE_START_DAY);
+                const past = isPastMonth(m);
+                const isCurrent =
+                  year === today.getFullYear() && idx === today.getMonth();
+                return (
+                  <button
+                    key={mon}
+                    type="button"
+                    disabled={!past}
+                    onClick={() => {
+                      onPick(m);
+                      setOpen(false);
+                    }}
+                    title={
+                      past
+                        ? `View ${mon} ${year} invoice`
+                        : isCurrent
+                          ? "Current cycle — no settled bill yet"
+                          : "No settled bill yet"
+                    }
+                    className={`h-9 text-[12.5px] font-medium rounded-button transition-colors ${
+                      past
+                        ? "text-text-primary bg-surface-page/60 hover:bg-surface-secondary border border-border-subtle"
+                        : isCurrent
+                          ? "text-text-tertiary bg-white border border-dashed border-border-subtle cursor-not-allowed"
+                          : "text-text-tertiary/60 cursor-not-allowed"
+                    }`}
+                  >
+                    {mon}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

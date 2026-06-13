@@ -367,7 +367,7 @@ export default function DashboardPage() {
                 title: "Connect a voice agent",
                 description: "Automate lead verification with AI-powered calls",
                 ctaLabel: "Set up agent",
-                href: "/agents-mvp",
+                href: "/agents",
               },
               ...(hasProjects
                 ? [

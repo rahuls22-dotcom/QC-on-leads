@@ -35,7 +35,13 @@ function formatDate(d: Date) { return d.toLocaleDateString("en-IN", { day: "nume
 function formatDateShort(d: Date) { return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }); }
 
 function getPresetRange(value: string): { start: Date; end: Date; label: string } {
-  const now = new Date(2026, 2, 23);
+  // "Today" is the real today. Previously hard-coded to 23 Mar 2026 as
+  // a demo anchor, which read as a bug once the rest of the app started
+  // showing the current calendar cycle (Billing's "1 Jun – 30 Jun" etc.)
+  // — the calendar popover would jump back to March while every other
+  // surface said June. Reading the system clock here aligns the
+  // selector with what the user actually sees in the rest of the app.
+  const now = new Date();
   const end = new Date(now);
   const start = new Date(now);
   switch (value) {
@@ -133,9 +139,12 @@ export function DateRangeSelector({ compact, onChange, defaultPreset = "30" }: D
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Primary calendar
-  const [calMonth, setCalMonth] = useState(2);
-  const [calYear, setCalYear] = useState(2026);
+  // Primary calendar — opens to the real current month/year. Was
+  // hard-coded to March 2026 alongside the now-removed fake "today",
+  // which made the popover land months away from the dates the rest
+  // of the app surfaces.
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [selStart, setSelStart] = useState<Date | null>(null);
   const [selEnd, setSelEnd] = useState<Date | null>(null);
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);

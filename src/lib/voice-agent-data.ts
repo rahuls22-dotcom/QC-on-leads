@@ -434,6 +434,65 @@ export const POST_CALL_METRICS = [
 
 export type PostCallMetric = (typeof POST_CALL_METRICS)[number];
 
+/**
+ * Per-metric copy used in the agent-create Goal/Aim step.
+ *
+ * `label` is the human-readable name shown in the picker (the underscored
+ * ID is for storage and rule logic — never user-facing).
+ *
+ * `description` explains what the metric actually captures so the user
+ * picks the right ones for their goal rather than guessing from a
+ * snake_case identifier. The previous flow had one generic description
+ * for the whole rule, which made the picker read as a wall of opaque
+ * keys; surfacing per-option copy is what turns this into a real
+ * "configure the post-call qualifier" experience.
+ */
+export const POST_CALL_METRIC_META: Record<
+  PostCallMetric,
+  { label: string; description: string }
+> = {
+  location_fit: {
+    label: "Location fit",
+    description:
+      "Whether the lead's preferred area or sub-locality matches what the project offers. Captures their answer to \"which part of the city are you looking in?\"",
+  },
+  budget_fit: {
+    label: "Budget fit",
+    description:
+      "Whether the lead's stated budget bracket lines up with the project's price band. Use this as the headline qualifier when ticket size matters most.",
+  },
+  configuration_fit: {
+    label: "Configuration fit",
+    description:
+      "Whether the configuration the lead wants (2BHK, 3BHK, villa, etc.) is available in the project. Useful when you have limited inventory per config.",
+  },
+  possession_fit: {
+    label: "Possession fit",
+    description:
+      "Whether the lead's expected move-in timeline matches when the project hands over keys. Catches buyers who need ready-to-move-in but you're under construction (and vice-versa).",
+  },
+  site_visit_interest: {
+    label: "Site-visit interest",
+    description:
+      "Whether the lead agreed to schedule (or already attended) a site visit. The strongest single signal that the call should hand off to a sales rep.",
+  },
+  timeline_fit: {
+    label: "Purchase timeline",
+    description:
+      "How far out the lead is from actually buying (this month, 3-6 months, exploring only). Lets you separate hot prospects from longer nurture flows.",
+  },
+  decision_maker: {
+    label: "Decision maker on call",
+    description:
+      "Whether the person on the call is the one signing the cheque, or an influencer who needs to loop in spouse/parent/partner before any commitment.",
+  },
+  loan_eligibility: {
+    label: "Loan eligibility",
+    description:
+      "Whether the lead expects to fund the purchase via a home loan and whether their stated profile (income, employer, existing EMIs) makes them eligible.",
+  },
+};
+
 export interface QualificationCondition {
   id: string;
   field: PostCallMetric;
@@ -505,6 +564,31 @@ const defaultQualificationCriteria: QualificationCriteriaConfig = {
 // Agents MVP — Detail page mock data
 // ═══════════════════════════════════════════════════════════════════
 
+/**
+ * Optional capability catalogue. Operators pick from these; each capability
+ * may resolve to one or more underlying tools at runtime. Core handlers
+ * (end_call, voice_mail_detection) are loaded unconditionally and never
+ * surface here.
+ */
+export interface AgentCapability {
+  id: string;
+  label: string;
+  /** Underlying tool keys the platform should load when this is enabled. */
+  tools: string[];
+}
+
+export const OPTIONAL_CAPABILITIES: AgentCapability[] = [
+  { id: "multilingual_detection", label: "Multilingual detection", tools: ["detect_language"] },
+  { id: "email_capture", label: "Email capture", tools: ["capture_email"] },
+  { id: "budget_calculator", label: "Budget calculator", tools: ["budget_calculator"] },
+  {
+    id: "experience_center_info",
+    label: "Experience center info",
+    tools: ["get_experience_centre", "get_experience_center_address"],
+  },
+  { id: "transfer_to_human", label: "Transfer to human", tools: ["transfer_call"] },
+];
+
 export interface AgentMvpDetail {
   id: string;
   name: string;
@@ -524,6 +608,12 @@ export interface AgentMvpDetail {
   knowledgeFiles: { id: string; name: string; type: string }[];
   faqs: { id: string; question: string; answer: string }[];
   qualificationCriteria: QualificationCriteriaConfig;
+  /**
+   * IDs from OPTIONAL_CAPABILITIES that this agent has enabled. Grandfathered
+   * agents have their pre-launch tool set backfilled here so behaviour doesn't
+   * regress. New agents start with an empty array.
+   */
+  capabilities: string[];
 }
 
 export const agentMvpDetails: Record<string, AgentMvpDetail> = {
@@ -553,6 +643,14 @@ export const agentMvpDetails: Record<string, AgentMvpDetail> = {
       { id: "faq-5", question: "Is home loan available?", answer: "Yes, pre-approved home loans from SBI, HDFC, ICICI, and Axis Bank at competitive rates." },
     ],
     qualificationCriteria: defaultQualificationCriteria,
+    // Grandfathered — this agent shipped before the capabilities field,
+    // so its pre-launch tool set is backfilled.
+    capabilities: [
+      "multilingual_detection",
+      "budget_calculator",
+      "experience_center_info",
+      "transfer_to_human",
+    ],
   },
   "amvp-2": {
     id: "amvp-2",
@@ -595,5 +693,7 @@ export const agentMvpDetails: Record<string, AgentMvpDetail> = {
         },
       ],
     },
+    // Grandfathered with the leaner set this agent actually used.
+    capabilities: ["multilingual_detection", "transfer_to_human"],
   },
 };

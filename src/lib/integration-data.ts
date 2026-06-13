@@ -51,6 +51,30 @@ export const PRODUCT_API: Record<ProductKey, ProductApi> = {
   "education_field": "Computer Science"
 }`,
   },
+  // Contact extraction is the OCR/parse pipeline — you push raw artefacts
+  // (visiting cards, intake forms, screenshots) and we POST back the
+  // structured contact. Same direction-and-callback shape as Enrichment;
+  // the difference is what's on the wire.
+  contact_extraction: {
+    direction: "inbound",
+    blurb:
+      "Send images, screenshots, or scans of business cards / intake forms. We OCR + structure the contact and POST it to your webhook URL.",
+    endpoints: [
+      { method: "POST", path: "/contact/extract",      desc: "Extract a contact from a single image" },
+      { method: "POST", path: "/contact/bulk/extract", desc: "Extract contacts from a batch of images" },
+      { method: "POST", path: "/contact/file/upload",  desc: "Upload a multi-page PDF/scan for extraction" },
+    ],
+    sampleCallback: `{
+  "extraction_id": "ext_4a91c7d2",
+  "extracted": true,
+  "name": "Aanya Sharma",
+  "job_title": "Director",
+  "company_name": "Brigade Group",
+  "email": "aanya.sharma@brigadegroup.com",
+  "phone": "+91 98XXXXXX21",
+  "source_image_url": "https://cdn.revspot.ai/ext/4a91c7d2.jpg"
+}`,
+  },
   ai_calling: {
     direction: "inbound",
     blurb:

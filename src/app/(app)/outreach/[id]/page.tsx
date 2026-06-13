@@ -37,6 +37,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Phone,
+  Mail,
+  MapPin,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -265,6 +269,168 @@ function avatarColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) % 2147483647;
   return palette[hash % palette.length];
+}
+
+// ── ProfileTab ───────────────────────────────────────────────────────
+//
+// Mirrors the Profile tab on the /enquiries lead drawer 1:1 — same
+// "Contact Details" card (location · phone with copy + WhatsApp ·
+// email with copy) and same "Intelligence" cards (Profile Intelligence:
+// gender + languages; Geographical Intelligence: location + type).
+//
+// OutreachContact only carries phone + name, so the email / location /
+// gender / languages are fabricated deterministically per contact id —
+// same hash → same values across reloads. That keeps the demo stable
+// (no jitter on refresh) and gives every lead a plausible profile.
+// ─────────────────────────────────────────────────────────────────────
+function deriveProfileIntelligence(contact: OutreachContact): {
+  email:        string;
+  gender:       "M" | "F" | null;
+  languages:    string[];
+  location:     string;
+  locationType: string;
+} {
+  // Cheap deterministic hash over the contact id — used to pick stable
+  // values from the lookup arrays below. Same id always lands on the
+  // same email/location.
+  let h = 0;
+  for (let i = 0; i < contact.id.length; i++) {
+    h = (h * 31 + contact.id.charCodeAt(i)) | 0;
+  }
+  const pick = <T,>(arr: T[]) => arr[Math.abs(h ^ arr.length * 7919) % arr.length];
+
+  // Cities cover a Metro / Non-metro mix so the Location Type field
+  // reads as varied across leads.
+  const cities = [
+    { city: "Mumbai",      state: "Maharashtra",   type: "india_metro" },
+    { city: "Bangalore",   state: "Karnataka",     type: "india_metro" },
+    { city: "Pune",        state: "Maharashtra",   type: "india_metro" },
+    { city: "Hyderabad",   state: "Telangana",     type: "india_metro" },
+    { city: "Chennai",     state: "Tamil Nadu",    type: "india_metro" },
+    { city: "Indore",      state: "Madhya Pradesh", type: "india_non_metro" },
+    { city: "Lucknow",     state: "Uttar Pradesh", type: "india_non_metro" },
+    { city: "Coimbatore",  state: "Tamil Nadu",    type: "india_non_metro" },
+    { city: "Nagpur",      state: "Maharashtra",   type: "india_non_metro" },
+    { city: "Kochi",       state: "Kerala",        type: "india_non_metro" },
+  ];
+  const city = pick(cities);
+
+  const emailProviders = ["gmail.com", "yahoo.com", "outlook.com", "icloud.com"];
+  const firstWord = contact.name.replace(/\*/g, "").split(/\s+/)[0]?.toLowerCase() || "user";
+  const emailLocal = `${firstWord[0] || "s"}*****`;
+  const email = `${emailLocal}@${pick(emailProviders)}`;
+
+  const languagePairs = [
+    ["Hindi", "English"],
+    ["Marathi", "Hindi", "English"],
+    ["Tamil", "English"],
+    ["Telugu", "English"],
+    ["Kannada", "English"],
+    ["English"],
+    ["Hindi", "English", "Marathi"],
+  ];
+  const languages = pick(languagePairs);
+
+  return {
+    email,
+    gender:       (h % 2 === 0 ? "M" : "F"),
+    languages,
+    location:     `${city.city}, ${city.state}, India`,
+    locationType: city.type,
+  };
+}
+
+function ProfileTab({ contact }: { contact: OutreachContact }) {
+  const intel = useMemo(() => deriveProfileIntelligence(contact), [contact]);
+  const locationTypeLabels: Record<string, string> = {
+    india_metro:     "India Metro",
+    india_non_metro: "India Non-Metro",
+  };
+  const copyText = (s: string) => {
+    if (typeof navigator !== "undefined") navigator.clipboard?.writeText(s).catch(() => {});
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-3">
+          Contact Details
+        </h3>
+        <div className="bg-surface-page rounded-[8px] divide-y divide-border-subtle">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <MapPin size={14} strokeWidth={1.5} className="text-text-tertiary shrink-0" />
+            <span className="text-[13px] text-text-primary">{intel.location}</span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Phone size={14} strokeWidth={1.5} className="text-text-tertiary shrink-0" />
+              <span className="text-[13px] text-text-primary">{contact.phone}</span>
+            </div>
+            <button
+              onClick={() => copyText(contact.phone)}
+              className="p-1.5 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+              title="Copy phone"
+            >
+              <Copy size={12} strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Mail size={14} strokeWidth={1.5} className="text-text-tertiary shrink-0" />
+              <span className="text-[13px] text-text-primary">{intel.email}</span>
+            </div>
+            <button
+              onClick={() => copyText(intel.email)}
+              className="p-1.5 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+              title="Copy email"
+            >
+              <Copy size={12} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-[11px] font-medium text-text-tertiary uppercase tracking-[0.5px] mb-3">
+          Intelligence
+        </h3>
+
+        <div className="bg-surface-page rounded-[8px] p-4 mb-3">
+          <h4 className="text-[12px] font-medium text-text-primary mb-2.5">Profile Intelligence</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[11px] text-text-tertiary">Gender</div>
+              <div className="text-[13px] text-text-primary mt-0.5">
+                {intel.gender === "M" ? "Male" : intel.gender === "F" ? "Female" : "Not Available"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-text-tertiary">Languages</div>
+              <div className="text-[13px] text-text-primary mt-0.5">
+                {intel.languages.length > 0 ? intel.languages.join(", ") : "Not Available"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface-page rounded-[8px] p-4">
+          <h4 className="text-[12px] font-medium text-text-primary mb-2.5">Geographical Intelligence</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[11px] text-text-tertiary">Location</div>
+              <div className="text-[13px] text-text-primary mt-0.5">{intel.location}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-text-tertiary">Location Type</div>
+              <div className="text-[13px] text-text-primary mt-0.5">
+                {locationTypeLabels[intel.locationType] || intel.locationType}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ContactRow({ c }: { c: OutreachContact }) {
@@ -508,7 +674,16 @@ interface PreviewRow {
 }
 
 interface CsvFile {
+  // Unique id used to address the row during the simulated upload
+  // animation. The "Uploading…" / "Uploaded" flip in the UI is keyed
+  // by this id so multiple files in flight don't collide.
+  id?: string;
   name: string;
+  // "uploading" while the progress bar is animating, "ready" once the
+  // animation completes and the parsed counts are merged in. We keep
+  // optional for back-compat with code paths that pre-date this flow.
+  status?: "uploading" | "ready";
+  progress?: number;
   totalRows: number;
   validRows: number;
   invalid: CsvInvalidBreakdown;
@@ -744,14 +919,19 @@ function AddLeadsModal({
     if (!files || files.length === 0) return;
     const errs: string[] = [];
     const incoming = Array.from(files);
-    // Capacity check — clamp to the slots still available, kick the
-    // overflow into the error feed so the user understands why some
-    // files didn't land.
     const slotsLeft = Math.max(0, ADD_LEADS_MAX_FILES_PER_UPLOAD - csvFiles.length);
     if (incoming.length > slotsLeft) {
       errs.push(`Only ${slotsLeft} more file${slotsLeft === 1 ? "" : "s"} can be added in this batch (max ${ADD_LEADS_MAX_FILES_PER_UPLOAD}). Extra files were ignored.`);
     }
-    const next: CsvFile[] = [];
+
+    // Parse synchronously up-front so we can validate row counts and
+    // surface errors immediately, then queue an "uploading" placeholder
+    // per accepted file and animate it to "ready". The parse is instant
+    // in a demo, but instantaneous "Uploaded" reads as fake; the
+    // simulated progress gives the upload visual weight without
+    // misleading the user about what's actually happening.
+    type Job = { id: string; parsed: CsvFile };
+    const jobs: Job[] = [];
     for (const file of incoming.slice(0, slotsLeft)) {
       if (!file.name.toLowerCase().endsWith(".csv")) {
         errs.push(`${file.name} — only .csv files are supported.`);
@@ -763,10 +943,49 @@ function AddLeadsModal({
         errs.push(`${file.name} — ${parsed.totalRows.toLocaleString()} rows exceeds the ${ADD_LEADS_MAX_ROWS_PER_FILE.toLocaleString()}-row limit per file.`);
         continue;
       }
-      next.push(parsed);
+      const id = `f${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      jobs.push({ id, parsed: { ...parsed, id } });
     }
     if (errs.length > 0) setUploadErrors((p) => [...p, ...errs]);
-    if (next.length > 0) setCsvFiles((p) => [...p, ...next]);
+    if (jobs.length === 0) return;
+
+    // Phase 1 — append "uploading" placeholders so the rows appear
+    // immediately. The placeholder has zeroed counts so the UI knows
+    // to render the "Uploading…" pill + progress bar.
+    const placeholders: CsvFile[] = jobs.map((j) => ({
+      id: j.id,
+      name: j.parsed.name,
+      status: "uploading",
+      progress: 0,
+      totalRows: 0,
+      validRows: 0,
+      invalid: { missingPhone: 0, invalidFormat: 0, duplicatePhone: 0, missingName: 0 },
+      previewHeaders: [],
+      previewRows: [],
+      allRows: [],
+    }));
+    setCsvFiles((p) => [...p, ...placeholders]);
+
+    // Phase 2 — animated progress per file. Staggered per file so a
+    // multi-file drop reads as a queue, then merge in the parsed
+    // counts at the end of each ramp.
+    const TICKS = [15, 40, 70, 95];
+    const TICK_MS = 320;
+    jobs.forEach((job, fileIdx) => {
+      const stagger = fileIdx * 180;
+      TICKS.forEach((pct, t) => {
+        setTimeout(() => {
+          setCsvFiles((p) => p.map((f) => f.id === job.id ? { ...f, progress: pct } : f));
+        }, stagger + (t + 1) * TICK_MS);
+      });
+      setTimeout(() => {
+        setCsvFiles((p) => p.map((f) =>
+          f.id === job.id
+            ? { ...job.parsed, id: job.id, status: "ready", progress: 100 }
+            : f,
+        ));
+      }, stagger + (TICKS.length + 1) * TICK_MS);
+    });
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1051,7 +1270,46 @@ function AddLeadsModal({
                           key={idx}
                           className="bg-white border border-border rounded-card overflow-hidden hover:border-text-tertiary transition-colors"
                         >
-                          <div className="px-4 py-3 flex items-start gap-4">
+                          {/* While the file is "uploading" the row reads
+                              as a progress strip — neutral chrome, a
+                              "Uploading…" pill, and a fill bar that ticks
+                              up over ~1.5 s. Once the simulated upload
+                              completes the row flips to the parsed-results
+                              layout below. */}
+                          {file.status === "uploading" ? (
+                            <div className="px-4 py-3 flex items-start gap-4">
+                              <div className="shrink-0 w-10 h-10 rounded-[8px] flex items-center justify-center bg-surface-page text-text-tertiary">
+                                <FileSpreadsheet size={18} strokeWidth={1.5} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                  <div className="text-[13px] text-text-primary truncate" title={file.name}>
+                                    {file.name}
+                                  </div>
+                                  <span className="inline-flex items-center gap-1 text-[10.5px] font-medium px-2 py-0.5 rounded-badge bg-[#EFF6FF] text-[#1D4ED8]">
+                                    <Loader2 size={9} strokeWidth={2.25} className="animate-spin" />
+                                    Uploading…
+                                  </span>
+                                </div>
+                                <div className="h-1 rounded-full bg-border-subtle overflow-hidden">
+                                  <div
+                                    className="h-full bg-accent transition-all duration-300 ease-out"
+                                    style={{ width: `${file.progress ?? 0}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeCsv(idx)}
+                                className="shrink-0 inline-flex items-center justify-center w-8 h-8 text-text-tertiary hover:text-[#DC2626] hover:bg-surface-page rounded-button transition-colors"
+                                title="Cancel upload"
+                                aria-label={`Cancel ${file.name}`}
+                              >
+                                <X size={14} strokeWidth={1.75} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 flex items-start gap-4">
                             <div className={`shrink-0 w-10 h-10 rounded-[8px] flex items-center justify-center ${iconCls}`}>
                               <FileSpreadsheet size={18} strokeWidth={1.5} />
                             </div>
@@ -1109,6 +1367,7 @@ function AddLeadsModal({
                               </button>
                             </div>
                           </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1750,14 +2009,21 @@ function formatRate(r: PlaybackRate): string {
 }
 
 function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose: () => void }) {
-  const [tab, setTab] = useState<"overview" | "profile" | "logs">("overview");
-  const [manuallyQualified, setManuallyQualified] = useState(false);
-  const [isQualifying, setIsQualifying] = useState(false);
-  // Per-call transcript collapse state — keyed by call id. Default to
-  // expanded so first-time viewers see the conversation; long transcripts
-  // get capped height with internal scroll so they don't push the rest of
-  // the drawer offscreen.
-  const [collapsedTranscripts, setCollapsedTranscripts] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<"overview" | "profile" | "activity">("overview");
+  // Qualification used to be settable from this drawer ("Mark as
+  // Qualified" CTA) but that misrepresented the workflow: qualification
+  // isn't a manual decision the user makes on a lead — it's the
+  // outcome inferred from the call. The drawer now just reports the
+  // status; there's no longer a way to flip it here.
+  // Calls are now part of the unified Activity timeline. Each call
+  // entry starts collapsed — the user sees the timestamp + status
+  // pill, clicks the chevron to reveal the player + variables +
+  // transcript. Keeping the default closed lets the timeline read as
+  // a stream of events; expanding is opt-in.
+  const callsForCollapse = useMemo(() => generateCallLogs(contact), [contact]);
+  const [collapsedTranscripts, setCollapsedTranscripts] = useState<Set<string>>(
+    () => new Set(callsForCollapse.map((c) => c.id)),
+  );
   const toggleTranscript = (id: string) => setCollapsedTranscripts(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id);
@@ -1789,7 +2055,66 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
   // so the Overview stays scannable, but the user can pop it open
   // here without switching to the Call logs tab.
   const [showOverviewTranscript, setShowOverviewTranscript] = useState(false);
-  const calls = useMemo(() => generateCallLogs(contact), [contact]);
+  const calls = callsForCollapse;
+
+  // ── Activity timeline ─────────────────────────────────────────
+  // Combines lifecycle events (Lead created, Lead updated, Push to
+  // CRM) with each call into a single time-ordered stream. Newest
+  // first — same direction as the Overview tab's "most recent call"
+  // reads. Calls are still rendered as their full collapsible block;
+  // the lifecycle events are simple icon + label + timestamp rows
+  // since there's no body to expand.
+  type LifecycleEvent = {
+    kind:  "created" | "crm";
+    at:    string;
+    label: string;
+  };
+  type ActivityItem =
+    | { type: "event"; at: string; event: LifecycleEvent }
+    | { type: "call";  at: string; call: CallLog };
+
+  // Activity timeline mirrors the /enquiries Lead drawer: newest at
+  // the top, oldest at the bottom. Reading top-down the user sees the
+  // most recent thing that happened first — which for a sales rep is
+  // usually "what's the latest with this lead?".
+  //
+  // Concrete order:
+  //   1. Pushed to CRM   (most recent, if it happened)
+  //   2. Calls           (newest → oldest)
+  //   3. Lead created    (always at the bottom — origin of the lead)
+  const activityItems: ActivityItem[] = useMemo(() => {
+    const items: ActivityItem[] = [];
+
+    if (contact.sentToCrm) {
+      // No discrete CRM timestamp on the seed data, so anchor it AFTER
+      // the most-recent call (or fall back to the contact's updated
+      // timestamp). Adding an hour past the last call's time keeps
+      // CRM at the very top of the newest-first ordering.
+      const lastCall = calls[0]; // generateCallLogs hands back newest-first
+      const baseMs = lastCall
+        ? new Date(lastCall.dateTime).getTime() + 60 * 60 * 1000
+        : new Date(contact.updatedAt ?? contact.createdAt).getTime();
+      const anchorAt = new Date(baseMs).toISOString();
+      items.push({
+        type: "event",
+        at:   anchorAt,
+        event: { kind: "crm", at: anchorAt, label: "Pushed to CRM" },
+      });
+    }
+
+    // Calls are already newest-first from generateCallLogs; push as-is.
+    calls.forEach((c) => items.push({ type: "call", at: c.dateTime, call: c }));
+
+    // Lead created sits at the bottom — it's the chronologically
+    // earliest event, so newest-first puts it last.
+    items.push({
+      type: "event",
+      at:   contact.createdAt,
+      event: { kind: "created", at: contact.createdAt, label: "Lead created" },
+    });
+
+    return items;
+  }, [contact.createdAt, contact.updatedAt, contact.sentToCrm, calls]);
 
   const initials = contact.name
     .split(/\s+/)
@@ -1799,24 +2124,15 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
     .join("")
     .toUpperCase();
 
-  const isQualified = contact.qualStatus === "qualified" || manuallyQualified;
-  const qBadge = drillQualBadge(isQualified ? "qualified" : contact.qualStatus);
+  const qBadge = drillQualBadge(contact.qualStatus);
   const summary = buildDrillSummary(calls);
   const mostRecentCall = calls.length > 0 ? calls[0] : null;
 
-  const handleQualify = () => {
-    if (isQualified || isQualifying) return;
-    setIsQualifying(true);
-    setTimeout(() => {
-      setIsQualifying(false);
-      setManuallyQualified(true);
-    }, 700);
-  };
 
   const tabs: Array<{ key: typeof tab; label: string }> = [
     { key: "overview", label: "Overview" },
     { key: "profile",  label: "Profile" },
-    { key: "logs",     label: "Call logs" },
+    { key: "activity", label: "Activity" },
   ];
 
   // Tone for the call-log status pill (Call logs tab).
@@ -1871,26 +2187,10 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
             </div>
           </div>
 
-          {/* CTA row — only when the lead isn't yet qualified. When
-              they're already qualified the badge in the header above
-              says so; a disabled "Qualified" button below it just
-              repeats the same info, which is the duplication the
-              user called out. */}
-          {!isQualified && (
-            <div className="flex items-center gap-2.5 mt-4">
-              <button
-                onClick={handleQualify}
-                disabled={isQualifying}
-                className="inline-flex items-center gap-1.5 h-8 px-3.5 text-[12px] font-medium rounded-button bg-accent text-white hover:bg-accent-hover transition-colors duration-150 disabled:opacity-60"
-              >
-                {isQualifying ? (
-                  <><Loader2 size={13} strokeWidth={2} className="animate-spin" /> Qualifying…</>
-                ) : (
-                  "Mark as Qualified"
-                )}
-              </button>
-            </div>
-          )}
+          {/* No CTA here. The qualification pill in the header above
+              IS the state — qualification is the outcome the agent
+              infers from the call, not a manual decision the user
+              makes on this lead. The drawer just reports the status. */}
         </div>
 
         {/* Tab strip — underline style, same as Leads panel */}
@@ -2068,34 +2368,43 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
           )}
 
           {tab === "profile" && (
-            <div className="divide-y divide-border-subtle">
-              {[
-                // Outcome was removed — for qualified leads it duplicated
-                // Qual status verbatim, and qualStatus is the canonical
-                // qualification field used in the filter tabs and the AI
-                // Qualification column of the contacts table.
-                { label: "Phone",         value: contact.phone },
-                { label: "Lead type",     value: contact.leadType.replace("_", " ") },
-                { label: "AI qualification", value: contact.qualStatus ?? "—" },
-                { label: "Verified",      value: contact.verified ? "Yes" : "No" },
-                { label: "Sent to CRM",   value: contact.sentToCrm ? "Yes" : "No" },
-                { label: "Created",       value: format(new Date(contact.createdAt), "dd MMM yyyy, HH:mm") },
-                { label: "Updated",       value: format(new Date(contact.updatedAt), "dd MMM yyyy, HH:mm") },
-                { label: "Last called",   value: contact.calledAt ? format(new Date(contact.calledAt), "dd MMM yyyy, HH:mm") : "—" },
-              ].map((row) => (
-                <div key={row.label} className="grid grid-cols-[140px_1fr] gap-4 py-3">
-                  <span className="text-[11.5px] font-medium text-text-secondary">{row.label}</span>
-                  <span className="text-[13px] text-text-primary capitalize">{String(row.value)}</span>
-                </div>
-              ))}
-            </div>
+            <ProfileTab contact={contact} />
           )}
 
-          {tab === "logs" && (
-            <div className="space-y-5">
-              {calls.map((call) => (
-                <div key={call.id}>
-                  <div className="flex items-center justify-between mb-2 px-1">
+          {tab === "activity" && (
+            <div className="space-y-2">
+              {activityItems.map((item, idx) => {
+                if (item.type === "event") {
+                  const { event } = item;
+                  const Icon = event.kind === "created" ? UserPlus : Database;
+                  const iconBg = event.kind === "crm"
+                    ? "bg-[#EEF2FF] text-[#4338CA]"
+                    : "bg-[#DCFCE7] text-[#15803D]";
+                  // Lifecycle events (Lead created, Pushed to CRM) sit
+                  // in the same surface-page card chrome as the call
+                  // rows so the timeline reads as a single uniform
+                  // list. No chevron — there's nothing to expand into
+                  // for these markers.
+                  return (
+                    <div key={`event-${idx}`} className="bg-surface-page rounded-[8px] overflow-hidden">
+                      <div className="w-full flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                            <Icon size={12} strokeWidth={1.5} />
+                          </div>
+                          <span className="text-[12px] text-text-primary font-medium">{event.label}</span>
+                        </div>
+                        <span className="text-[11.5px] text-text-tertiary tabular-nums">
+                          {format(new Date(event.at), "dd MMM yyyy, hh:mm a")}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                const call = item.call;
+                return (
+                <div key={call.id} className="bg-surface-page rounded-[8px] overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3">
                     <div className="text-[12.5px] font-medium text-text-primary tabular-nums">
                       {format(new Date(call.dateTime), "dd MMM yyyy, hh:mm a")}
                     </div>
@@ -2103,13 +2412,14 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                       <span className={`inline-flex items-center h-6 px-2.5 rounded-full border text-[11px] font-medium ${statusToneCls(call.statusTone)}`}>
                         {call.status}
                       </span>
-                      {/* Collapse / expand the transcript for this call.
-                          Chevron rotates to indicate state. Long transcripts
-                          also get a max-height + scroll below. */}
+                      {/* Toggle the entire call body — player + variables
+                          + transcript — for this entry. Default state is
+                          collapsed so the Activity timeline reads as a
+                          stream of events; expanding is opt-in per call. */}
                       <button
                         type="button"
                         onClick={() => toggleTranscript(call.id)}
-                        aria-label={collapsedTranscripts.has(call.id) ? "Show transcript" : "Hide transcript"}
+                        aria-label={collapsedTranscripts.has(call.id) ? "Show call details" : "Hide call details"}
                         aria-expanded={!collapsedTranscripts.has(call.id)}
                         className="inline-flex items-center justify-center w-7 h-7 rounded border border-border bg-white text-text-tertiary hover:text-text-primary hover:bg-surface-page transition-colors"
                       >
@@ -2122,6 +2432,8 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                     </div>
                   </div>
 
+                  {!collapsedTranscripts.has(call.id) && (
+                  <>
                   <div className="bg-surface-page rounded-[10px] px-3 py-3 flex items-center gap-3">
                     <button
                       aria-label="Play recording"
@@ -2162,50 +2474,54 @@ function LeadDrillDown({ contact, onClose }: { contact: OutreachContact; onClose
                       always-visible vertical scrollbar so the user
                       knows there's more content even on a stock
                       trackpad (which hides scrollbars by default).
-                      The chevron in the header toggles collapse. */}
-                  {!collapsedTranscripts.has(call.id) && (
-                    <div
-                      className="mt-2 bg-white border border-border-subtle rounded-[10px] px-4 py-3.5 space-y-1.5 max-h-[360px] overflow-y-scroll"
-                      style={{ scrollbarWidth: "thin", scrollbarGutter: "stable" }}
-                    >
-                      {call.transcript.map((line, i) => {
-                        const isAgent = line.speaker === "Agent";
-                        const prev = i > 0 ? call.transcript[i - 1] : null;
-                        const showLabel = !prev || prev.speaker !== line.speaker;
-                        const wrapperGap = showLabel && i > 0 ? "mt-2.5" : "";
-                        return (
-                          <div
-                            key={i}
-                            className={`flex flex-col ${isAgent ? "items-start" : "items-end"} ${wrapperGap}`}
-                          >
-                            {showLabel && (
-                              <div
-                                className={`text-[10.5px] font-medium mb-0.5 px-0.5 ${
-                                  isAgent ? "text-[#15803D]" : "text-[#2563EB]"
-                                }`}
-                              >
-                                {line.speaker}
-                              </div>
-                            )}
+                      Lives inside the same expanded block as the
+                      player + variables — one chevron toggles all
+                      three so the timeline stays compact when
+                      collapsed. */}
+                  <div
+                    className="mt-2 bg-white border border-border-subtle rounded-[10px] px-4 py-3.5 space-y-1.5 max-h-[360px] overflow-y-scroll"
+                    style={{ scrollbarWidth: "thin", scrollbarGutter: "stable" }}
+                  >
+                    {call.transcript.map((line, i) => {
+                      const isAgent = line.speaker === "Agent";
+                      const prev = i > 0 ? call.transcript[i - 1] : null;
+                      const showLabel = !prev || prev.speaker !== line.speaker;
+                      const wrapperGap = showLabel && i > 0 ? "mt-2.5" : "";
+                      return (
+                        <div
+                          key={i}
+                          className={`flex flex-col ${isAgent ? "items-start" : "items-end"} ${wrapperGap}`}
+                        >
+                          {showLabel && (
                             <div
-                              className={`max-w-[85%] px-3 py-2 text-[12.5px] leading-relaxed rounded-[10px] ${
-                                isAgent
-                                  ? "bg-[#F0FDF4] text-text-primary rounded-tl-[3px]"
-                                  : "bg-[#EFF6FF] text-text-primary rounded-tr-[3px]"
+                              className={`text-[10.5px] font-medium mb-0.5 px-0.5 ${
+                                isAgent ? "text-[#15803D]" : "text-[#2563EB]"
                               }`}
                             >
-                              {line.text}
+                              {line.speaker}
                             </div>
+                          )}
+                          <div
+                            className={`max-w-[85%] px-3 py-2 text-[12.5px] leading-relaxed rounded-[10px] ${
+                              isAgent
+                                ? "bg-[#F0FDF4] text-text-primary rounded-tl-[3px]"
+                                : "bg-[#EFF6FF] text-text-primary rounded-tr-[3px]"
+                            }`}
+                          >
+                            {line.text}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  </>
                   )}
                 </div>
-              ))}
-              {calls.length === 0 && (
+                );
+              })}
+              {activityItems.length === 0 && (
                 <div className="text-center py-12 text-[13px] text-text-tertiary">
-                  No call logs yet.
+                  No activity yet.
                 </div>
               )}
             </div>
@@ -2609,14 +2925,12 @@ export default function OutreachDetailPage() {
   // on a "(filtered)" qualifier so they don't accidentally export less than
   // they expected.
   const activeTabLabel = FILTER_TABS.find(t => t.id === activeFilter)?.label ?? "All";
-  const exportNoun =
-      activeFilter === "all"          ? "leads"
-    : activeFilter === "yet_to_dial"  ? "not-yet-dialed leads"
-    : activeFilter === "qualified"    ? "qualified leads"
-    : activeFilter === "follow_up"    ? "follow-up leads"
-    : "disqualified leads";
+  // Short label — just "Export (N)" with an optional "(filtered)" qualifier
+  // when extra criteria are active. The tab itself already names the
+  // segment being exported (Follow-up / Qualified / etc.) so repeating
+  // the noun on the button was redundant.
   const hasExtraFilter = popoverFilterCount > 0 || search.trim().length > 0;
-  const exportLabel = `Export ${filtered.length.toLocaleString()} ${exportNoun}${hasExtraFilter ? " (filtered)" : ""}`;
+  const exportLabel = `Export (${filtered.length.toLocaleString()})${hasExtraFilter ? " · filtered" : ""}`;
 
   const handleExportContacts = () => {
     if (filtered.length === 0) return;
@@ -2945,18 +3259,12 @@ export default function OutreachDetailPage() {
                       selected={nextActions}
                       onToggle={(v) => toggleInList(nextActions, setNextActions, v)}
                     />
-                    <ChipGroup
-                      label="Lead Type"
-                      options={LEAD_TYPE_OPTS}
-                      selected={leadTypes}
-                      onToggle={(v) => toggleInList(leadTypes, setLeadTypes, v)}
-                    />
-                    <ChipGroup
-                      label="Verified"
-                      options={VERIFIED_OPTS}
-                      selected={verifiedFilter === "" ? [] : [verifiedFilter]}
-                      onToggle={(v) => { setVerifiedFilter(verifiedFilter === v ? "" : v); setPage(1); }}
-                    />
+                    {/* Lead Type and Verified filters dropped — the
+                        outreach view already filters down to contacts
+                        belonging to one outreach, so the verification
+                        provenance + lead-type chips weren't pulling
+                        their weight here. Leaves Next Action and
+                        Send to CRM as the qualification-style chips. */}
                     <ChipGroup
                       label="Send to CRM"
                       options={SENT_TO_CRM_OPTS}
@@ -3608,13 +3916,13 @@ function LeadCoverageBar({
         <div className="flex items-center justify-between mb-1.5 text-[11.5px] flex-wrap gap-y-1">
           <span className="inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-text-primary" />
-            <span className="text-text-secondary">Called</span>
+            <span className="text-text-secondary">Dialled at least once</span>
             <span className="font-medium text-text-primary tabular-nums">{called.toLocaleString()}</span>
             <span className="text-text-tertiary tabular-nums">({Math.round(calledPct)}%)</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-border" />
-            <span className="text-text-secondary">Remaining</span>
+            <span className="text-text-secondary">Awaiting first dial</span>
             <span className="font-medium text-text-primary tabular-nums">{remaining.toLocaleString()}</span>
             <span className="text-text-tertiary tabular-nums">({Math.round(100 - calledPct)}%)</span>
           </span>

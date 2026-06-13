@@ -536,6 +536,13 @@ function OutreachRow({
 }) {
   const router = useRouter();
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
+  // Funnel rate colour rule: 20% is the read-as-healthy threshold —
+  // anything at-or-above stays green, anything below tips red. No
+  // up/down arrow, no period-over-period delta — these numbers are a
+  // funnel stage's conversion rate (e.g. "32 connected of 80 leads
+  // = 40%"), not a trend. Rendering them as deltas turned a static
+  // funnel into a trend chart and obscured the actual metric.
+  const rateTone = (rate: number) => (rate >= 20 ? "text-[#15803D]" : "text-[#DC2626]");
   const qualRate = pct(o.qualified, o.totalContacts);
   return (
     <tr
@@ -561,40 +568,37 @@ function OutreachRow({
       <td className="px-3 py-3">
         <StatusPill status={o.status} />
       </td>
-      {/* Leads — top of the funnel, no rate beside it (it IS the
-          baseline that everything else divides by). Same weight/size
-          as the other funnel numbers so the column reads as one
-          consistent visual ladder. */}
-      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15px] font-medium text-text-primary">{o.totalContacts.toLocaleString()}</span>
+      {/* Each funnel cell: absolute number on top, conversion rate
+          stacked beneath. Rate goes green if ≥ 20%, red otherwise —
+          the user's working threshold for "healthy stage retention".
+          Leads is the funnel baseline so it carries no rate — every
+          stage rate is computed against it. */}
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap align-top">
+        <div className="text-[15px] font-medium text-text-primary">{o.totalContacts.toLocaleString()}</div>
       </td>
-      {/* Funnel stages — number + "% of leads" rendered inline on a
-          single line. Stacking the percentage below the number read
-          as visual noise; pushing it beside the number keeps each
-          cell to one line and lets the column scan vertically as
-          plain numbers. Rates are all vs. the top of the funnel
-          (Leads), not stage-over-stage — each column reads "how
-          many of my leads made it this far?". */}
-      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15px] font-medium text-text-primary">{o.called.toLocaleString()}</span>
-        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.called, o.totalContacts)}%</span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap align-top">
+        <div className="text-[15px] font-medium text-text-primary">{o.called.toLocaleString()}</div>
+        <div className={`text-[11px] font-medium mt-0.5 ${rateTone(pct(o.called, o.totalContacts))}`}>
+          {pct(o.called, o.totalContacts)}%
+        </div>
       </td>
-      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15px] font-medium text-text-primary">{o.connected.toLocaleString()}</span>
-        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.connected, o.totalContacts)}%</span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap align-top">
+        <div className="text-[15px] font-medium text-text-primary">{o.connected.toLocaleString()}</div>
+        <div className={`text-[11px] font-medium mt-0.5 ${rateTone(pct(o.connected, o.totalContacts))}`}>
+          {pct(o.connected, o.totalContacts)}%
+        </div>
       </td>
-      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15px] font-medium text-text-primary">{o.interacted.toLocaleString()}</span>
-        <span className="text-[10.5px] text-text-tertiary ml-2">{pct(o.interacted, o.totalContacts)}%</span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap align-top">
+        <div className="text-[15px] font-medium text-text-primary">{o.interacted.toLocaleString()}</div>
+        <div className={`text-[11px] font-medium mt-0.5 ${rateTone(pct(o.interacted, o.totalContacts))}`}>
+          {pct(o.interacted, o.totalContacts)}%
+        </div>
       </td>
-      {/* Qualified — bottom of the funnel and the headline metric.
-          Kept on the same weight/size ladder as the other funnel
-          numbers so nothing reads as accidentally bold; the column
-          itself (rightmost stage) and the % chip do the work of
-          calling attention to the outcome. */}
-      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">
-        <span className="text-[15px] font-medium text-text-primary">{o.qualified.toLocaleString()}</span>
-        <span className="text-[10.5px] text-text-tertiary ml-2">{qualRate}%</span>
+      <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap align-top">
+        <div className="text-[15px] font-medium text-text-primary">{o.qualified.toLocaleString()}</div>
+        <div className={`text-[11px] font-medium mt-0.5 ${rateTone(qualRate)}`}>
+          {qualRate}%
+        </div>
       </td>
       {/* Dates trail to the right — useful metadata but not the headline.
           Created / Updated sit together so the user can read them as a

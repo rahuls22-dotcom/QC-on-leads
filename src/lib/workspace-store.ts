@@ -76,7 +76,7 @@ export function useCurrentWorkspaceLabel() {
  * current pathname. The rule (per the workspace-switch spec):
  *
  * - List/admin pages (/dashboard, /projects, /campaigns, /brand, /admin,
- *   /enquiries, /creatives, /agents-mvp) stay where they are; the pages
+ *   /enquiries, /creatives, /agents) stay where they are; the pages
  *   themselves refilter against the new scope.
  * - Workspace-specific resources (project detail, deploy page, campaign
  *   detail) fall back to their parent list — the old resource doesn't
@@ -105,7 +105,7 @@ export function redirectAfterScopeSwitch(args: {
     "/admin",
     "/enquiries",
     "/creatives",
-    "/agents-mvp",
+    "/agents",
     "/audiences",
     "/integrations",
   ]);

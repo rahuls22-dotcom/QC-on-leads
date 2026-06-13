@@ -4,13 +4,62 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { DemoModeProvider } from "@/lib/demo-mode";
-import { ProductsProvider } from "@/lib/products";
+import { ProductsProvider, useProducts, type ProductKey } from "@/lib/products";
 import { SpotRoot } from "@/components/spot/spot-root";
 import { useSpotStore } from "@/lib/spot/store";
 import { useCurrentScope, useCurrentWorkspaceLabel } from "@/lib/workspace-store";
 import { isAuthed } from "@/lib/auth";
 import { WAProvider } from "@/lib/whatsapp-context";
 import { WorkspaceProvider } from "@/lib/workspace-context";
+
+// Maps top-level product routes to the product entitlement they need
+// and the locked-state stub to fall back to. The sidebar hides these
+// rows when the workspace doesn't own the product, but direct URL
+// navigation and browser back-button can still land the user on the
+// real surface — this guard catches those cases and bounces to the
+// matching /locked/* page. Outreach piggy-backs on AI Calling
+// (Outreach is the front door for outbound calling) so it shares the
+// same gate.
+const ROUTE_PRODUCT_GUARDS: { prefix: string; product: ProductKey; locked: string }[] = [
+  { prefix: "/enrichment",         product: "enrichment",         locked: "/locked/enrichment" },
+  { prefix: "/contact-extraction", product: "contact_extraction", locked: "/locked/contact-extraction" },
+  { prefix: "/agents",         product: "ai_calling",         locked: "/locked/ai-calling-agents" },
+  { prefix: "/outreach",           product: "ai_calling",         locked: "/locked/ai-calling-agents" },
+];
+
+function isUnderPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
+/**
+ * Redirects to the locked stub whenever the current route belongs to
+ * a product the workspace doesn't own. Lives inside ProductsProvider
+ * so it can read entitlement state. Runs on every navigation and is
+ * a no-op for routes outside the guarded set, so it doesn't add
+ * latency to brand-wide nav.
+ *
+ * Locked stubs themselves are unguarded — landing on /locked/* always
+ * works, otherwise the redirect would loop on a workspace that owns
+ * nothing.
+ */
+function ProductRouteGuard() {
+  const pathname = usePathname() || "";
+  const router = useRouter();
+  const { has } = useProducts();
+
+  useEffect(() => {
+    // Don't gate the locked stubs themselves — they're the destination.
+    if (pathname.startsWith("/locked/")) return;
+    for (const rule of ROUTE_PRODUCT_GUARDS) {
+      if (isUnderPrefix(pathname, rule.prefix) && !has(rule.product)) {
+        router.replace(rule.locked);
+        return;
+      }
+    }
+  }, [pathname, has, router]);
+
+  return null;
+}
 
 /**
  * Watches workspace scope and resets Spot whenever it changes — the
@@ -93,6 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <ProductsProvider>
           <WorkspaceProvider>
             <WAProvider>
+              <ProductRouteGuard />
               <div className="min-h-screen bg-surface-page">
                 <Sidebar />
                 <main className="ml-sidebar">

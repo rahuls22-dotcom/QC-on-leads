@@ -18,6 +18,19 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, ArrowRight, CheckCircle2, Mail } from "lucide-react";
 import { WALLETS, RUPEES_PER_CREDIT } from "@/lib/credits-data";
+import { useProducts } from "@/lib/products";
+
+// Maps the workspace's product entitlement (ProductKey) onto the
+// wallet module IDs the estimator iterates over. Kept in sync with
+// the same mapping on the wallet page — anywhere we filter the
+// WALLETS list by what the customer actually owns, we use this
+// shape. Campaigns has no separate wallet module (its spend rolls
+// into AI Calling) so it's not in the table.
+const PRODUCT_TO_WALLET_ID: Record<string, string> = {
+  enrichment:         "enrichment",
+  contact_extraction: "contact-extraction",
+  ai_calling:         "ai-calling",
+};
 
 // Customer-success contact that requests get routed to. In real life
 // this would come from /api/me or a workspace setting; for the
@@ -47,6 +60,20 @@ function formatRateLabel(rate: number): string {
 }
 
 export function TopUpEstimatorModal({ open, onClose }: Props) {
+  // Filter the wallet list down to what this workspace actually owns
+  // so a Voice-AI-only customer doesn't see Contact Extraction +
+  // Enrichment rows they can't act on. Falls back to all wallets if
+  // the workspace owns nothing identifiable — defensive only; in
+  // practice the products context always seeds at least one.
+  const { products } = useProducts();
+  const visibleWallets = useMemo(() => {
+    const allowedIds = new Set(
+      products.map((p) => PRODUCT_TO_WALLET_ID[p]).filter(Boolean),
+    );
+    const filtered = WALLETS.filter((w) => allowedIds.has(w.id));
+    return filtered.length > 0 ? filtered : WALLETS;
+  }, [products]);
+
   // Quantities keyed by capability id. We DON'T persist this across
   // mounts — the estimator is a one-shot planner; if you close and
   // reopen, you start fresh. That matches how product teams use it
@@ -92,11 +119,13 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
 
   // Compute subtotals per wallet + grand total — recomputed on every
   // keystroke. Included capabilities (Concurrency, etc.) are skipped
-  // since they don't accrue credits.
+  // since they don't accrue credits. Walks the entitlement-filtered
+  // list so an unowned product's leftover quantity (e.g. user typed
+  // a number, switched preset) doesn't quietly inflate the total.
   const { subtotals, grandTotal } = useMemo(() => {
     let total = 0;
     const subs: Record<string, number> = {};
-    for (const w of WALLETS) {
+    for (const w of visibleWallets) {
       let sub = 0;
       for (const cap of w.capabilities) {
         if (cap.included) continue;
@@ -106,7 +135,7 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
       total += sub;
     }
     return { subtotals: subs, grandTotal: total };
-  }, [qty]);
+  }, [qty, visibleWallets]);
 
   return (
     <AnimatePresence>
@@ -130,17 +159,15 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
             {view === "sent" ? (
               <SentView grandTotal={grandTotal} onClose={closeAll} />
             ) : (<>
-            {/* Header */}
+            {/* Header — title only. The previous one-line blurb under it
+                explained the goal of the modal, but in user testing it
+                pushed the wallet rows down without telling anyone
+                anything they couldn't infer from the title itself. */}
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
-              <div>
-                <p className="text-[15px] font-semibold text-text-primary inline-flex items-center gap-2">
-                  <Sparkles size={14} strokeWidth={1.6} className="text-accent" />
-                  Estimate top-up
-                </p>
-                <p className="text-[12px] text-text-secondary mt-0.5 max-w-[440px]">
-                  Tell us roughly what you'll need this month — we'll size the top-up so you don't have to do the math.
-                </p>
-              </div>
+              <p className="text-[15px] font-semibold text-text-primary inline-flex items-center gap-2">
+                <Sparkles size={14} strokeWidth={1.6} className="text-accent" />
+                Estimate top-up
+              </p>
               <button
                 onClick={closeAll}
                 className="p-2 rounded-button text-text-tertiary hover:bg-surface-page hover:text-text-secondary transition-colors shrink-0"
@@ -149,12 +176,14 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
               </button>
             </div>
 
-            {/* Body — one section per wallet */}
+            {/* Body — one section per wallet, scoped to what the
+                workspace owns. Voice-AI-only sees just AI Calling;
+                Voice + Enrichment sees both; full sees all three. */}
             <div
               className="flex-1 overflow-auto px-5 py-4 space-y-5"
               style={{ overscrollBehavior: "contain" }}
             >
-              {WALLETS.map((w) => {
+              {visibleWallets.map((w) => {
                 const Icon = w.icon;
                 const real = w.capabilities.filter((c) => !c.included);
                 const sub = subtotals[w.id] || 0;
@@ -254,32 +283,14 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
               })}
             </div>
 
-            {/* Footer — grand total + Add CTA */}
+            {/* Footer — Top-up estimate sits directly above the Send
+                request button so the user reads the total they're about
+                to ask for in the same eye-line as the commit action.
+                The earlier layout split it across the row with a vague
+                "You'll need" label on the left — two labels for one
+                number — which read as noise. */}
             <div className="px-5 py-4 border-t border-border bg-surface-page">
               <div className="flex items-end justify-between gap-3 mb-3">
-                <div>
-                  <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-0.5">
-                    You&apos;ll need
-                  </p>
-                  {/* Headline figure is the rupee total directly — the
-                      credits-and-conversion layer is gone now that the
-                      product runs as a pure INR cash wallet. */}
-                  <p className="text-[24px] font-semibold text-text-primary leading-none tabular-nums">
-                    ₹{formatNum(grandTotal * RUPEES_PER_CREDIT)}
-                  </p>
-                </div>
-                <p className="text-[11px] text-text-tertiary tabular-nums text-right">
-                  Top-up estimate
-                </p>
-              </div>
-              {/* Action row — all three buttons right-aligned, Reset
-                  rendered as a quiet text link so it doesn't compete with
-                  Cancel and Send for visual weight. Earlier Reset sat
-                  alone on the far left, which made it look orphaned next
-                  to the Cancel/Send pair on the right. Grouped together
-                  reads cleaner: Reset (link) · Cancel (outline) · Send
-                  (solid) — three steps of escalating commitment. */}
-              <div className="flex items-center justify-end gap-2">
                 <button
                   onClick={reset}
                   disabled={grandTotal === 0}
@@ -287,6 +298,19 @@ export function TopUpEstimatorModal({ open, onClose }: Props) {
                 >
                   Reset
                 </button>
+                {/* Estimate readout — right-aligned so it lives in the
+                    same column as the primary action below. One label,
+                    one number, no filler. */}
+                <div className="text-right">
+                  <p className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mb-0.5">
+                    Top-up estimate
+                  </p>
+                  <p className="text-[24px] font-semibold text-text-primary leading-none tabular-nums">
+                    ₹{formatNum(grandTotal * RUPEES_PER_CREDIT)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
                 <button
                   onClick={closeAll}
                   className="h-9 px-4 text-[13px] font-medium border border-border rounded-button bg-white text-text-secondary hover:bg-surface-page transition-colors"
