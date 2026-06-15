@@ -2,26 +2,37 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
-  CreditCard,
-  Settings as SettingsIcon,
-  Users,
   Plus,
   Check,
   Trash2,
-  TrendingDown,
   AlertTriangle,
   RefreshCw,
   ChevronDown,
   Calendar,
   Mail,
+  Power,
+  PlayCircle,
+  Building2,
+  UserCheck,
+  Receipt,
+  Layers,
+  Coins,
+  Bell,
+  Users2,
+  Rocket,
+  ClipboardCheck,
+  FileText,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
+  BILLING_TYPE_DESCRIPTIONS,
+  INDUSTRIES,
   PRODUCT_CATALOGUE,
   MEMBER_ROLES,
   defaultBilling,
@@ -31,42 +42,59 @@ import {
   formatCredits,
   formatRupees,
   makeMemberId,
+  makeWorkspaceId,
   type AccountType,
-  type BillingCycle,
+  type BillingType,
+  type Client,
   type ClientBilling,
-  type ConsumptionModel,
+  type Industry,
   type MemberRole,
   type OrgMember,
   type Product,
+  type ProductCategory,
+  type Workspace,
 } from "@/lib/billing-data";
 
-const TABS = [
-  { id: "billing",  label: "Credits & Billing",     icon: CreditCard },
-  { id: "config",   label: "Configuration",         icon: SettingsIcon },
-  { id: "members",  label: "Organization Members",  icon: Users },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
-
 const STEPS = [
-  { id: 1, label: "Client details" },
+  { id: 1, label: "Organization details" },
   { id: 2, label: "Configuration & feature pricing" },
-  { id: 3, label: "Organisation members" },
+  { id: 3, label: "Workspaces" },
+  { id: 4, label: "Members" },
 ] as const;
+
+type StepId = 1 | 2 | 3 | 4;
 
 export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const client = findClient(id);
-  if (!client) notFound();
+  const router = useRouter();
 
-  const [tab, setTab] = useState<TabId>("billing");
+  // Three modes:
+  //   isNew  — /clients/new   → create flow, navigate to list on confirm
+  //   onboarding — existing client with `billing: undefined` → activation flow
+  //   editing — existing client with billing already configured → edit flow
+  const isNew = id === "new";
+  const client = isNew ? null : findClient(id);
+  if (!isNew && !client) notFound();
+  const isEdit = !!client?.billing;
+
   const [billing, setBilling] = useState<ClientBilling>(
-    client.billing ?? defaultBilling(),
+    client?.billing ?? defaultBilling(
+      client ? { clientName: client.name } : undefined,
+    ),
   );
   const [savedToast, setSavedToast] = useState<string | null>(null);
-  // True once the user has completed onboarding (Confirm & Send Invites)
-  // OR the client already has billing configured upstream.
-  const [activated, setActivated] = useState<boolean>(Boolean(client.billing));
-  const showWizard = !activated;
+  // Local status — drives the Deactivate / Reactivate header CTAs. Mirrors
+  // the seed status on first render; flips in-memory on confirm.
+  const [status, setStatus] = useState<Client["status"]>(client?.status ?? "Onboarding");
+  // Confirmation modal open-state. Null when closed.
+  const [pendingStatus, setPendingStatus] = useState<null | "Active" | "Suspended">(null);
+
+  // Header copy adapts to the mode.
+  const headerDescription = isNew
+    ? "Walk through the three steps. We'll create the organization on activation."
+    : isEdit
+    ? "Edit any step. Changes save when you confirm at the bottom."
+    : "Onboarding flow — three steps to activate this client.";
 
   return (
     <div className="px-8 py-6 max-w-[1400px] mx-auto">
@@ -81,70 +109,79 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[22px] font-bold text-foreground">{client.name}</h1>
-            <code className="text-[11.5px] font-mono px-2 py-[3px] rounded bg-secondary text-secondary-foreground">
-              {client.orgId}
-            </code>
+            <h1 className="text-[22px] font-bold text-foreground">
+              {isNew
+                ? (billing.clientName.trim() || "Create a new organization")
+                : client!.name}
+            </h1>
+            {isNew ? (
+              <span className="text-[11.5px] font-medium px-2 py-[3px] rounded bg-primary-soft text-primary border border-primary/20">
+                NEW
+              </span>
+            ) : (
+              <code className="text-[11.5px] font-mono px-2 py-[3px] rounded bg-secondary text-secondary-foreground">
+                {client!.orgId}
+              </code>
+            )}
+            {!isNew && <StatusBadge status={status} />}
           </div>
           <p className="text-[13px] text-muted-foreground mt-1">
-            {showWizard
-              ? "Onboarding flow — three steps to activate this client."
-              : "Manage client settings, members, and configurations."}
+            {headerDescription}
           </p>
         </div>
+
+        {/* Header CTA — Deactivate (Active clients) / Reactivate (Suspended).
+            Onboarding clients have no power button; they activate via the
+            wizard's Confirm. */}
+        {!isNew && isEdit && (
+          <div className="shrink-0">
+            {status === "Active" ? (
+              <button
+                onClick={() => setPendingStatus("Suspended")}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-foreground/80 text-[13px] font-medium hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <Power size={14} strokeWidth={1.75} />
+                Deactivate account
+              </button>
+            ) : status === "Suspended" ? (
+              <button
+                onClick={() => setPendingStatus("Active")}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-foreground/80 text-[13px] font-medium hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <PlayCircle size={14} strokeWidth={1.75} />
+                Reactivate account
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
-      {/* Top tabs — only shown once the client has been activated. During
-          onboarding the wizard IS the navigation, so we don't double-up. */}
-      {!showWizard && (
-        <div className="border-b border-border mt-5 mb-6">
-          <div className="flex gap-1">
-            {TABS.map(({ id, label, icon: Icon }) => {
-              const active = tab === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className={cn(
-                    "flex items-center gap-2 px-3.5 h-10 text-[13.5px] font-medium -mb-px transition-colors",
-                    active
-                      ? "text-primary border-b-2 border-primary"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon size={14} strokeWidth={1.75} />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {showWizard ? (
-        <div className="mt-6">
-          <BillingWizard
-            billing={billing}
-            onChange={setBilling}
-            onActivate={() => {
-              const invites = billing.members.filter((m) => m.sendInvite && m.email).length;
-              setActivated(true);
-              setSavedToast(
-                invites > 0
-                  ? `Account activated — ${invites} invite${invites > 1 ? "s" : ""} sent.`
-                  : "Account activated.",
-              );
-              setTimeout(() => setSavedToast(null), 3000);
-            }}
-          />
-        </div>
-      ) : (
-        <>
-          {tab === "billing" && <BillingSettings billing={billing} onChange={setBilling} />}
-          {tab === "config" && <StubTab title="Configuration" hint="Workflow, integrations, and feature toggles per client." />}
-          {tab === "members" && <MembersTab billing={billing} onChange={setBilling} />}
-        </>
-      )}
+      <div className="mt-6">
+        <BillingWizard
+          mode={isEdit ? "edit" : "create"}
+          billing={billing}
+          onChange={setBilling}
+          onActivate={() => {
+            if (isEdit) {
+              setSavedToast("Changes saved.");
+              setTimeout(() => setSavedToast(null), 2500);
+              return;
+            }
+            const invites = billing.members.filter((m) => m.sendInvite && m.email).length;
+            const kamNotified = billing.kam.notifyOnActivation && billing.kam.email;
+            const created = isNew ? "Client created — " : "";
+            const parts = [
+              invites > 0 ? `${invites} member invite${invites > 1 ? "s" : ""} sent` : "no member invites",
+              kamNotified ? "KAM notified" : null,
+            ].filter(Boolean);
+            setSavedToast(`${created}account activated · ${parts.join(" · ")}.`);
+            setTimeout(() => setSavedToast(null), 3500);
+            if (isNew) {
+              setTimeout(() => router.push("/clients"), 1700);
+            }
+          }}
+        />
+      </div>
 
       {savedToast && (
         <div className="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-lg border border-success-bg bg-success-bg text-success px-4 py-2.5 text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.10)]">
@@ -152,121 +189,115 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
           {savedToast}
         </div>
       )}
-    </div>
-  );
-}
 
-// ── Activated-mode views (no wizard chrome) ──────────────────────────────
-
-/**
- * Billing tab once the client is activated. Renders the same sections as
- * Steps 1+2 of the wizard but flat — no stepper, no Next/Back. Edits save
- * directly to local state (real backend later).
- */
-function BillingSettings({
-  billing,
-  onChange,
-}: {
-  billing: ClientBilling;
-  onChange: (b: ClientBilling) => void;
-}) {
-  return (
-    <div className="space-y-6 pb-10">
-      <Step1 billing={billing} onChange={onChange} />
-      <Step2 billing={billing} onChange={onChange} />
+      {pendingStatus && client && (
+        <StatusChangeModal
+          targetStatus={pendingStatus}
+          clientName={client.name}
+          onCancel={() => setPendingStatus(null)}
+          onConfirm={() => {
+            setStatus(pendingStatus);
+            setPendingStatus(null);
+            setSavedToast(
+              pendingStatus === "Active"
+                ? "Account reactivated."
+                : "Account deactivated.",
+            );
+            setTimeout(() => setSavedToast(null), 2500);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /**
- * Members tab — minimal post-activation view. Just the roster + add/remove,
- * no activation date or "review & activate" sections.
+ * Centered confirmation modal — replaces the old two-click pattern on the
+ * Deactivate / Reactivate header buttons. Subtle styling: a primary blue
+ * confirm button, not destructive red, since the action is reversible.
  */
-function MembersTab({
-  billing,
-  onChange,
+function StatusChangeModal({
+  targetStatus,
+  clientName,
+  onCancel,
+  onConfirm,
 }: {
-  billing: ClientBilling;
-  onChange: (b: ClientBilling) => void;
+  targetStatus: "Active" | "Suspended";
+  clientName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
 }) {
-  const upd = <K extends keyof ClientBilling>(k: K, v: ClientBilling[K]) =>
-    onChange({ ...billing, [k]: v });
-
-  const updateMember = (idx: number, patch: Partial<OrgMember>) =>
-    upd("members", billing.members.map((m, i) => (i === idx ? { ...m, ...patch } : m)));
-  const addMember = () =>
-    upd("members", [
-      ...billing.members,
-      { id: makeMemberId(), name: "", email: "", role: "Member", sendInvite: true },
-    ]);
-  const removeMember = (idx: number) =>
-    upd("members", billing.members.filter((_, i) => i !== idx));
-
+  const isDeactivate = targetStatus === "Suspended";
   return (
-    <Section
-      title="Organisation members"
-      description="Manage who has access to this client's workspace. Invites can be sent for any new entries."
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 px-4"
+      onClick={onCancel}
     >
-      <div className="space-y-2">
-        <div className="hidden md:grid grid-cols-[1.2fr_1.6fr_1.2fr_auto_auto] gap-2 px-1 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-          <span>Name</span>
-          <span>Email</span>
-          <span>Role</span>
-          <span className="text-center">Send invite</span>
-          <span />
-        </div>
-        {billing.members.map((member, idx) => (
-          <div
-            key={member.id}
-            className="grid grid-cols-1 md:grid-cols-[1.2fr_1.6fr_1.2fr_auto_auto] gap-2 items-center"
-          >
-            <input
-              value={member.name}
-              onChange={(e) => updateMember(idx, { name: e.target.value })}
-              placeholder="Full name"
-              className="h-10 px-3 rounded-md border border-border bg-transparent text-[13px] placeholder:text-muted-foreground outline-none focus-visible:border-foreground"
-            />
-            <input
-              value={member.email}
-              onChange={(e) => updateMember(idx, { email: e.target.value })}
-              placeholder="email@company.com"
-              type="email"
-              className="h-10 px-3 rounded-md border border-border bg-transparent text-[13px] placeholder:text-muted-foreground outline-none focus-visible:border-foreground"
-            />
-            <SelectField
-              value={member.role}
-              options={MEMBER_ROLES}
-              onChange={(v) => updateMember(idx, { role: v as MemberRole })}
-              bare
-            />
-            <div className="flex items-center justify-center w-[88px] h-10">
-              <Toggle
-                checked={member.sendInvite}
-                onChange={(on) => updateMember(idx, { sendInvite: on })}
-                compact
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => billing.members.length > 1 && removeMember(idx)}
-              disabled={billing.members.length === 1}
-              aria-label="Remove member"
-              className="h-10 w-10 rounded-md border border-border bg-card text-muted-foreground hover:text-destructive hover:border-destructive disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center"
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-            </button>
+      <div
+        className="w-full max-w-sm rounded-xl border border-border bg-card shadow-[0_24px_60px_rgba(0,0,0,0.18)] p-5"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-labelledby="status-modal-title"
+      >
+        <div className="flex items-start gap-3">
+          <div className={cn(
+            "w-9 h-9 rounded-full flex items-center justify-center shrink-0",
+            isDeactivate ? "bg-muted text-muted-foreground" : "bg-primary-soft text-primary",
+          )}>
+            {isDeactivate ? <Power size={16} strokeWidth={1.75} /> : <PlayCircle size={16} strokeWidth={1.75} />}
           </div>
-        ))}
-        <button
-          type="button"
-          onClick={addMember}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-dashed border-border text-[13px] text-muted-foreground hover:text-foreground hover:border-foreground"
-        >
-          <Plus size={13} strokeWidth={2} />
-          Add another user
-        </button>
+          <div className="min-w-0">
+            <h3 id="status-modal-title" className="text-[15px] font-semibold text-foreground">
+              {isDeactivate ? "Deactivate this client?" : "Reactivate this client?"}
+            </h3>
+            <p className="text-[12.5px] text-muted-foreground mt-1 leading-relaxed">
+              {isDeactivate ? (
+                <>
+                  <span className="font-medium text-foreground">{clientName}</span>{" "}
+                  will lose access to the workspace. Credit billing pauses until you reactivate.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{clientName}</span>{" "}
+                  will regain access and billing will resume on the next cycle.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button
+            onClick={onCancel}
+            className="inline-flex items-center justify-center h-9 px-3 rounded-md border border-border bg-card text-foreground text-[13px] font-medium hover:bg-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-primary text-primary-foreground text-[13px] font-medium hover:brightness-110"
+          >
+            {isDeactivate ? "Deactivate" : "Reactivate"}
+          </button>
+        </div>
       </div>
-    </Section>
+    </div>
+  );
+}
+
+/** Tiny status pill rendered next to the client name in the header. */
+function StatusBadge({ status }: { status: Client["status"] }) {
+  const cls =
+    status === "Active"     ? "bg-success-bg text-success" :
+    status === "Suspended"  ? "bg-destructive-bg text-destructive" :
+                              "bg-warning-bg text-warning";
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-[3px] rounded",
+      cls,
+    )}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: "currentColor" }} />
+      {status}
+    </span>
   );
 }
 
@@ -276,15 +307,19 @@ function BillingWizard({
   billing,
   onChange,
   onActivate,
+  mode = "create",
 }: {
   billing: ClientBilling;
   onChange: (b: ClientBilling) => void;
   onActivate: () => void;
+  /** "edit" surfaces a "Save changes" CTA; "create" uses "Confirm & Send Invites". */
+  mode?: "create" | "edit";
 }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  // Track which steps have been visited so the stepper can mark them complete.
-  const [maxStep, setMaxStep] = useState<1 | 2 | 3>(1);
-  const advance = (next: 1 | 2 | 3) => {
+  // In edit mode, the user already saw all three steps once during onboarding,
+  // so let them jump freely instead of being forced to walk through linearly.
+  const [step, setStep] = useState<StepId>(1);
+  const [maxStep, setMaxStep] = useState<StepId>(mode === "edit" ? 4 : 1);
+  const advance = (next: StepId) => {
     setStep(next);
     if (next > maxStep) setMaxStep(next);
   };
@@ -298,9 +333,10 @@ function BillingWizard({
 
       {/* Step content */}
       <div className="mt-6 space-y-6 pb-32">
-        {step === 1 && <Step1 billing={billing} onChange={onChange} />}
+        {step === 1 && <Step1 billing={billing} onChange={onChange} mode={mode} />}
         {step === 2 && <Step2 billing={billing} onChange={onChange} />}
         {step === 3 && <Step3 billing={billing} onChange={onChange} />}
+        {step === 4 && <Step4 billing={billing} onChange={onChange} />}
       </div>
 
       {/* Sticky nav bar */}
@@ -309,22 +345,17 @@ function BillingWizard({
           <Button
             variant="outline"
             size="default"
-            onClick={() => step > 1 && setStep((step - 1) as 1 | 2 | 3)}
+            onClick={() => step > 1 && setStep((step - 1) as StepId)}
             style={step === 1 ? { opacity: 0.5, pointerEvents: "none" } : undefined}
           >
             <ChevronLeft size={14} strokeWidth={2} />
             Back
           </Button>
-          {!stepValid && (
-            <div className="text-[12px] text-warning">
-              Complete required fields to continue
-            </div>
-          )}
           <div className="flex-1" />
-          {step < 3 ? (
+          {step < 4 ? (
             <Button
               size="default"
-              onClick={() => stepValid && advance((step + 1) as 1 | 2 | 3)}
+              onClick={() => stepValid && advance((step + 1) as StepId)}
               style={!stepValid ? { opacity: 0.5, pointerEvents: "none" } : undefined}
             >
               Next
@@ -337,7 +368,7 @@ function BillingWizard({
               style={!stepValid ? { opacity: 0.5, pointerEvents: "none" } : undefined}
             >
               <Check size={14} strokeWidth={2.25} />
-              Confirm & Send Invites
+              {mode === "edit" ? "Save changes" : "Confirm & Send Invites"}
             </Button>
           )}
         </div>
@@ -346,19 +377,35 @@ function BillingWizard({
   );
 }
 
-function isStepValid(step: 1 | 2 | 3, b: ClientBilling): boolean {
+function isStepValid(step: StepId, b: ClientBilling): boolean {
   if (step === 1) {
     return (
+      b.clientName.trim() !== "" &&
+      !!b.industry &&
+      b.kam.name.trim() !== "" &&
+      /.+@.+\..+/.test(b.kam.email) &&
       b.contractMonths > 0 &&
       b.initialCreditsPerCycle >= 0 &&
       b.globalDailyLimit >= 0
     );
   }
   if (step === 2) {
-    // At least one product must be enabled with credits/unit > 0.
-    return Object.values(b.rateCard).some((r) => r.enabled && r.creditsPerUnit > 0);
+    // At least one product enabled with credits/unit > 0, AND no enabled
+    // product is priced below its internal cost (margin protection).
+    const enabled = PRODUCT_CATALOGUE.filter((p) => b.rateCard[p.id]?.enabled);
+    if (enabled.length === 0) return false;
+    if (!enabled.some((p) => b.rateCard[p.id].creditsPerUnit > 0)) return false;
+    return enabled.every((p) => {
+      const cost = p.internalCostRupees ?? 0;
+      return b.rateCard[p.id].creditsPerUnit >= cost;
+    });
   }
-  // Step 3: at least one member with name + valid-ish email + activation date set.
+  if (step === 3) {
+    // Workspaces — require at least one named workspace.
+    return b.workspaces.some((w) => w.name.trim() !== "");
+  }
+  // Step 4: at least one valid org member + an activation date.
+  // (KAM moved to Step 1; validated there.)
   return (
     !!b.activationDate &&
     b.members.some((m) => m.name.trim() !== "" && /.+@.+\..+/.test(m.email))
@@ -370,14 +417,14 @@ function Stepper({
   maxStep,
   onJump,
 }: {
-  current: 1 | 2 | 3;
-  maxStep: 1 | 2 | 3;
-  onJump: (s: 1 | 2 | 3) => void;
+  current: StepId;
+  maxStep: StepId;
+  onJump: (s: StepId) => void;
 }) {
   return (
     <ol className="flex items-center gap-0">
       {STEPS.map((s, i) => {
-        const stepNum = s.id as 1 | 2 | 3;
+        const stepNum = s.id as StepId;
         const state =
           stepNum < current ? "complete" :
           stepNum === current ? "current" :
@@ -436,63 +483,264 @@ function Stepper({
 function Step1({
   billing,
   onChange,
+  mode,
 }: {
   billing: ClientBilling;
   onChange: (b: ClientBilling) => void;
+  mode: "create" | "edit";
 }) {
   const upd = <K extends keyof ClientBilling>(k: K, v: ClientBilling[K]) =>
     onChange({ ...billing, [k]: v });
 
   return (
-    <Section
-      eyebrow="Step 1"
-      title="Client details & billing cycle"
-      description="Core contract parameters. These drive how credits are issued and when invoices land."
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <SelectField
-          label="Account Type *"
-          value={billing.accountType}
-          options={["Sales & Outreach", "Recruitment", "Customer Support", "Custom"]}
-          onChange={(v) => upd("accountType", v as AccountType)}
+    <div className="space-y-4">
+      {/* No in-page step badge — the stepper above the wizard already
+          tells the user which step they're on. */}
+
+      {/* ─── Organization information — identity fields only ──────────── */}
+      <SectionCard title="Organization information" icon={Building2}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextField
+            required
+            label="Organization name"
+            value={billing.clientName}
+            onChange={(v) => upd("clientName", v)}
+            placeholder="e.g. T&T Motors"
+          />
+          <SelectField
+            label="Industry"
+            value={billing.industry}
+            options={[...INDUSTRIES]}
+            onChange={(v) => upd("industry", v as Industry)}
+          />
+        </div>
+      </SectionCard>
+
+      {/* ─── Account ownership — Revspot side (KAM) ───────────────────── */}
+      <SectionCard title="Account ownership" icon={UserCheck}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TextField
+            required
+            label="Key Account Manager"
+            value={billing.kam.name}
+            onChange={(v) => upd("kam", { ...billing.kam, name: v })}
+            placeholder="e.g. Neha Sharma"
+          />
+          <TextField
+            label="Phone"
+            value={billing.kam.phone}
+            onChange={(v) => upd("kam", { ...billing.kam, phone: v })}
+            placeholder="+91 98xxxxxxxx"
+          />
+          <TextField
+            required
+            label="Work email"
+            value={billing.kam.email}
+            onChange={(v) => upd("kam", { ...billing.kam, email: v })}
+            placeholder="neha@revspot.ai"
+            type="email"
+          />
+        </div>
+        <CheckboxRow
+          checked={billing.kam.notifyOnActivation}
+          onChange={(v) => upd("kam", { ...billing.kam, notifyOnActivation: v })}
+          label="Send assignment email on activation"
         />
-        <SelectField
-          label="Billing Cycle *"
-          value={billing.billingCycle}
-          options={["Monthly Billing", "Quarterly Billing", "Annual Billing"]}
-          onChange={(v) => upd("billingCycle", v as BillingCycle)}
+      </SectionCard>
+
+      {/* ─── Contract & billing ───────────────────────────────────────── */}
+      <SectionCard
+        title="Contract & billing"
+        description="Billing cycle is anchored to the activation date — invoices are generated one month from activation and every month thereafter."
+        icon={Receipt}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SelectField
+            label="Billing type"
+            value={billing.billingType}
+            options={["Postpaid", "Prepaid"]}
+            renderOption={(v) => `${v} — ${BILLING_TYPE_DESCRIPTIONS[v as BillingType]}`}
+            onChange={(v) => upd("billingType", v as BillingType)}
+          />
+          <NumberField
+            required
+            label="Contract duration (months)"
+            value={billing.contractMonths}
+            min={1}
+            onChange={(v) => upd("contractMonths", v)}
+          />
+          <NumberField
+            required
+            label="Initial budget per cycle (₹)"
+            value={billing.initialCreditsPerCycle}
+            onChange={(v) => upd("initialCreditsPerCycle", v)}
+          />
+          <NumberField
+            required
+            label="Daily spend limit (₹)"
+            value={billing.globalDailyLimit}
+            min={0}
+            step={500}
+            onChange={(v) => upd("globalDailyLimit", v)}
+          />
+        </div>
+
+        <CheckboxRow
+          checked={billing.rolloverEnabled}
+          onChange={(v) => upd("rolloverEnabled", v)}
+          label="Carry forward unused balance"
         />
-        <SelectField
-          label="Consumption Model *"
-          value={billing.consumptionModel}
-          options={["Postpaid (Quota)", "Prepaid (Wallet)"]}
-          onChange={(v) => upd("consumptionModel", v as ConsumptionModel)}
-        />
-        <NumberField
-          label="Contract Duration (Months) *"
-          value={billing.contractMonths}
-          min={1}
-          onChange={(v) => upd("contractMonths", v)}
-        />
-        <NumberField
-          label="Initial Credits Per Cycle *"
-          value={billing.initialCreditsPerCycle}
-          onChange={(v) => upd("initialCreditsPerCycle", v)}
-        />
-        <NumberField
-          label="Global Daily Limit *"
-          value={billing.globalDailyLimit}
-          onChange={(v) => upd("globalDailyLimit", v)}
-        />
+
+        {/* Edit mode only — manual generate-invoice button. Auto-billing is
+            implicit (activation + 1 month, then rolling); the button is
+            just for off-cycle pulls. Onboarding orgs haven't activated
+            yet, so the button is hidden until the account exists. */}
+        {mode === "edit" && (
+          <InvoiceActionRow
+            activationDate={billing.activationDate}
+            lastInvoiceDate={billing.lastInvoiceDate}
+            onGenerate={(date) => onChange({ ...billing, lastInvoiceDate: date })}
+          />
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+// ── Invoice action row (edit mode) ──────────────────────────────────────
+
+/**
+ * Compact row inside Contract & billing for the manual invoice trigger.
+ * Shows last invoice context + a button that opens a confirm modal before
+ * "generating" (mock — we just stamp today's date back on the billing).
+ */
+function InvoiceActionRow({
+  activationDate,
+  lastInvoiceDate,
+  onGenerate,
+}: {
+  activationDate: string;
+  lastInvoiceDate: string | undefined;
+  onGenerate: (isoDate: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+  const lastLabel = lastInvoiceDate ? fmt(lastInvoiceDate) : "No invoices generated yet";
+
+  // The billing cycle is anchored to the activation date: invoices are
+  // due one month from activation, then rolling on the same day each
+  // month. The "next" date is whatever month-anchor falls after either
+  // the last invoice or today, whichever is later.
+  const nextScheduled = (() => {
+    const anchor = new Date(activationDate);
+    if (Number.isNaN(anchor.getTime())) return null;
+    const cursor = lastInvoiceDate ? new Date(lastInvoiceDate) : anchor;
+    const next = new Date(cursor);
+    next.setMonth(next.getMonth() + 1);
+    const today = new Date();
+    while (next < today) next.setMonth(next.getMonth() + 1);
+    return next.toISOString().slice(0, 10);
+  })();
+
+  return (
+    <>
+      <div className="mt-1 rounded-lg border border-border-subtle bg-secondary/30 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex items-start gap-3 flex-1 min-w-[200px]">
+          <div className="w-8 h-8 rounded-md bg-primary-soft text-primary flex items-center justify-center shrink-0">
+            <FileText size={15} strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-foreground">
+              Invoices
+            </div>
+            <div className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
+              Last generated{" "}
+              <span className="text-foreground">{lastLabel}</span>
+              {nextScheduled && (
+                <>
+                  {" · Next billing "}
+                  <span className="text-foreground">{fmt(nextScheduled)}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-foreground/80 text-[12.5px] font-medium hover:bg-secondary hover:text-foreground transition-colors shrink-0 whitespace-nowrap"
+        >
+          <FileText size={13} strokeWidth={1.75} />
+          Generate invoice now
+        </button>
       </div>
 
-      <CheckboxRow
-        checked={billing.enableMonthlyLapse}
-        onChange={(v) => upd("enableMonthlyLapse", v)}
-        label="Enable Monthly Credit Lapse"
-        help="Unused credits will expire at the end of each billing cycle."
-      />
-    </Section>
+      {confirming && (
+        <ConfirmInvoiceModal
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => {
+            const today = new Date().toISOString().slice(0, 10);
+            onGenerate(today);
+            setConfirming(false);
+            setToast("Invoice generated and sent to finance.");
+            setTimeout(() => setToast(null), 2500);
+          }}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-md bg-foreground text-background text-[12.5px] px-4 py-2 shadow-lg">
+          {toast}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ConfirmInvoiceModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-[2px]">
+      <div className="w-[440px] max-w-[90vw] rounded-xl border border-border bg-card shadow-xl p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center shrink-0">
+            <FileText size={18} strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold text-foreground">
+              Generate invoice now?
+            </div>
+            <p className="text-[12.5px] text-muted-foreground mt-1 leading-relaxed">
+              This creates an off-cycle invoice for usage since the last
+              run and emails it to the client's billing contact. The
+              monthly auto-invoice schedule is unaffected.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>
+            <FileText size={13} strokeWidth={2} className="mr-1.5" />
+            Generate invoice
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -510,11 +758,7 @@ function Step2({
 
   return (
     <>
-      <Section
-        eyebrow="Step 2"
-        title="Products & rate card"
-        description="Toggle products on for this client and set credits-per-unit. Defaults came from the plan above."
-      >
+      <Section title="Products & rate card" icon={Layers}>
         <RateCardTable
           billing={billing}
           onChangeEnabled={(productId, enabled) =>
@@ -523,97 +767,125 @@ function Step2({
           onChangeCredits={(productId, credits) =>
             upd("rateCard", { ...billing.rateCard, [productId]: { ...billing.rateCard[productId], creditsPerUnit: credits } })
           }
+          onBulkSetEnabled={(productIds, enabled) => {
+            // Apply many enabled-flips in a single state update so React's
+            // batching doesn't lose interim changes (parent-toggle on a
+            // bucket needs to flip all children at once).
+            const nextRateCard = { ...billing.rateCard };
+            for (const id of productIds) {
+              nextRateCard[id] = { ...nextRateCard[id], enabled };
+            }
+            upd("rateCard", nextRateCard);
+          }}
         />
       </Section>
 
-      <Section
-        title="Credit pricing"
-        description="Flat pay-as-you-go rate. No volume tiers — every credit costs the same."
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <NumberField
-            label="Rate (₹ / credit) *"
-            value={billing.rupeesPerCredit}
-            step={0.05}
-            min={0}
-            onChange={(v) => upd("rupeesPerCredit", v)}
-            help="Charged for every credit used within the monthly cap."
-          />
-          <NumberField
-            label="Overage rate (₹ / credit) *"
-            value={billing.overageRupeesPerCredit}
-            step={0.05}
-            min={0}
-            onChange={(v) => upd("overageRupeesPerCredit", v)}
-            help="Charged on credits beyond the monthly cap."
-          />
-        </div>
-      </Section>
-
-      <Section
-        title="Alerts, auto-recharge & expiry"
-        description="Behaviour when the client approaches or exceeds their monthly cap."
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-3">
-            <Toggle
-              label="Send usage alerts"
-              checked={billing.alertThresholdsPct.length > 0}
-              onChange={(on) => upd("alertThresholdsPct", on ? [75, 90] : [])}
-              icon={<AlertTriangle size={13} strokeWidth={2} />}
-            />
-            <div className="pl-7 flex items-center gap-2 flex-wrap text-[12.5px] text-muted-foreground">
-              Email alerts at
-              <ThresholdPill value={75} active={billing.alertThresholdsPct.includes(75)} onClick={(v) => toggleThreshold(billing, v, upd)} />
-              <ThresholdPill value={90} active={billing.alertThresholdsPct.includes(90)} onClick={(v) => toggleThreshold(billing, v, upd)} />
-              <span>of monthly cap</span>
-            </div>
-          </div>
-          <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-3">
-            <Toggle
-              label="Auto-recharge"
-              checked={billing.autoRechargeAtPct !== null}
-              onChange={(on) => upd("autoRechargeAtPct", on ? 80 : null)}
-              icon={<RefreshCw size={13} strokeWidth={2} />}
-            />
-            <div className="pl-7 flex items-center gap-2 text-[12.5px] text-muted-foreground">
-              Trigger at
-              <NumberInline
-                value={billing.autoRechargeAtPct ?? 80}
-                onChange={(v) => upd("autoRechargeAtPct", v)}
-                disabled={billing.autoRechargeAtPct === null}
-                suffix="%"
-              />
-              of monthly cap
-            </div>
-          </div>
-          <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-3 md:col-span-2">
-            <Toggle
-              label="Roll over unused credits"
-              checked={billing.rolloverEnabled}
-              onChange={(on) => upd("rolloverEnabled", on)}
-              icon={<TrendingDown size={13} strokeWidth={2} />}
-            />
-            <div className="pl-7 flex items-center gap-2 text-[12.5px] text-muted-foreground">
-              Up to
-              <NumberInline
-                value={billing.rolloverCapCredits}
-                onChange={(v) => upd("rolloverCapCredits", v)}
-                disabled={!billing.rolloverEnabled}
-                step={500}
-              />
-              credits/month
-            </div>
-          </div>
-        </div>
-      </Section>
     </>
   );
 }
 
-// ── Step 3 — Organisation members ────────────────────────────────────────
+// ── Step 3 — Workspaces ─────────────────────────────────────────────────
 
 function Step3({
+  billing,
+  onChange,
+}: {
+  billing: ClientBilling;
+  onChange: (b: ClientBilling) => void;
+}) {
+  const updateWorkspace = (id: string, patch: Partial<Workspace>) => {
+    onChange({
+      ...billing,
+      workspaces: billing.workspaces.map((w) =>
+        w.id === id ? { ...w, ...patch } : w,
+      ),
+    });
+  };
+
+  const addWorkspace = () => {
+    onChange({
+      ...billing,
+      workspaces: [
+        ...billing.workspaces,
+        { id: makeWorkspaceId(), name: "", description: "" },
+      ],
+    });
+  };
+
+  const removeWorkspace = (id: string) => {
+    // Keep at least one row so admins can always type into something.
+    if (billing.workspaces.length <= 1) {
+      onChange({
+        ...billing,
+        workspaces: [{ id: makeWorkspaceId(), name: "", description: "" }],
+      });
+      return;
+    }
+    onChange({
+      ...billing,
+      workspaces: billing.workspaces.filter((w) => w.id !== id),
+    });
+  };
+
+  return (
+    <Section
+      title="Workspaces"
+      icon={Boxes}
+      description="Create one or more workspaces inside this organization — each one bills against the same wallet but keeps its leads, agents, and campaigns separate. You can add more later."
+    >
+      <div className="space-y-3">
+        {billing.workspaces.map((ws, idx) => (
+          <div
+            key={ws.id}
+            className="rounded-lg border border-border-subtle bg-card p-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                Workspace {idx + 1}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeWorkspace(ws.id)}
+                disabled={billing.workspaces.length <= 1}
+                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                aria-label="Remove workspace"
+              >
+                <Trash2 size={13} strokeWidth={1.75} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] gap-3">
+              <TextField
+                required
+                label="Workspace name"
+                value={ws.name}
+                placeholder="e.g. Mumbai — Sales"
+                onChange={(v) => updateWorkspace(ws.id, { name: v })}
+              />
+              <TextField
+                label="Description"
+                value={ws.description ?? ""}
+                placeholder="Optional — region, team, or use-case"
+                onChange={(v) => updateWorkspace(ws.id, { description: v })}
+              />
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addWorkspace}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-dashed border-border text-foreground/70 hover:text-foreground hover:bg-secondary text-[12.5px] font-medium transition-colors"
+        >
+          <Plus size={13} strokeWidth={2} />
+          Add another workspace
+        </button>
+      </div>
+    </Section>
+  );
+}
+
+// ── Step 4 — Organisation members ────────────────────────────────────────
+
+function Step4({
   billing,
   onChange,
 }: {
@@ -648,11 +920,7 @@ function Step3({
 
   return (
     <>
-      <Section
-        eyebrow="Step 3"
-        title="Organisation members"
-        description="Add the users who'll have access to this client's workspace. Invites go out when you confirm at the bottom."
-      >
+      <Section title="Organisation members" icon={Users2}>
         <div className="space-y-2">
           {/* Header row */}
           <div className="hidden md:grid grid-cols-[1.2fr_1.6fr_1.2fr_auto_auto] gap-2 px-1 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
@@ -725,15 +993,10 @@ function Step3({
         </div>
       </Section>
 
-      <Section
-        title="Go-live"
-        description="When the account becomes active and credits start counting."
-      >
+      <Section title="Go-live" icon={Rocket}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <div className="text-[12.5px] font-medium text-foreground mb-1.5">
-              Activation date *
-            </div>
+            <FieldLabel label="Activation date" required />
             <div className="relative">
               <Calendar
                 size={14}
@@ -765,24 +1028,19 @@ function Step3({
         </div>
       </Section>
 
-      <Section
-        title="Review & activate"
-        description="Confirm everything below. Going back to edit a step is safe — your values are kept."
-      >
+      <Section title="Review & activate" icon={ClipboardCheck}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-[13px]">
-          <SummaryRow label="Account type"            value={billing.accountType} />
+          <SummaryRow label="Organization name"       value={billing.clientName || "—"} />
+          <SummaryRow label="Industry"                value={billing.industry} />
+          <SummaryRow label="Key Account Manager"     value={billing.kam.name ? `${billing.kam.name} · ${billing.kam.email}` : "—"} />
           <SummaryRow label="Billing cycle"           value={billing.billingCycle} />
-          <SummaryRow label="Consumption model"       value={billing.consumptionModel} />
+          <SummaryRow label="Billing type"            value={billing.billingType} />
           <SummaryRow label="Contract duration"       value={`${billing.contractMonths} months`} />
+          <SummaryRow label="Workspaces"              value={(() => { const named = billing.workspaces.filter((w) => w.name.trim()); return named.length ? `${named.length}` : "—"; })()} />
           <SummaryRow label="Seats"                   value={`${seats} user${seats > 1 ? "s" : ""}`} />
-          <SummaryRow label="Initial credits / cycle" value={formatCredits(billing.initialCreditsPerCycle)} />
-          <SummaryRow label="Rate"                    value={`₹${billing.rupeesPerCredit.toFixed(2)}/credit`} />
-          <SummaryRow label="Overage rate"            value={`₹${billing.overageRupeesPerCredit.toFixed(2)}/credit`} />
-          <SummaryRow label="Daily limit"             value={`${formatCredits(billing.globalDailyLimit)} credits/day`} />
-          <SummaryRow label="Monthly lapse"           value={billing.enableMonthlyLapse ? "On" : "Off"} />
-          <SummaryRow label="Auto-recharge"           value={billing.autoRechargeAtPct === null ? "Off" : `At ${billing.autoRechargeAtPct}%`} />
-          <SummaryRow label="Rollover"                value={billing.rolloverEnabled ? `Up to ${formatCredits(billing.rolloverCapCredits)}` : "Off"} />
-          <SummaryRow label="Usage alerts"            value={billing.alertThresholdsPct.length ? billing.alertThresholdsPct.map((t) => `${t}%`).join(" + ") : "Off"} />
+          <SummaryRow label="Budget per cycle"        value={formatRupees(billing.initialCreditsPerCycle)} />
+          <SummaryRow label="Daily limit"             value={`${formatRupees(billing.globalDailyLimit)}/day`} />
+          <SummaryRow label="Carry forward balance"   value={billing.rolloverEnabled ? "On" : "Off"} />
           <SummaryRow label="Activation date"         value={formatActivationDate(billing.activationDate)} />
           <SummaryRow label="Estimated monthly cost"  value={formatRupees(cost.estTotal)} emphasis />
         </div>
@@ -806,7 +1064,7 @@ function Step3({
                     className="inline-flex items-center gap-1.5 border border-border rounded-md px-2 py-[3px] text-[11.5px] bg-card"
                   >
                     <span className="text-foreground">{p.name}</span>
-                    <span className="text-muted-foreground">{r.creditsPerUnit} cr {p.unit}</span>
+                    <span className="text-muted-foreground">₹{r.creditsPerUnit.toFixed(2)} {p.unit}</span>
                   </span>
                 );
               })}
@@ -890,72 +1148,44 @@ function RateCardTable({
   billing,
   onChangeEnabled,
   onChangeCredits,
+  onBulkSetEnabled,
 }: {
   billing: ClientBilling;
   onChangeEnabled: (productId: string, enabled: boolean) => void;
   onChangeCredits: (productId: string, credits: number) => void;
+  onBulkSetEnabled: (productIds: string[], enabled: boolean) => void;
 }) {
-  const grouped: Record<"Features" | "Agents", Product[]> = {
-    Features: PRODUCT_CATALOGUE.filter((p) => p.category === "Features"),
-    Agents:   PRODUCT_CATALOGUE.filter((p) => p.category === "Agents"),
-  };
+  // Group products by category, then by bucket within each category. Every
+  // bucket renders through BucketCard so the enable/collapse behaviour is
+  // identical across Features and Agents.
+  const byCategory = new Map<ProductCategory, Map<string, Product[]>>();
+  for (const p of PRODUCT_CATALOGUE) {
+    if (!byCategory.has(p.category)) byCategory.set(p.category, new Map());
+    const buckets = byCategory.get(p.category)!;
+    const arr = buckets.get(p.bucket) ?? [];
+    arr.push(p);
+    buckets.set(p.bucket, arr);
+  }
+
   return (
-    <div className="space-y-5">
-      {(Object.keys(grouped) as ("Features" | "Agents")[]).map((cat) => (
-        <div key={cat}>
-          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground mb-2">
-            {cat}
+    <div className="space-y-6">
+      {Array.from(byCategory.entries()).map(([category, buckets]) => (
+        <div key={category}>
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground mb-3">
+            {category}
           </div>
-          <div className="rounded-lg border border-border overflow-hidden bg-card">
-            <table className="w-full text-[13px]">
-              <thead className="bg-muted/40">
-                <tr>
-                  <Th>Enabled</Th>
-                  <Th>Product</Th>
-                  <Th>Unit</Th>
-                  <Th align="right">Internal cost</Th>
-                  <Th align="right">Credits / unit</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {grouped[cat].map((product) => {
-                  const r = billing.rateCard[product.id] ?? { enabled: false, creditsPerUnit: 0 };
-                  return (
-                    <tr key={product.id} className={cn("border-t border-border", !r.enabled && "opacity-60")}>
-                      <td className="px-4 py-3">
-                        <Toggle
-                          checked={r.enabled}
-                          onChange={(on) => onChangeEnabled(product.id, on)}
-                          compact
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{product.name}</div>
-                        {product.description && (
-                          <div className="text-[11.5px] text-muted-foreground mt-0.5">{product.description}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{product.unit}</td>
-                      <td className="px-4 py-3 text-right tabular text-muted-foreground whitespace-nowrap">
-                        {product.internalCostRupees !== undefined
-                          ? `₹${product.internalCostRupees.toFixed(2)}`
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <input
-                          type="number"
-                          value={r.creditsPerUnit}
-                          disabled={!r.enabled}
-                          min={0}
-                          onChange={(e) => onChangeCredits(product.id, Number(e.target.value))}
-                          className="w-[88px] h-8 px-2 rounded-md border border-border bg-transparent text-[13px] text-right tabular outline-none focus-visible:border-foreground disabled:opacity-50"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {Array.from(buckets.entries()).map(([bucket, products]) => (
+              <BucketCard
+                key={bucket}
+                bucket={bucket}
+                products={products}
+                billing={billing}
+                onChangeEnabled={onChangeEnabled}
+                onChangeCredits={onChangeCredits}
+                onBulkSetEnabled={onBulkSetEnabled}
+              />
+            ))}
           </div>
         </div>
       ))}
@@ -963,35 +1193,291 @@ function RateCardTable({
   );
 }
 
+/**
+ * A bucket card — parent header with a toggle that aggregates the state of
+ * its children. Click the parent ON to enable all children at their default
+ * credits; click OFF to disable them. Children are still individually
+ * toggleable when the bucket is expanded.
+ */
+function BucketCard({
+  bucket,
+  products,
+  billing,
+  onChangeEnabled,
+  onChangeCredits,
+  onBulkSetEnabled,
+}: {
+  bucket: string;
+  products: Product[];
+  billing: ClientBilling;
+  onChangeEnabled: (productId: string, enabled: boolean) => void;
+  onChangeCredits: (productId: string, credits: number) => void;
+  onBulkSetEnabled: (productIds: string[], enabled: boolean) => void;
+}) {
+  const enabledChildren = products.filter(
+    (p) => billing.rateCard[p.id]?.enabled,
+  );
+  const parentOn = enabledChildren.length > 0;
+
+  const toggleParent = () => {
+    // Single bulk dispatch — flipping each child individually in a loop
+    // would let React's batching keep only the last call's update.
+    onBulkSetEnabled(products.map((p) => p.id), !parentOn);
+  };
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-card overflow-hidden transition-colors",
+        "border-border-subtle",
+      )}
+    >
+      {/* Parent header — flat, low-contrast. Bucket name on the left,
+          price chips fill the middle, count + toggle on the right.
+          No tinted background when on; the children table below carries
+          the "active" affordance via its own visible content. */}
+      <div className="flex items-center gap-4 px-4 py-2.5">
+        <div className="min-w-0 shrink-0">
+          <div className="text-[13.5px] font-semibold text-foreground whitespace-nowrap">
+            {bucket}
+          </div>
+        </div>
+
+        {/* Product preview chips — primary affordance for "what's in this
+            bucket". Each shows the product name + its credit price. */}
+        <div className="flex-1 flex items-center gap-1.5 flex-wrap min-w-0">
+          {products.map((p) => {
+            const r = billing.rateCard[p.id];
+            const isOn = !!r?.enabled;
+            return (
+              <span
+                key={p.id}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2 h-6 rounded text-[11.5px] whitespace-nowrap",
+                  isOn
+                    ? "bg-secondary text-foreground"
+                    : "bg-transparent text-muted-foreground",
+                )}
+              >
+                <span className="font-medium">{p.name}</span>
+                <span className="tabular text-muted-foreground">
+                  ₹{(r?.creditsPerUnit ?? 0).toFixed(2)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-[11px] text-muted-foreground tabular whitespace-nowrap">
+            {enabledChildren.length}/{products.length}
+          </span>
+          <Toggle checked={parentOn} onChange={toggleParent} />
+        </div>
+      </div>
+
+      {/* Children — visible only when bucket is on */}
+      {parentOn && (
+        <ProductTable
+          products={products}
+          billing={billing}
+          onChangeEnabled={onChangeEnabled}
+          onChangeCredits={onChangeCredits}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shared product table used inside a bucket card and for the flat Agents
+ * section. Each row has its own enabled toggle + credits-per-unit input.
+ */
+function ProductTable({
+  products,
+  billing,
+  onChangeEnabled,
+  onChangeCredits,
+}: {
+  products: Product[];
+  billing: ClientBilling;
+  onChangeEnabled: (productId: string, enabled: boolean) => void;
+  onChangeCredits: (productId: string, credits: number) => void;
+}) {
+  return (
+    <table className="w-full text-[13px]">
+      <thead className="bg-muted/30">
+        <tr>
+          <Th>Enabled</Th>
+          <Th>Product</Th>
+          <Th>Unit</Th>
+          <Th align="right">Internal cost</Th>
+          <Th align="right">Rate (₹ / unit)</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map((product) => {
+          const r = billing.rateCard[product.id] ?? { enabled: false, creditsPerUnit: 0 };
+          return (
+            <tr key={product.id} className={cn("border-t border-border", !r.enabled && "opacity-60")}>
+              <td className="px-4 py-3">
+                <Toggle
+                  checked={r.enabled}
+                  onChange={(on) => onChangeEnabled(product.id, on)}
+                  compact
+                />
+              </td>
+              <td className="px-4 py-3">
+                <div className="font-medium text-foreground">{product.name}</div>
+              </td>
+              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{product.unit}</td>
+              <td className="px-4 py-3 text-right tabular text-muted-foreground whitespace-nowrap">
+                {product.internalCostRupees !== undefined
+                  ? `₹${product.internalCostRupees.toFixed(2)}`
+                  : "—"}
+              </td>
+              <td className="px-4 py-3 text-right">
+                <CreditsInput
+                  value={r.creditsPerUnit}
+                  disabled={!r.enabled}
+                  minCost={product.internalCostRupees}
+                  onChange={(v) => onChangeCredits(product.id, v)}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * Number input for credits/unit with a margin-protection floor at the
+ * product's internal cost. Below-cost values get a destructive border + a
+ * one-line hint so the admin can see why the value's invalid.
+ */
+function CreditsInput({
+  value,
+  onChange,
+  disabled,
+  minCost,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+  minCost?: number;
+}) {
+  const floor = minCost ?? 0;
+  const belowCost = !disabled && value < floor;
+  return (
+    <div className="inline-flex flex-col items-end gap-0.5">
+      <input
+        type="number"
+        value={value}
+        disabled={disabled}
+        min={floor}
+        step={0.05}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={cn(
+          "w-[88px] h-8 px-2 rounded-md border bg-transparent text-[13px] text-right tabular outline-none disabled:opacity-50 transition-colors",
+          belowCost
+            ? "border-destructive focus-visible:border-destructive"
+            : "border-border focus-visible:border-foreground",
+        )}
+      />
+      {belowCost && (
+        <span className="text-[10.5px] text-destructive tabular">
+          min ₹{floor.toFixed(2)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── Form primitives ──────────────────────────────────────────────────────
 
-function Section({
-  eyebrow,
+type IconComp = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+
+/** Section heading row — optional icon in a soft-tinted circle, then the
+ *  title (h2 or h3) and an optional one-line description. Used by both
+ *  Section and SectionCard so the visual rhythm is consistent. */
+function SectionHeading({
+  icon: Icon,
   title,
   description,
+  size = "md",
+}: {
+  icon?: IconComp;
+  title: string;
+  description?: string;
+  size?: "md" | "lg";
+}) {
+  const titleCls = size === "lg" ? "text-[16px]" : "text-[15px]";
+  return (
+    <div className="flex items-start gap-3">
+      {Icon && (
+        <span className="w-8 h-8 rounded-md bg-primary-soft text-primary flex items-center justify-center shrink-0">
+          <Icon size={16} strokeWidth={1.75} />
+        </span>
+      )}
+      <div className="min-w-0">
+        {size === "lg" ? (
+          <h2 className={cn(titleCls, "font-semibold text-foreground leading-tight")}>{title}</h2>
+        ) : (
+          <h3 className={cn(titleCls, "font-semibold text-foreground leading-tight")}>{title}</h3>
+        )}
+        {description && (
+          <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">{description}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Anchored section — single bordered shell, no tinted header. The heading
+ * lives in the same padding zone as the content, so it reads as a block
+ * without the "boxy" header-bar feel of the earlier card pattern.
+ */
+function Section({
+  title,
+  description,
+  icon,
   children,
 }: {
+  /** Kept on the API for backward compat with old callers (unused now). */
   eyebrow?: string;
   title: string;
   description?: string;
+  icon?: IconComp;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-6 pt-5 pb-4 border-b border-border">
-        {eyebrow && (
-          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-primary mb-1">
-            {eyebrow}
-          </div>
-        )}
-        <h2 className="text-[16px] font-semibold text-foreground">{title}</h2>
-        {description && (
-          <p className="text-[12.5px] text-muted-foreground mt-1 leading-relaxed">
-            {description}
-          </p>
-        )}
-      </div>
-      <div className="px-6 py-5">{children}</div>
+    <section className="rounded-lg border border-border-subtle bg-card px-5 py-4">
+      <SectionHeading icon={icon} title={title} description={description} size="lg" />
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+/** Same shape as Section, smaller heading. Used inside a step that has
+ *  multiple peer blocks (e.g. Step 1's three sub-sections). */
+function SectionCard({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon?: IconComp;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-border-subtle bg-card px-5 py-4">
+      <SectionHeading icon={icon} title={title} description={description} size="md" />
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -1002,13 +1488,21 @@ function SelectField({
   options,
   onChange,
   bare,
+  renderOption,
+  help,
+  required,
 }: {
   label?: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
-  /** Skip the label slot — useful when used inline (e.g. POC role). */
+  /** Skip the label slot — useful when used inline (e.g. role in a row). */
   bare?: boolean;
+  /** Optional formatter for menu items (closed control shows raw value). */
+  renderOption?: (v: string) => string;
+  /** Optional help text shown under the field. */
+  help?: string;
+  required?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const control = (
@@ -1037,7 +1531,7 @@ function SelectField({
                     active ? "bg-primary text-primary-foreground font-medium" : "text-foreground hover:bg-secondary",
                   )}
                 >
-                  {opt}
+                  {renderOption ? renderOption(opt) : opt}
                 </button>
               );
             })}
@@ -1049,8 +1543,92 @@ function SelectField({
   if (bare) return control;
   return (
     <div>
-      {label && <div className="text-[12.5px] font-medium text-foreground mb-1.5">{label}</div>}
+      {label && <FieldLabel label={label} required={required} />}
       {control}
+      {help && <div className="text-[11.5px] text-muted-foreground mt-1.5">{help}</div>}
+    </div>
+  );
+}
+
+function SubGroup({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={className}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground mb-3">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ReadOnlyField({
+  label,
+  value,
+  help,
+}: {
+  label: string;
+  value: string;
+  help?: string;
+}) {
+  return (
+    <div>
+      <div className="text-[12.5px] font-medium text-foreground mb-1.5">{label}</div>
+      <div className="h-10 w-full px-3 rounded-md border border-border-subtle bg-muted/40 text-[13px] text-foreground/80 flex items-center justify-between cursor-default">
+        <span>{value}</span>
+        <span className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">Fixed</span>
+      </div>
+      {help && <div className="text-[11.5px] text-muted-foreground mt-1.5">{help}</div>}
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  help,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: "text" | "email";
+  help?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <FieldLabel label={label} required={required} />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-10 w-full px-3 rounded-md border border-border bg-transparent text-[13px] placeholder:text-muted-foreground outline-none focus-visible:border-foreground"
+      />
+      {help && <div className="text-[11.5px] text-muted-foreground mt-1.5">{help}</div>}
+    </div>
+  );
+}
+
+/** Shared label cell. Renders the asterisk in destructive color when the
+ *  field is marked required, matching the bottom-bar hint. */
+function FieldLabel({ label, required }: { label: string; required?: boolean }) {
+  return (
+    <div className="text-[12.5px] font-medium text-foreground mb-1.5">
+      {label}
+      {required && <span className="text-destructive ml-0.5">*</span>}
     </div>
   );
 }
@@ -1062,6 +1640,7 @@ function NumberField({
   step = 1,
   min,
   help,
+  required,
 }: {
   label: string;
   value: number;
@@ -1069,10 +1648,11 @@ function NumberField({
   step?: number;
   min?: number;
   help?: string;
+  required?: boolean;
 }) {
   return (
     <div>
-      <div className="text-[12.5px] font-medium text-foreground mb-1.5">{label}</div>
+      <FieldLabel label={label} required={required} />
       <input
         type="number"
         value={value}
@@ -1227,11 +1807,3 @@ function Th({ children, align = "left" }: { children?: React.ReactNode; align?: 
   );
 }
 
-function StubTab({ title, hint }: { title: string; hint: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center">
-      <h3 className="text-[15px] font-semibold text-foreground mb-1">{title}</h3>
-      <p className="text-[12.5px] text-muted-foreground max-w-md mx-auto">{hint}</p>
-    </div>
-  );
-}

@@ -9,6 +9,30 @@
 
 export type AgentStatus = "live" | "paused" | "draft";
 
+/**
+ * Optional capability catalogue surfaced on the agent Configuration tab.
+ * Operators opt in to each one; the runtime always loads the two core
+ * handlers (end_call, voice_mail_detection) regardless.
+ */
+export interface AgentCapability {
+  id: string;
+  label: string;
+  /** Underlying tool keys the platform should load when this is enabled. */
+  tools: string[];
+}
+
+export const OPTIONAL_CAPABILITIES: AgentCapability[] = [
+  { id: "multilingual_detection", label: "Multilingual detection", tools: ["detect_language"] },
+  { id: "email_capture", label: "Email capture", tools: ["capture_email"] },
+  { id: "budget_calculator", label: "Budget calculator", tools: ["budget_calculator"] },
+  {
+    id: "experience_center_info",
+    label: "Experience center info",
+    tools: ["get_experience_centre", "get_experience_center_address"],
+  },
+  { id: "transfer_to_human", label: "Transfer to human", tools: ["transfer_call"] },
+];
+
 export interface Agent {
   id: string;
   name: string;
@@ -27,6 +51,12 @@ export interface Agent {
   lowestSignal?: string;
   /** The one agent wired with full drill-down detail. */
   isMain?: boolean;
+  /**
+   * IDs from OPTIONAL_CAPABILITIES the agent has enabled. Live/paused
+   * agents are grandfathered with the tools they were already using.
+   * Draft agents start empty.
+   */
+  capabilities?: string[];
 }
 
 export interface SubSignal {
@@ -100,16 +130,16 @@ export interface CallDetail {
 // ── Agents (entry-point list) ─────────────────────────────────────────────
 
 export const agents: Agent[] = [
-  { id: "a1", name: "TVS Emerald Altura", phone: null, channel: "Ai Call", status: "live", composite: 78, trend: 2, callCount: 32, createdAt: "04/05/2026", lowestSignal: "S4" },
-  { id: "a2", name: "Godrej Reserve Multilingual (English+Marathi+Hindi)", phone: null, channel: "Ai Call", status: "draft", composite: null, callCount: 0, createdAt: "04/05/2026" },
-  { id: "a3", name: "Ramky Fortuna Outbound", phone: "+918065481192", channel: "Ai Call", status: "live", composite: 64, trend: -8, callCount: 47, createdAt: "30/04/2026", lowestSignal: "S1", isMain: true },
-  { id: "a4", name: "Godrej Skyshore OBD", phone: "+918065481193", channel: "Ai Call", status: "live", composite: 81, trend: 3, callCount: 28, createdAt: "30/04/2026" },
-  { id: "a5", name: "Godrej Reserve Test", phone: null, channel: "Ai Call", status: "live", composite: 71, trend: -2, callCount: 19, createdAt: "30/04/2026" },
-  { id: "a6", name: "Podar School Inbound", phone: "+918065481217", channel: "Ai Call", status: "paused", composite: 41, trend: -22, callCount: 31, createdAt: "30/04/2026", lowestSignal: "S1" },
-  { id: "a7", name: "Godrej Trilogy OBD", phone: "+918065481248", channel: "Ai Call", status: "live", composite: 87, trend: 1, callCount: 56, createdAt: "29/04/2026" },
-  { id: "a8", name: "Neha: Godrej Reserve (English + Marathi)", phone: "+918065481194", channel: "Ai Call", status: "live", composite: null, insufficientData: true, callCount: 6, createdAt: "28/04/2026" },
-  { id: "a9", name: "Test Agent 33", phone: null, channel: "Ai Call", status: "draft", composite: null, callCount: 0, createdAt: "28/04/2026" },
-  { id: "a10", name: "Neha: Godrej Arden (English + Hindi)", phone: "+918065481291", channel: "Ai Call", status: "live", composite: 73, trend: 0, callCount: 24, createdAt: "28/04/2026" },
+  { id: "a1", name: "TVS Emerald Altura", phone: null, channel: "Ai Call", status: "live", composite: 78, trend: 2, callCount: 32, createdAt: "04/05/2026", lowestSignal: "S4", capabilities: ["experience_center_info", "budget_calculator", "transfer_to_human"] },
+  { id: "a2", name: "Godrej Reserve Multilingual (English+Marathi+Hindi)", phone: null, channel: "Ai Call", status: "draft", composite: null, callCount: 0, createdAt: "04/05/2026", capabilities: [] },
+  { id: "a3", name: "Ramky Fortuna Outbound", phone: "+918065481192", channel: "Ai Call", status: "live", composite: 64, trend: -8, callCount: 47, createdAt: "30/04/2026", lowestSignal: "S1", isMain: true, capabilities: ["multilingual_detection", "budget_calculator", "experience_center_info", "transfer_to_human"] },
+  { id: "a4", name: "Godrej Skyshore OBD", phone: "+918065481193", channel: "Ai Call", status: "live", composite: 81, trend: 3, callCount: 28, createdAt: "30/04/2026", capabilities: ["multilingual_detection", "transfer_to_human"] },
+  { id: "a5", name: "Godrej Reserve Test", phone: null, channel: "Ai Call", status: "live", composite: 71, trend: -2, callCount: 19, createdAt: "30/04/2026", capabilities: ["budget_calculator"] },
+  { id: "a6", name: "Podar School Inbound", phone: "+918065481217", channel: "Ai Call", status: "paused", composite: 41, trend: -22, callCount: 31, createdAt: "30/04/2026", lowestSignal: "S1", capabilities: ["email_capture", "transfer_to_human"] },
+  { id: "a7", name: "Godrej Trilogy OBD", phone: "+918065481248", channel: "Ai Call", status: "live", composite: 87, trend: 1, callCount: 56, createdAt: "29/04/2026", capabilities: ["multilingual_detection", "budget_calculator", "experience_center_info", "email_capture", "transfer_to_human"] },
+  { id: "a8", name: "Neha: Godrej Reserve (English + Marathi)", phone: "+918065481194", channel: "Ai Call", status: "live", composite: null, insufficientData: true, callCount: 6, createdAt: "28/04/2026", capabilities: ["multilingual_detection", "transfer_to_human"] },
+  { id: "a9", name: "Test Agent 33", phone: null, channel: "Ai Call", status: "draft", composite: null, callCount: 0, createdAt: "28/04/2026", capabilities: [] },
+  { id: "a10", name: "Neha: Godrej Arden (English + Hindi)", phone: "+918065481291", channel: "Ai Call", status: "live", composite: 73, trend: 0, callCount: 24, createdAt: "28/04/2026", capabilities: ["multilingual_detection", "budget_calculator", "transfer_to_human"] },
 ];
 
 // ── Full drill-down detail — wired for the main agent (a3) ────────────────
@@ -168,9 +198,9 @@ export const agentDetail: AgentDetail = {
     },
   ],
   reasons: [
-    { metric: "Field accuracy", priority: 1, title: "Budget captured without a currency unit", calls: 14, body: "Captured values like '50' or 'fifty' without ₹/lakhs/cr — the validator rejects them as inaccurate. Fix: prompt the agent to reconfirm the unit, or assume INR for India campaigns." },
-    { metric: "Median turn latency", priority: 2, title: "Replies slower than the 1.5s target", calls: 12, body: "12 calls have a median turn latency above 1.5s. Fix: enable streaming on the model, or check whether knowledge-base lookups dominate first-token latency." },
-    { metric: "Final acknowledgement", priority: 3, title: "No read-back before the call ends", calls: 11, body: "The agent captured the details but didn't read them back before ending. Fix: add a final-summary step to the prompt template." },
+    { metric: "Field accuracy",      priority: 1, title: "Budget captured without a currency unit",  calls: 14, body: "Prompt the agent to reconfirm ₹/lakhs/cr, or assume INR for India." },
+    { metric: "Median turn latency", priority: 2, title: "Replies slower than the 1.5s target",      calls: 12, body: "Enable streaming on the model, or shrink first-token KB lookups." },
+    { metric: "Final acknowledgement", priority: 3, title: "No read-back before the call ends",      calls: 11, body: "Add a final-summary step to the prompt template." },
   ],
 };
 
