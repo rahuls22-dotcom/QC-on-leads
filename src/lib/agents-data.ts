@@ -57,7 +57,23 @@ export interface Agent {
    * Draft agents start empty.
    */
   capabilities?: string[];
+  /** LLM provider/model/temperature for this agent. */
+  llmConfig?: { provider: string; model: string; temperature: number };
+  /** STT (speech-to-text) provider/model/language. */
+  sttConfig?: { provider: string; model: string; language: string };
+  /** Primary + optional secondary languages the agent speaks. */
+  languageConfig?: { primary: string; additional: string[] };
+  /** Runtime knobs — timezone, concurrent-call cap, speaking speed multiplier. */
+  otherConfig?: { timezone: string; concurrency: number; speakingSpeed: number };
 }
+
+/** Sensible defaults for new agents so the Configuration tab never blanks. */
+export const DEFAULT_AGENT_CONFIG = {
+  llmConfig: { provider: "Groq", model: "GPT-OSS 120B", temperature: 0.2 },
+  sttConfig: { provider: "Deepgram", model: "Nova 3", language: "English (en)" },
+  languageConfig: { primary: "English", additional: [] as string[] },
+  otherConfig: { timezone: "Asia/Kolkata (IST)", concurrency: 2, speakingSpeed: 1.0 },
+} as const;
 
 export interface SubSignal {
   id: string;        // internal key, e.g. "1.2"
@@ -132,7 +148,12 @@ export interface CallDetail {
 export const agents: Agent[] = [
   { id: "a1", name: "TVS Emerald Altura", phone: null, channel: "Ai Call", status: "live", composite: 78, trend: 2, callCount: 32, createdAt: "04/05/2026", lowestSignal: "S4", capabilities: ["experience_center_info", "budget_calculator", "transfer_to_human"] },
   { id: "a2", name: "Godrej Reserve Multilingual (English+Marathi+Hindi)", phone: null, channel: "Ai Call", status: "draft", composite: null, callCount: 0, createdAt: "04/05/2026", capabilities: [] },
-  { id: "a3", name: "Ramky Fortuna Outbound", phone: "+918065481192", channel: "Ai Call", status: "live", composite: 64, trend: -8, callCount: 47, createdAt: "30/04/2026", lowestSignal: "S1", isMain: true, capabilities: ["multilingual_detection", "budget_calculator", "experience_center_info", "transfer_to_human"] },
+  { id: "a3", name: "Ramky Fortuna Outbound", phone: "+918065481192", channel: "Ai Call", status: "live", composite: 64, trend: -8, callCount: 47, createdAt: "30/04/2026", lowestSignal: "S1", isMain: true, capabilities: ["multilingual_detection", "budget_calculator", "experience_center_info", "transfer_to_human"],
+    llmConfig: { provider: "Groq", model: "GPT-OSS 120B", temperature: 0.2 },
+    sttConfig: { provider: "Deepgram", model: "Nova 3", language: "Hindi (hi)" },
+    languageConfig: { primary: "English", additional: ["Hindi", "Kannada"] },
+    otherConfig: { timezone: "Asia/Kolkata (IST)", concurrency: 2, speakingSpeed: 1.0 },
+  },
   { id: "a4", name: "Godrej Skyshore OBD", phone: "+918065481193", channel: "Ai Call", status: "live", composite: 81, trend: 3, callCount: 28, createdAt: "30/04/2026", capabilities: ["multilingual_detection", "transfer_to_human"] },
   { id: "a5", name: "Godrej Reserve Test", phone: null, channel: "Ai Call", status: "live", composite: 71, trend: -2, callCount: 19, createdAt: "30/04/2026", capabilities: ["budget_calculator"] },
   { id: "a6", name: "Podar School Inbound", phone: "+918065481217", channel: "Ai Call", status: "paused", composite: 41, trend: -22, callCount: 31, createdAt: "30/04/2026", lowestSignal: "S1", capabilities: ["email_capture", "transfer_to_human"] },
