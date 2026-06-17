@@ -1,30 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { ArrowLeft, Phone, FlaskConical, PhoneCall, Check, X } from "lucide-react";
+import { ArrowLeft, Phone, PhoneCall, Sparkles, X } from "lucide-react";
 import { agentMvpDetails } from "@/lib/voice-agent-data";
-import { AgentTab } from "@/components/agents/agent-tab";
-import { ConfigurationTab } from "@/components/agents/configuration-tab";
-import { ToolsTab } from "@/components/agents/tools-tab";
-import { KnowledgeBaseTab } from "@/components/agents/knowledge-base-tab";
-import { FaqsTab } from "@/components/agents/faqs-tab";
-import { QualificationCriteriaTab } from "@/components/agents/qualification-criteria-tab";
+import { useAgentMvpStore } from "@/lib/agent-mvp-store";
+import { AgentTab } from "@/components/agents-mvp/agent-tab";
+import { ConfigurationTab } from "@/components/agents-mvp/configuration-tab";
+import { KnowledgeBaseTab } from "@/components/agents-mvp/knowledge-base-tab";
+import { FaqsTab } from "@/components/agents-mvp/faqs-tab";
+import { QualificationCriteriaTab } from "@/components/agents-mvp/qualification-criteria-tab";
+import { TalkToAgentPanel } from "@/components/agents-mvp/talk-to-agent-panel";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 4 },
   show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
 };
 
-type Tab =
-  | "agent"
-  | "configuration"
-  | "tools"
-  | "knowledge"
-  | "faqs"
-  | "qualification";
+type Tab = "agent" | "configuration" | "knowledge" | "faqs" | "qualification";
 
 const statusConfig: Record<string, { label: string; cls: string }> = {
   active: { label: "Ready To Use", cls: "bg-[#F0FDF4] text-[#15803D]" },
@@ -35,24 +30,26 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
 export default function AgentMvpDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const agentId = params.id as string;
   const [activeTab, setActiveTab] = useState<Tab>("agent");
-  const [showTestCall, setShowTestCall] = useState(false);
-  const [testPhone, setTestPhone] = useState("");
-  const [isTesting, setIsTesting] = useState(false);
-  const [testSuccess, setTestSuccess] = useState(false);
+  const [talkOpen, setTalkOpen] = useState(false);
 
-  const agent = agentMvpDetails[agentId];
+  // User-created agents live in the speedrun store; demo seeds live in
+  // the static map. Store wins on collision (slugs are prefixed `new-`
+  // so collisions shouldn't happen anyway).
+  const userAgent = useAgentMvpStore((s) => s.agents[agentId]);
+  const agent = userAgent ?? agentMvpDetails[agentId];
 
-  const handleTestCall = () => {
-    if (!testPhone.trim()) return;
-    setIsTesting(true);
-    setTimeout(() => {
-      setIsTesting(false);
-      setTestSuccess(true);
-      setTimeout(() => setTestSuccess(false), 3000);
-    }, 2000);
-  };
+  // Dopamine moment: when arriving from /agents-mvp/create, auto-open
+  // the Talk-to-agent panel so the very first thing the user does is
+  // hear their bot speak. Single-shot — strip the flag after firing.
+  const justCreated = searchParams.get("just_created") === "1";
+  useEffect(() => {
+    if (!justCreated || !agent) return;
+    const t = setTimeout(() => setTalkOpen(true), 300);
+    return () => clearTimeout(t);
+  }, [justCreated, agent]);
 
   if (!agent) {
     return (
@@ -67,7 +64,6 @@ export default function AgentMvpDetailPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "agent", label: "Agent" },
     { key: "configuration", label: "Configuration" },
-    { key: "tools", label: "Tools" },
     { key: "knowledge", label: "Knowledge Base" },
     { key: "faqs", label: "FAQs" },
     { key: "qualification", label: "Qualification Criteria" },
@@ -78,7 +74,7 @@ export default function AgentMvpDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-4">
         <button
-          onClick={() => router.push("/agents")}
+          onClick={() => router.push("/agents-mvp")}
           className="p-1 rounded-button text-text-secondary hover:bg-surface-secondary hover:text-text-primary transition-colors duration-150"
         >
           <ArrowLeft size={16} strokeWidth={1.5} />
@@ -113,50 +109,48 @@ export default function AgentMvpDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 mt-1">
-            <button className="h-9 px-4 text-[13px] font-medium border border-border rounded-button bg-white text-text-primary hover:bg-surface-page transition-colors inline-flex items-center gap-1.5">
-              <FlaskConical size={14} strokeWidth={1.5} />
-              Test Agent
-            </button>
-            <button onClick={() => setShowTestCall(!showTestCall)}
-              className={`h-9 px-4 text-[13px] font-medium rounded-button transition-colors inline-flex items-center gap-1.5 ${
-                showTestCall ? "bg-accent/10 text-accent border border-accent/30" : "bg-accent text-white hover:bg-accent-hover"
-              }`}>
-              <PhoneCall size={14} strokeWidth={1.5} />
-              Test Call
+            <button
+              onClick={() => setTalkOpen(true)}
+              className="h-9 px-4 text-[13px] font-medium bg-text-primary text-white rounded-button hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
+            >
+              <PhoneCall size={14} strokeWidth={1.75} />
+              Talk to agent
             </button>
           </div>
         </div>
 
-        {/* Test Call Section */}
-        {showTestCall && (
-          <div className="mt-3 bg-surface-page border border-border-subtle rounded-card p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 flex-1">
-                <span className="text-[13px] text-text-secondary shrink-0">+91</span>
-                <input type="tel" value={testPhone} onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="Enter phone number"
-                  className="flex-1 h-9 px-3 text-[13px] border border-border rounded-input bg-white text-text-primary focus:outline-none focus:border-accent placeholder:text-text-tertiary" />
+        {/* Just-created banner — only fires on the first visit after the
+            speedrun create flow. Frames the prompt + voice + FAQs as a
+            starting point so the user feels in control of what comes
+            next. Auto-dismissable; reload clears the ?just_created flag. */}
+        <AnimatePresence>
+          {justCreated && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mt-3 flex items-start gap-3 px-3.5 py-2.5 bg-[#FAF8F2] border border-[#E9DEC2] rounded-card"
+            >
+              <Sparkles size={14} strokeWidth={1.75} className="text-[#92400E] mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-medium text-[#92400E]">
+                  Spot calibrated {agent.name} from your goal — try it now.
+                </p>
+                <p className="text-[11.5px] text-[#92400E]/80 mt-0.5">
+                  Voice, prompt, and FAQs are pre-filled. Edit any of them in the tabs below.
+                </p>
               </div>
-              <button onClick={handleTestCall} disabled={!testPhone.trim() || isTesting}
-                className="h-9 px-4 text-[13px] font-medium bg-accent text-white rounded-button hover:bg-accent-hover transition-colors disabled:opacity-40 inline-flex items-center gap-1.5">
-                {isTesting ? (
-                  <><div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Calling...</>
-                ) : (
-                  <><PhoneCall size={13} strokeWidth={1.5} /> Make Test Call</>
-                )}
+              <button
+                onClick={() => router.replace(`/agents-mvp/${agentId}`)}
+                className="p-1 rounded-button text-[#92400E]/70 hover:text-[#92400E] hover:bg-[#E9DEC2]/40 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X size={12} strokeWidth={2} />
               </button>
-              <button onClick={() => { setShowTestCall(false); setTestPhone(""); setTestSuccess(false); }}
-                className="p-1.5 text-text-tertiary hover:text-text-primary rounded-button hover:bg-surface-secondary">
-                <X size={14} strokeWidth={1.5} />
-              </button>
-            </div>
-            {testSuccess && (
-              <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[#15803D] font-medium">
-                <Check size={13} strokeWidth={2} /> Test call initiated to +91 {testPhone}
-              </div>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Tab bar */}
@@ -187,7 +181,6 @@ export default function AgentMvpDetailPage() {
       <div>
         {activeTab === "agent" && <AgentTab agent={agent} />}
         {activeTab === "configuration" && <ConfigurationTab agent={agent} />}
-        {activeTab === "tools" && <ToolsTab agent={agent} />}
         {activeTab === "knowledge" && <KnowledgeBaseTab agent={agent} />}
         {activeTab === "faqs" && <FaqsTab agent={agent} />}
         {activeTab === "qualification" && <QualificationCriteriaTab agent={agent} />}

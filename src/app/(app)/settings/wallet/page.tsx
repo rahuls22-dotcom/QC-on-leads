@@ -20,7 +20,7 @@
  *      and which wallet drove them.
  */
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   WALLETS,
@@ -47,7 +47,8 @@ import { LowBalanceModal } from "@/components/wallet/low-balance-modal";
 import { WalletCard } from "@/components/wallet/wallet-card";
 import { TopUpEstimatorModal } from "@/components/wallet/top-up-estimator-modal";
 import { DateRangeSelector } from "@/components/dashboard/date-range-selector";
-import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Plus, Receipt, TrendingUp, Calendar, ArrowDown, BarChart3, AlertTriangle, Send, ChevronDown, ChevronLeft, ChevronRight, Info, Building2, Check } from "lucide-react";
+import { useAccessibleWorkspaces } from "@/lib/workspace-store";
 
 // Demo: this workspace's billing cycle starts on the 13th of each
 // month — i.e. 13 May → 13 Jun, 13 Jun → 13 Jul, and so on. In a
@@ -467,6 +468,180 @@ function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 250);
 }
 
+// ── WorkspaceMultiSelect ────────────────────────────────────────────────────
+//
+// Compact multi-select dropdown that lets the user narrow the Usage rollup
+// to one or more workspaces. Sits next to the date filter in the Usage
+// header. Default is "all workspaces selected" so the page reads as the
+// full picture on first load; users can A/B isolate workspaces without
+// losing the date filter.
+//
+// Behaviour mirrors the DateRangeSelector trigger: same compact pill, same
+// chevron, same border/typography. The popover itself is a checkbox list
+// with a single "Select all" reset (no Clear — a zero-selected state
+// renders an empty Usage page and is never something the user wants).
+// Each row carries an "Only" affordance on hover so isolating to one or
+// two workspaces is a single click each, not a chore of unchecking
+// everything else. Minimum selection is enforced at 1 — clicking the
+// last selected checkbox is a no-op rather than silently nuking the
+// view.
+function WorkspaceMultiSelect({
+  workspaces,
+  selectedIds,
+  onChange,
+}: {
+  workspaces: { id: string; name: string; region: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-outside to dismiss. Listening on mousedown (not click) so the
+  // popover closes on the press, not after the release — feels snappier.
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const allSelected = selectedIds.length === workspaces.length;
+  // Label adapts to selection count so the trigger always reads truthfully —
+  // "All workspaces" vs "Guyju's South" vs "2 workspaces" — without the user
+  // having to open the popover to check. We never show "No workspaces"
+  // because we never allow the zero-selected state.
+  const label =
+    allSelected
+      ? "All workspaces"
+      : selectedIds.length === 1
+          ? workspaces.find((w) => w.id === selectedIds[0])?.name ?? "1 workspace"
+          : `${selectedIds.length} workspaces`;
+
+  // Toggle inclusion of a workspace. Refuses to drop the last selected
+  // workspace — there's no useful "zero workspaces" view on Usage, so
+  // we make that click a no-op rather than rendering an empty page.
+  const toggle = (id: string) => {
+    const checked = selectedIds.includes(id);
+    if (checked && selectedIds.length === 1) return; // no-op: keep at least one
+    onChange(
+      checked
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id],
+    );
+  };
+
+  // Isolate selection to a single workspace. Click target on each row;
+  // the killer affordance for "show me just this one" without the user
+  // unchecking N-1 others one at a time.
+  const only = (id: string) => onChange([id]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-2 h-9 px-3 bg-white border border-border rounded-input text-[13px] text-text-primary hover:border-border-hover transition-colors duration-150"
+      >
+        <Building2 size={14} strokeWidth={1.5} className="text-text-tertiary" />
+        <span className="text-[12px]">{label}</span>
+        <ChevronDown size={14} strokeWidth={1.5} className={`text-text-tertiary transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Workspaces"
+          className="absolute right-0 top-[calc(100%+4px)] z-20 w-[240px] bg-white border border-border rounded-card shadow-lg overflow-hidden"
+        >
+          {/* Header row — single "Select all" reset. Acts as the
+              "back to default" affordance; greyed out when already at
+              default since there's nothing to do. Clear was removed
+              — a zero-selected state renders an empty Usage page and
+              isn't a useful destination. */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-surface-page/60">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.4px] text-text-tertiary">
+              Workspaces
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange(workspaces.map((w) => w.id))}
+              disabled={allSelected}
+              className="text-[11px] font-medium text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-default"
+            >
+              Select all
+            </button>
+          </div>
+          <ul className="max-h-[260px] overflow-y-auto py-1">
+            {workspaces.map((w) => {
+              const checked = selectedIds.includes(w.id);
+              const isLastSelected = checked && selectedIds.length === 1;
+              return (
+                // The row is two sibling buttons inside a positioned <li>:
+                // the main checkbox-toggle covers the row, the "Only"
+                // affordance floats on the right and appears on hover.
+                // Splitting them avoids nesting a button inside another
+                // button (invalid HTML) and keeps event handling clean
+                // (no stopPropagation gymnastics).
+                <li key={w.id} className="group relative">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={checked}
+                    onClick={() => toggle(w.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 pr-14 hover:bg-surface-page transition-colors text-left ${
+                      isLastSelected ? "cursor-default" : ""
+                    }`}
+                    title={isLastSelected ? "At least one workspace must stay selected" : undefined}
+                  >
+                    <span
+                      className={`flex items-center justify-center w-[14px] h-[14px] rounded border ${
+                        checked
+                          ? "bg-text-primary border-text-primary"
+                          : "bg-white border-border"
+                      }`}
+                      aria-hidden
+                    >
+                      {checked && <Check size={10} strokeWidth={3} className="text-white" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12.5px] font-medium text-text-primary truncate">
+                        {w.name}
+                      </div>
+                      <div className="text-[10.5px] text-text-tertiary truncate">
+                        {w.region}
+                      </div>
+                    </div>
+                  </button>
+                  {/* "Only" — appears on row hover. Hidden when this is
+                      already the sole selected workspace (would be a
+                      no-op) and when ALL are selected this is the
+                      primary one-click path to focus mode. */}
+                  {!isLastSelected && (
+                    <button
+                      type="button"
+                      onClick={() => only(w.id)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[10.5px] font-medium text-text-secondary hover:text-text-primary px-1.5 py-0.5 rounded border border-border-subtle bg-white transition-opacity"
+                      title={`Show only ${w.name}`}
+                    >
+                      Only
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── BillingMonthSelector ─────────────────────────────────────────────────────
 //
 // Compact months-only dropdown used in place of the dynamic DateRangeSelector
@@ -491,42 +666,23 @@ function BillingMonthSelector({
   options: BillingMonth[];
 }) {
   const [open, setOpen] = useState(false);
-  // The dropdown has two sub-views: the preset list (most recent six
-  // months) and the Custom picker (year navigation + 12-month grid).
-  // Default to the preset list when the menu opens; switch to picker
-  // when the user clicks "Custom…". Resets when the menu closes.
-  const [view, setView] = useState<"presets" | "custom">("presets");
-  const today = new Date();
-  // Picker year — starts at the year of the currently-selected month
-  // so the user can see where they are. Past months ≤ today are
-  // selectable; future months in the picker year are disabled (no
-  // billing data exists yet).
-  const selectedYear  = parseInt(value.id.slice(0, 4), 10);
-  const selectedMonth = parseInt(value.id.slice(5, 7), 10) - 1;
-  const [pickerYear, setPickerYear] = useState(selectedYear);
 
-  const close = () => {
-    setOpen(false);
-    // Defer view reset slightly so the user doesn't see it flip during
-    // the close animation.
-    setTimeout(() => setView("presets"), 150);
-  };
-
-  const monthShortNames = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
+  // Cycles are NOT calendar months — they run from the workspace's
+  // CYCLE_START_DAY to the same day next month (e.g. 13 May – 13 Jun).
+  // A month-name grid would force the user to disambiguate "May" as
+  // either the cycle starting May or the cycle ending May, which is
+  // exactly the confusion this filter is supposed to remove. The flat
+  // scrollable list shows each cycle's full range so there's no
+  // ambiguity, and lets the user scroll back to the first cycle in
+  // one continuous motion. Newest-first ordering puts the current
+  // cycle at the top — the usual entry point.
+  const close = () => setOpen(false);
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => {
-          setOpen((o) => !o);
-          // When opening, snap the picker year back to the selected
-          // month's year so the user always starts where they are.
-          if (!open) setPickerYear(selectedYear);
-        }}
+        onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium text-text-primary border border-border rounded-button bg-white hover:border-border-strong transition-colors duration-150"
       >
         <Calendar size={12} strokeWidth={1.75} className="text-text-tertiary" />
@@ -541,128 +697,57 @@ function BillingMonthSelector({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={close} />
-          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl py-1 min-w-[240px]">
-            {view === "presets" ? (
-              <>
-                {options.map((opt) => {
-                  const isActive = opt.id === value.id;
-                  // "This cycle" / "Last cycle" carry a named label;
-                  // the actual range goes in brackets next to it. For
-                  // older entries the label IS the range (e.g.
-                  // "13 Mar – 13 Apr 2026"), so showing range as a
-                  // separate right-aligned column is a duplicate.
-                  // Render single-column for those.
-                  const isNamedCycle =
-                    opt.label === "This cycle" ||
-                    opt.label === "Last cycle" ||
-                    opt.label === "This month" ||
-                    opt.label === "Last month";
-                  return (
+          <div className="absolute right-0 top-[calc(100%+4px)] z-20 bg-white border border-border rounded-card shadow-xl w-[280px] overflow-hidden">
+            {/* Section label — quiet, just so the list has an
+                anchor when it gets long. No actions live up here;
+                Select-the-cycle is the only interaction. */}
+            <div className="px-3 py-2 border-b border-border-subtle bg-surface-page/60">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.4px] text-text-tertiary">
+                Billing cycles
+              </span>
+            </div>
+            {/* Scrollable cycle list. Max-height keeps the popover from
+                eating the whole viewport when history is long; the user
+                can scroll to the first cycle without leaving the menu. */}
+            <ul className="max-h-[320px] overflow-y-auto py-1">
+              {options.map((opt) => {
+                const isActive = opt.id === value.id;
+                // Mark cycles by their lifecycle position so the user
+                // can recognise the current and most-recent settled
+                // cycles without doing date math. Everything older
+                // just reads as its date range.
+                const tag =
+                  opt.label === "This cycle" || opt.label === "This month"
+                    ? "Current"
+                    : opt.label === "Last cycle" || opt.label === "Last month"
+                      ? "Last"
+                      : null;
+                return (
+                  <li key={opt.id}>
                     <button
-                      key={opt.id}
                       type="button"
                       onClick={() => {
                         onChange(opt);
                         close();
                       }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100 ${
-                        isActive ? "bg-surface-secondary" : ""
+                      aria-current={isActive ? "true" : undefined}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-surface-page transition-colors duration-100 ${
+                        isActive ? "bg-surface-page" : ""
                       }`}
                     >
-                      <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
-                      {isNamedCycle && (
-                        <span className="text-[11px] text-text-tertiary tabular-nums">({opt.range})</span>
+                      <span className="text-[12.5px] font-medium text-text-primary tabular-nums truncate">
+                        {opt.range}
+                      </span>
+                      {tag && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.4px] text-text-tertiary">
+                          {tag}
+                        </span>
                       )}
                     </button>
-                  );
-                })}
-                {/* Custom — only entry point for months in other years
-                    or months older than the preset window. Sits at the
-                    bottom of the list so the common case (this/last
-                    month) is one click away. */}
-                <div className="my-1 border-t border-border-subtle" />
-                <button
-                  type="button"
-                  onClick={() => setView("custom")}
-                  className="w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-surface-secondary transition-colors duration-100"
-                >
-                  <span className="text-[12.5px] font-medium text-text-secondary">Custom…</span>
-                  <span className="text-[11px] text-text-tertiary">pick any month</span>
-                </button>
-              </>
-            ) : (
-              <div className="p-2 w-[280px]">
-                {/* Year navigation — clamp forward at the current year
-                    (no point letting the user wander into 2027 when no
-                    data exists). No earliest year limit; old months will
-                    just show ₹0. */}
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setView("presets")}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-text-tertiary hover:text-text-primary transition-colors duration-100"
-                  >
-                    <ChevronLeft size={11} strokeWidth={2} />
-                    Back
-                  </button>
-                  <div className="inline-flex items-center gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setPickerYear((y) => y - 1)}
-                      className="w-6 h-6 inline-flex items-center justify-center rounded-[5px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors duration-100"
-                      aria-label="Previous year"
-                    >
-                      <ChevronLeft size={13} strokeWidth={2} />
-                    </button>
-                    <span className="text-[12.5px] font-semibold text-text-primary tabular-nums px-1.5 min-w-[44px] text-center">
-                      {pickerYear}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPickerYear((y) => Math.min(y + 1, today.getFullYear()))}
-                      disabled={pickerYear >= today.getFullYear()}
-                      className="w-6 h-6 inline-flex items-center justify-center rounded-[5px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors duration-100 disabled:opacity-40 disabled:hover:bg-transparent"
-                      aria-label="Next year"
-                    >
-                      <ChevronRight size={13} strokeWidth={2} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 12-month grid. Months past today are disabled — no
-                    bill exists for a month that hasn't started. The
-                    currently-selected month gets a filled background;
-                    every other month gets a hover state only. */}
-                <div className="grid grid-cols-3 gap-1">
-                  {monthShortNames.map((m, idx) => {
-                    const isFuture =
-                        pickerYear > today.getFullYear()
-                     || (pickerYear === today.getFullYear() && idx > today.getMonth());
-                    const isSelected = pickerYear === selectedYear && idx === selectedMonth;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        disabled={isFuture}
-                        onClick={() => {
-                          onChange(billingMonthFor(pickerYear, idx, CYCLE_START_DAY));
-                          close();
-                        }}
-                        className={`h-8 rounded-[6px] text-[12px] font-medium transition-colors duration-100 ${
-                          isSelected
-                            ? "bg-text-primary text-white"
-                            : isFuture
-                              ? "text-text-tertiary/40 cursor-not-allowed"
-                              : "text-text-primary hover:bg-surface-secondary"
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </>
       )}
@@ -933,12 +1018,43 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
   // collapsing to "last N days". Plumbed down to WalletUsageChart.
   const [rangePreset, setRangePreset] = useState<string>("thismonth");
 
+  // Workspace scope filter — multi-select. Usage rolls up across
+  // workspaces the user can see; the filter narrows the rollup to
+  // a chosen subset without leaving the page. Default is "all
+  // workspaces selected" so the page reads as the full picture on
+  // first load. Keyed by workspace id; an empty array is treated as
+  // "none" (zeroes everything) so the user can A/B isolate workspaces
+  // without losing the date filter.
+  const accessibleWorkspaces = useAccessibleWorkspaces();
+  // `useAccessibleWorkspaces` returns a freshly-filtered array on every
+  // render, so depending on the array reference would re-fire the
+  // effect every render and trigger an infinite setState loop. We key
+  // off the joined-id string instead — stable across renders unless
+  // the actual set of accessible workspaces changes.
+  const accessibleWorkspaceIdsKey = accessibleWorkspaces.map((w) => w.id).join(",");
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>(() =>
+    accessibleWorkspaces.map((w) => w.id),
+  );
+  // Re-seed if the accessible set actually changes (e.g. demo role
+  // switch). Only drops entries that are no longer accessible; if
+  // nothing carries over, seeds everything as selected.
+  useEffect(() => {
+    setSelectedWorkspaceIds((prev) => {
+      const accessibleIds = accessibleWorkspaceIdsKey ? accessibleWorkspaceIdsKey.split(",") : [];
+      const valid = prev.filter((id) => accessibleIds.includes(id));
+      return valid.length > 0 ? valid : accessibleIds;
+    });
+  }, [accessibleWorkspaceIdsKey]);
+
   // Billing month — Billing is anchored to monthly invoice cycles, so the
   // header on the Billing view exposes a Months dropdown (not the dynamic
   // DateRangeSelector). Default = current month ("This month"). We keep
   // both selectors' state independent so the user can toggle Utilization ↔
   // Billing without one resetting the other.
-  const billingMonths      = useMemo(() => billingMonthOptions(6, CYCLE_START_DAY), []);
+  // 24 cycles' worth of history so the picker reaches back to the
+  // workspace's first billed cycle. The picker itself is a flat
+  // scrollable list; no need to keep this small for "presets" anymore.
+  const billingMonths      = useMemo(() => billingMonthOptions(24, CYCLE_START_DAY), []);
   const [billingMonth, setBillingMonth] = useState<BillingMonth>(billingMonths[0]);
 
   // Effective window. Utilization always uses `range` from the DateRangeSelector
@@ -1082,14 +1198,28 @@ export default function WalletSettingsPage({ view = "utilization" }: { view?: Wa
               onChange={setBillingMonth}
             />
           ) : (
-            <DateRangeSelector
-              compact
-              defaultPreset="thismonth"
-              onChange={(preset) => {
-                setRange(presetToDays(preset));
-                setRangePreset(preset);
-              }}
-            />
+            <>
+              {/* Workspace scope — multi-select. Sits to the left of the
+                  date filter so the eye reads "which workspaces ·
+                  which window" in scanning order. Hidden for users
+                  with only one accessible workspace (the filter would
+                  be a single non-toggleable row). */}
+              {accessibleWorkspaces.length > 1 && (
+                <WorkspaceMultiSelect
+                  workspaces={accessibleWorkspaces}
+                  selectedIds={selectedWorkspaceIds}
+                  onChange={setSelectedWorkspaceIds}
+                />
+              )}
+              <DateRangeSelector
+                compact
+                defaultPreset="thismonth"
+                onChange={(preset) => {
+                  setRange(presetToDays(preset));
+                  setRangePreset(preset);
+                }}
+              />
+            </>
           )}
           {/* Add money is a billing/wallet action — only relevant on
               the Billing page and only for prepaid customers. Postpaid
@@ -2660,21 +2790,10 @@ function PrepaidBalanceHero({
         </div>
       )}
 
-      {/* Embedded product breakdown disclosure — sits inside the hero
-          card itself so the user reads the answer and the drill-down
-          as one continuous block. Only rendered on Billing (where
-          billingMode is passed); on the Usage page the per-product
-          chart already lives below the hero. */}
-      {billingMode && (
-        <HeroProductBreakdown
-          rangeDays={range}
-          rangeOffset={rangeOffset}
-          totalPool={totalAvailable}
-          billingMode={billingMode}
-          billingMonth={billingMonth}
-          enabledModuleIds={enabledModuleIds ?? []}
-        />
-      )}
+      {/* Per-product breakdown disclosure removed — the billing card
+          should stay focused on the cycle totals, not double as a
+          per-product audit. Users who want that drill-down get it
+          from the Usage tab. */}
     </div>
   );
 }
@@ -2978,19 +3097,9 @@ function BillingSpendHero({
         )}
       </div>
 
-      {/* Embedded product breakdown — sits inside the same hero card
-          so the user reads the headline (Bill till now / Invoice for X)
-          and the per-product drill-down as one block instead of two
-          separate widgets. Defaults to collapsed; opening it expands
-          the same ModulesTable that owns the Usage page. */}
-      <HeroProductBreakdown
-        rangeDays={range}
-        rangeOffset={rangeOffset}
-        totalPool={planBaseline}
-        billingMode={billingMode}
-        billingMonth={billingMonth}
-        enabledModuleIds={enabledModuleIds ?? []}
-      />
+      {/* Per-product breakdown disclosure removed — keep the postpaid
+          hero focused on the cycle bill. Per-product detail lives on
+          the Usage tab. */}
     </div>
   );
 }
@@ -3722,7 +3831,7 @@ function BillingModelStrip({
       {isSubscription && (
         <>
           <Divider />
-          <Pair label="Plan" value={`${formatAmount(planBaseline, "INR")} / 30 days`} />
+          <Pair label="Plan" value={`${formatAmount(planBaseline, "INR")} / month`} />
         </>
       )}
 
@@ -3786,32 +3895,48 @@ function BillingHistorySection({
   type InvoiceRow = {
     month:     BillingMonth;
     invoiceId: string;
+    // `createdAt` is when the invoice was issued — for subscription
+    // and pure prepaid that's the cycle start day. We keep it but no
+    // longer render it as its own column; the Period column already
+    // implies it.
     createdAt: Date;
+    // `paidAt` is when the invoice actually settled. For most rows
+    // this is the same day as createdAt (auto-charged on issue) but
+    // a small slice slips by 1–10 days for banking delays. Null for
+    // open invoices that haven't been collected yet.
+    paidAt:    Date | null;
     amount:    number;
-    status:    "open" | "paid" | "uncollectible";
+    status:    "open" | "paid" | "uncollectible" | "refunded";
     isCurrent: boolean;
   };
 
   const allInvoices: InvoiceRow[] = useMemo(() => {
     const list: InvoiceRow[] = [];
 
-    // Current cycle row — only for postpaid (invoiced at cycle end).
-    // Subscription was already paid up-front at cycle start so it
-    // doesn't show as Open here. Pure prepaid is "draw down a wallet"
-    // — no recurring invoice. allMonths[0] is the current month
-    // (billingMonthOptions returns newest-first), so we reuse that
-    // BillingMonth rather than synthesising one.
-    if (isPostpaid && allMonths.length > 0) {
+    // Current cycle row — always present so the Status column has a
+    // Pending entry visible at the top of the list. For postpaid this
+    // is literally an unpaid invoice (collected at cycle end). For
+    // subscription the cycle WAS auto-charged at cycle start, but we
+    // still surface a row tagged Pending until the cycle closes — the
+    // invoice itself isn't finalised until close, which is the same
+    // framing Stripe uses for in-progress periods. allMonths[0] is
+    // the current month (billingMonthOptions returns newest-first).
+    if (allMonths.length > 0) {
       const current = allMonths[0];
       const { total } = invoiceLineItemsFor(current, enabledModuleIds);
+      const currentAmount = isSubscription
+        ? planBaseline + total      // baseline + usage running so far
+        : total;
       const [yC, mC] = current.id.split("-").map(Number);
       list.push({
         month:     current,
         invoiceId: `INV-${yC}-${String(mC).padStart(2, "0")}`,
-        // Open invoice is dated the cycle start — Stripe's "created"
-        // timestamp on an open invoice is when it was drafted.
+        // Issue date — for the in-progress cycle that's the cycle start.
         createdAt: period.start,
-        amount:    total,
+        // Not yet finalised — the Paid on column will read "Pending"
+        // and the Status badge will too.
+        paidAt:    null,
+        amount:    currentAmount,
         status:    "open",
         isCurrent: true,
       });
@@ -3822,23 +3947,97 @@ function BillingHistorySection({
     // (never zero), postpaid + pure prepaid only get invoiced when
     // there's actual usage. Skipping the empty ones avoids confusing
     // "Paid · —" rows for cycles before the workspace started.
-    // A small fraction get marked "uncollectible" for demo realism so
-    // the status column shows the variety Stripe's does.
+
+    // Deterministic per-month variation — hashes the year+month so
+    // the demo numbers are stable across reloads but vary between
+    // rows. We use this to mix in:
+    //   • top-ups stacked on the subscription baseline so the
+    //     monthly total isn't a flat ₹5,00,000 down the column
+    //   • a few days of "banking delay" on the payment date so the
+    //     Created column doesn't read as the same day-of-month for
+    //     every row
+    //   • the occasional uncollectible row (realistic Stripe spread)
+    const hashRand = (key: string): (() => number) => {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < key.length; i++) {
+        h ^= key.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return () => {
+        h = (h + 0x6D2B79F5) >>> 0;
+        let t = h;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
+
     const past = allMonths.filter(isPastMonth);
     let kept = 0;
     past.forEach((m) => {
       const { total } = invoiceLineItemsFor(m, enabledModuleIds);
-      const billed = isSubscription ? planBaseline : total;
-      if (billed === 0) return;
+      const baseBilled = isSubscription ? planBaseline : total;
+      if (baseBilled === 0) return;
       const [y, mn] = m.id.split("-").map(Number);
+
+      const rand = hashRand(m.id);
+      // Top-up amount stacked on the subscription baseline. Pure
+      // prepaid / postpaid already vary by usage so we leave those
+      // numbers alone.
+      let billed = baseBilled;
+      if (isSubscription) {
+        const r = rand();
+        if (r < 0.30) {
+          // ~30% of months: no top-ups, just the baseline.
+        } else if (r < 0.80) {
+          // ~50% of months: one mid-cycle top-up.
+          const sizes = [25_000, 50_000, 75_000, 1_00_000, 1_50_000];
+          billed += sizes[Math.floor(rand() * sizes.length)];
+        } else {
+          // ~20% of months: heavy usage — multiple top-ups.
+          const sizes = [50_000, 75_000, 1_00_000, 1_50_000, 2_00_000];
+          billed += sizes[Math.floor(rand() * sizes.length)];
+          billed += sizes[Math.floor(rand() * sizes.length)];
+          if (rand() < 0.4) billed += sizes[Math.floor(rand() * sizes.length)];
+        }
+      }
+
+      // Payment date variation. Most settle on the cycle start day
+      // itself; a smaller share land 1–2 days later (auto-pay retry
+      // window), a few percent stretch to a week (manual / postpaid).
+      const paymentDelay = (() => {
+        const r = rand();
+        if (r < 0.60) return 0;
+        if (r < 0.85) return 1 + Math.floor(rand() * 2); // 1–2 days
+        if (r < 0.95) return 3 + Math.floor(rand() * 3); // 3–5 days
+        return 6 + Math.floor(rand() * 5);               // 6–10 days
+      })();
+
+      // Status spread for past cycles. Most settle as Paid; a small
+      // share fail (uncollectible) and a smaller share end up
+      // Refunded — these are the four real-world states a SaaS
+      // invoice lands in, and the demo benefits from all of them
+      // appearing in a 24-cycle history. Offsets are different so
+      // Failed and Refunded never overlap on the same row.
+      const settledStatus: "paid" | "uncollectible" | "refunded" =
+        kept > 0 && kept % 7 === 0
+          ? "uncollectible"
+          : kept > 0 && kept % 11 === 4
+            ? "refunded"
+            : "paid";
       list.push({
         month:     m,
         invoiceId: `INV-${y}-${String(mn).padStart(2, "0")}`,
-        createdAt: new Date(y, mn - 1, CYCLE_START_DAY),  // cycle start day
+        // Issue date — always the cycle start, no banking variation.
+        createdAt: new Date(y, mn - 1, CYCLE_START_DAY),
+        // Settlement date — adds the banking delay to the issue date.
+        // Uncollectible rows still get a settlement date (= when the
+        // attempt failed), which we render as "Failed · DATE".
+        paidAt:    new Date(y, mn - 1, CYCLE_START_DAY + paymentDelay),
         amount:    billed,
         // One in seven kept invoices reads as uncollectible — realistic
         // spread for a demo, doesn't take over the column.
-        status:    kept > 0 && kept % 7 === 0 ? "uncollectible" : "paid",
+        status:    settledStatus,
         isCurrent: false,
       });
       kept += 1;
@@ -3876,12 +4075,16 @@ function BillingHistorySection({
           </p>
         </div>
 
-        {/* Column header row — sticky-feeling header on a scroll
-            container would be next-step polish; for now a single
-            header above the rows is plenty. */}
-        <div className="grid grid-cols-[1.4fr_1fr_0.9fr_1fr_28px] items-center gap-3 px-4 py-2 bg-surface-page/60 border-b border-border-subtle text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">
-          <div>Invoice ID</div>
-          <div>Created</div>
+        {/* Column header row. Five data columns + a 36px action slot:
+            Invoice · Period · Paid on · Status · Amount · ⬇. Status
+            is back as its own column — Pending for the active cycle,
+            Paid for most settled rows, Failed for uncollectible, and
+            Refunded for the rare write-back. The Created column stays
+            dropped (redundant with Period start for prepaid). */}
+        <div className="grid grid-cols-[1fr_1.1fr_1fr_0.8fr_1fr_36px] items-center gap-3 px-4 py-2 bg-surface-page/60 border-b border-border-subtle text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.5px]">
+          <div>Invoice</div>
+          <div>Period</div>
+          <div>Paid on</div>
           <div>Status</div>
           <div className="text-right">Amount</div>
           <div />
@@ -3893,7 +4096,7 @@ function BillingHistorySection({
               key={inv.invoiceId}
               month={inv.month}
               invoiceId={inv.invoiceId}
-              createdAt={inv.createdAt}
+              paidAt={inv.paidAt}
               status={inv.status}
               amount={inv.amount}
               isCurrent={inv.isCurrent}
@@ -3962,13 +4165,13 @@ function BillingHistorySection({
 // ────────────────────────────────────────────────────────────────────
 
 function BillingHistoryRow({
-  month, invoiceId, createdAt, status, amount, isCurrent,
+  month, invoiceId, paidAt, status, amount, isCurrent,
   billingMode, planType, carryForward, planBaseline, enabledModuleIds,
 }: {
   month:            BillingMonth;
   invoiceId:        string;
-  createdAt:        Date;
-  status:           "open" | "paid" | "uncollectible";
+  paidAt:           Date | null;
+  status:           "open" | "paid" | "uncollectible" | "refunded";
   amount:           number;
   isCurrent:        boolean;
   billingMode:      BillingMode;
@@ -3977,20 +4180,7 @@ function BillingHistoryRow({
   planBaseline:     number;
   enabledModuleIds: readonly string[];
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   const fmtDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-
-  // Per-month numbers — same source the on-screen Modules table uses.
-  // The amount displayed in the table comes from the parent's
-  // pre-computed row data (so Open invoices show the running tally,
-  // not just settled totals), but the expanded body still pulls full
-  // line items so the breakdown matches what the customer sees.
-  const { total: usageTotal } = useMemo(
-    () => invoiceLineItemsFor(month, enabledModuleIds),
-    [month, enabledModuleIds],
-  );
-  const isSubscription = billingMode === "prepaid" && planType === "subscription";
 
   const onDownload = () => {
     const { blob, filename } = buildInvoiceForMonth({
@@ -4005,119 +4195,66 @@ function BillingHistoryRow({
     downloadBlob(blob, filename);
   };
 
+  // Paid on cell — just the date for any row that has one, "—" when
+  // nothing has settled yet (the Status column carries the lifecycle).
+  // We no longer prefix "Failed · " on uncollectible rows because the
+  // dedicated Status badge in the next column says the same thing.
+  const paidOnCell = paidAt
+    ? <span className="text-[12.5px] text-text-secondary tabular-nums">{fmtDate(paidAt)}</span>
+    : <span className="text-[12.5px] text-text-tertiary">—</span>;
+
   return (
-    <div className={isCurrent ? "bg-amber-50/30" : "bg-white"}>
-      {/* Collapsed row — column layout matches the header above.
-          Same grid template so the columns visually align. */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="w-full grid grid-cols-[1.4fr_1fr_0.9fr_1fr_28px] items-center gap-3 px-4 py-3 text-left hover:bg-surface-page/60 transition-colors"
-      >
-        <div className="min-w-0">
-          <p className="text-[12.5px] font-mono text-text-primary truncate">
-            {invoiceId}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[12.5px] text-text-secondary tabular-nums">
-            {fmtDate(createdAt)}
-          </p>
-        </div>
-        <div>
-          <InvoiceStatusBadge status={status} />
-        </div>
-        <div className="text-right">
-          <p className="text-[13px] font-semibold text-text-primary tabular-nums">
-            {amount > 0 ? formatAmount(amount, "INR") : "—"}
-          </p>
-        </div>
-        <div className="flex items-center justify-end">
-          <ChevronDown
-            size={15}
-            strokeWidth={1.75}
-            className={`text-text-tertiary transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
-          />
-        </div>
-      </button>
-
-      {/* Expanded body — line items + actions. Layout unchanged from
-          before; only the row chrome around it was restructured. */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-1 border-t border-border-subtle bg-surface-page/40">
-          <div className="flex items-center justify-between text-[10px] font-medium text-text-tertiary uppercase tracking-[0.4px] mt-3 mb-2">
-            <span>Line items {isCurrent && <span className="normal-case text-text-tertiary">· running tally</span>}</span>
-            <span className="font-mono normal-case tracking-normal text-[11px]">
-              {invoiceId}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {isSubscription && (
-              <BillingLineRow
-                label="Monthly plan baseline"
-                hint="charged on cycle start"
-                value={formatAmount(planBaseline, "INR")}
-              />
-            )}
-            <BillingLineRow
-              label={isCurrent ? "Usage so far" : "Usage drawn"}
-              hint={`across ${month.range}`}
-              value={formatAmount(usageTotal, "INR")}
-            />
-            {isSubscription && usageTotal <= planBaseline && (
-              <BillingLineRow
-                label={carryForward === "enabled" ? "Carries forward to next cycle" : "Forfeited at cycle end"}
-                hint={carryForward === "enabled" ? "rollover policy is on" : "no rollover on this plan"}
-                value={formatAmount(planBaseline - usageTotal, "INR")}
-                muted={carryForward === "disabled"}
-              />
-            )}
-            {isSubscription && usageTotal > planBaseline && (
-              <BillingLineRow
-                label="Over plan (extra charge)"
-                hint="usage exceeded the monthly plan"
-                value={formatAmount(usageTotal - planBaseline, "INR")}
-              />
-            )}
-          </div>
-
-          <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-border-subtle">
-            <p className="text-[11.5px] text-text-tertiary">
-              <span className="text-text-secondary font-medium">
-                {isCurrent ? "Estimated total" : "Amount billed"}
-              </span>{" "}
-              <span className="text-text-primary font-semibold tabular-nums">{formatAmount(amount, "INR")}</span>
-            </p>
-            {/* Download only for settled rows. Open invoices don't
-                have a PDF — there's nothing finalised to print. */}
-            {!isCurrent && (
-              <button
-                type="button"
-                onClick={onDownload}
-                className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-accent text-white rounded-button hover:bg-accent-hover transition-colors"
-              >
-                <ArrowDown size={12} strokeWidth={1.8} />
-                Invoice
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+    <div className={`grid grid-cols-[1fr_1.1fr_1fr_0.8fr_1fr_36px] items-center gap-3 px-4 py-3 ${isCurrent ? "bg-amber-50/30" : "bg-white"}`}>
+      <div className="min-w-0">
+        <p className="text-[12.5px] font-mono text-text-primary truncate">{invoiceId}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-[12px] text-text-secondary tabular-nums truncate">{month.range}</p>
+      </div>
+      <div className="min-w-0">
+        {paidOnCell}
+      </div>
+      <div className="min-w-0">
+        <InvoiceStatusBadge status={status} />
+      </div>
+      <div className="text-right">
+        <p className="text-[13px] font-semibold text-text-primary tabular-nums">
+          {amount > 0 ? formatAmount(amount, "INR") : "—"}
+        </p>
+      </div>
+      <div className="flex items-center justify-end">
+        {!isCurrent ? (
+          <button
+            type="button"
+            onClick={onDownload}
+            aria-label="Download invoice"
+            title="Download invoice"
+            className="inline-flex items-center justify-center w-7 h-7 text-text-secondary border border-border rounded-button hover:bg-surface-secondary hover:text-text-primary transition-colors"
+          >
+            <ArrowDown size={12} strokeWidth={1.8} />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 // ── InvoiceStatusBadge ───────────────────────────────────────────────
-// Stripe-style status pill. Three states map to three colour
-// families: Paid (green = settled), Open (amber = pending),
-// Uncollectible (red = won't be collected, written off). Kept
-// compact so the column doesn't crowd the row.
-function InvoiceStatusBadge({ status }: { status: "open" | "paid" | "uncollectible" }) {
+// Status pill aligned with how Stripe / Razorpay / OpenAI label
+// invoice lifecycle states. Four colour families:
+//   Paid       — green   — money settled and stays with us
+//   Pending    — amber   — finalised but not yet collected, OR
+//                          mid-cycle subscription invoice not closed
+//   Failed     — red     — uncollectible, written off after retries
+//                          (Stripe's term; Razorpay calls it "Failed")
+//   Refunded   — slate   — money was paid then returned to the customer
+// Kept compact so the column doesn't crowd the row.
+function InvoiceStatusBadge({ status }: { status: "open" | "paid" | "uncollectible" | "refunded" }) {
   const style = {
     paid:          { bg: "bg-[#DCFCE7]", text: "text-[#15803D]", dot: "bg-[#15803D]", label: "Paid" },
-    open:          { bg: "bg-[#FEF3C7]", text: "text-[#92400E]", dot: "bg-[#D97706]", label: "Open" },
-    uncollectible: { bg: "bg-[#FEE2E2]", text: "text-[#991B1B]", dot: "bg-[#DC2626]", label: "Uncollectible" },
+    open:          { bg: "bg-[#FEF3C7]", text: "text-[#92400E]", dot: "bg-[#D97706]", label: "Pending" },
+    uncollectible: { bg: "bg-[#FEE2E2]", text: "text-[#991B1B]", dot: "bg-[#DC2626]", label: "Failed" },
+    refunded:      { bg: "bg-[#E2E8F0]", text: "text-[#475569]", dot: "bg-[#64748B]", label: "Refunded" },
   }[status];
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-badge ${style.bg} ${style.text} text-[10.5px] font-medium`}>

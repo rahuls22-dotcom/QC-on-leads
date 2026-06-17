@@ -4,8 +4,9 @@
     {
       "name": "revspot-dev",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH && npm run dev"],
-      "port": 3000
+      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH && cd /Users/rahulsoren/revspot-mvp-final-1 && npm run dev -- --port 3002"],
+      "port": 3002,
+      "autoPort": false
     }
   ]
 }

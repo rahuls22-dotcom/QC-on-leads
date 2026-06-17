@@ -570,23 +570,96 @@ const defaultQualificationCriteria: QualificationCriteriaConfig = {
  * (end_call, voice_mail_detection) are loaded unconditionally and never
  * surface here.
  */
+/** Buckets tools by the moment in the call they fire. Drives grouping in the Tools tab. */
+export type ToolCategory =
+  | "Conversation"
+  | "Lead capture"
+  | "Knowledge"
+  | "Escalation"
+  | "System";
+
 export interface AgentCapability {
   id: string;
   label: string;
   /** Underlying tool keys the platform should load when this is enabled. */
   tools: string[];
+  /** Which moment in the conversation this tool serves. */
+  category: ToolCategory;
+  /** One-line plain-language description of what the tool does on a call. */
+  description: string;
 }
 
+/**
+ * Always-on handlers loaded unconditionally on every agent. Operators can see
+ * them in the Tools tab but cannot disable them — they're part of the runtime.
+ */
+export const CORE_TOOLS: AgentCapability[] = [
+  {
+    id: "end_call",
+    label: "End call",
+    tools: ["end_call"],
+    category: "System",
+    description: "Hangs up gracefully once the goal is met or the lead asks to stop.",
+  },
+  {
+    id: "voicemail_detection",
+    label: "Voicemail detection",
+    tools: ["voice_mail_detection"],
+    category: "System",
+    description: "Detects answering machines and leaves a callback message instead of talking to dead air.",
+  },
+];
+
 export const OPTIONAL_CAPABILITIES: AgentCapability[] = [
-  { id: "multilingual_detection", label: "Multilingual detection", tools: ["detect_language"] },
-  { id: "email_capture", label: "Email capture", tools: ["capture_email"] },
-  { id: "budget_calculator", label: "Budget calculator", tools: ["budget_calculator"] },
+  {
+    id: "multilingual_detection",
+    label: "Multilingual detection",
+    tools: ["detect_language"],
+    category: "Conversation",
+    description: "Detects the language the lead speaks and switches the agent mid-conversation.",
+  },
+  {
+    id: "email_capture",
+    label: "Email capture",
+    tools: ["capture_email"],
+    category: "Lead capture",
+    description: "Collects and validates the lead's email so follow-ups can be sent.",
+  },
+  {
+    id: "budget_calculator",
+    label: "Budget calculator",
+    tools: ["budget_calculator"],
+    category: "Lead capture",
+    description: "Works out affordability and EMI ranges from the lead's stated budget.",
+  },
+  {
+    id: "book_site_visit",
+    label: "Book site visit",
+    tools: ["check_calendar", "book_slot"],
+    category: "Lead capture",
+    description: "Checks the sales calendar and books a site-visit slot during the call.",
+  },
   {
     id: "experience_center_info",
-    label: "Experience center info",
+    label: "Experience centre info",
     tools: ["get_experience_centre", "get_experience_center_address"],
+    category: "Knowledge",
+    description: "Shares the nearest experience-centre address and directions on request.",
   },
-  { id: "transfer_to_human", label: "Transfer to human", tools: ["transfer_call"] },
+  {
+    id: "send_brochure_whatsapp",
+    label: "Send brochure on WhatsApp",
+    tools: ["send_whatsapp_brochure"],
+    category: "Knowledge",
+    description: "Pushes the project brochure to the lead's WhatsApp before hanging up.",
+  },
+  {
+    id: "transfer_to_human",
+    label: "Transfer to human",
+    tools: ["transfer_call"],
+    category: "Escalation",
+    description: "Warm-transfers the call to a sales rep when the lead is hot or asks for one.",
+  },
 ];
 
 export interface AgentMvpDetail {

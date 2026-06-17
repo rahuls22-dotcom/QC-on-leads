@@ -879,6 +879,26 @@ export interface InvoiceUsageBreakdown {
   total:    number;
 }
 
+// Stable per-month "usage factor" seeded off the cycle id. Used to
+// produce realistic non-zero line items for any month — including
+// cycles older than the 90-day daily series, where the date-windowed
+// rollup would otherwise yield ₹0 across the board. Returns a value
+// in [0.65, 1.25] with two beats of variation per cycle.
+function monthUsageFactor(monthId: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < monthId.length; i++) {
+    h ^= monthId.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  // Mulberry32-style step → uniform [0, 1)
+  h = (h + 0x6D2B79F5) >>> 0;
+  let t = h;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  const r = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  return 0.65 + r * 0.60;
+}
+
 export function invoiceLineItemsFor(
   month: BillingMonth,
   moduleIds?: readonly string[],
@@ -886,10 +906,19 @@ export function invoiceLineItemsFor(
   const sections: InvoiceModuleSection[] = [];
   const list = moduleIds ? MODULES.filter((m) => moduleIds.includes(m.id)) : MODULES;
   let total = 0;
+  // Per-cycle usage factor — applied when the daily-derived ratio
+  // collapses to ~0 (cycles older than the 90-day daily series).
+  // Without this, downloaded invoices for older cycles render every
+  // line at 0 units / ₹0, which made the PDF look broken.
+  const fallbackFactor = monthUsageFactor(month.id);
   for (const m of list) {
     const used = sliceDailyToRange(m.daily, month.days, month.offsetFromEnd)
       .reduce((s, d) => s + d.amount, 0);
-    const ratio = m.utilized > 0 ? used / m.utilized : 0;
+    const dailyRatio = m.utilized > 0 ? used / m.utilized : 0;
+    // Use the daily-derived ratio when it's meaningful (recent cycles
+    // covered by the daily series); fall back to the seeded factor
+    // for older cycles so the PDF always has realistic unit counts.
+    const ratio = dailyRatio > 0.01 ? dailyRatio : fallbackFactor;
     const capabilities: InvoiceCapability[] = m.capabilities
       // Skip `included` rows (capacity-only, e.g. concurrent calls)
       // and zero-rate rows — they don't translate to billable lines.
