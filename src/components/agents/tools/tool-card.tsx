@@ -2,6 +2,7 @@
 
 import { Lock } from "lucide-react";
 import type { ToolConfig } from "@/lib/tools-library";
+import { toolLabel } from "@/lib/tools-library";
 import { ToolIcon } from "./tool-icon";
 
 /* ─── Selection toggle ────────────────────────────────────────────── */
@@ -49,7 +50,8 @@ function ToolBadge({ tool }: { tool: ToolConfig }) {
     );
   }
   if (tool.type === "standard") {
-    return <Lock size={12} strokeWidth={1.75} className="text-muted-foreground" />;
+    // System tools: no lock badge — they're switched on/off, not locked.
+    return null;
   }
   const webhook = tool.config?.kind === "webhook";
   return (
@@ -102,7 +104,7 @@ export function ToolCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13px] font-medium text-foreground">
-              {tool.title}
+              {toolLabel(tool.title)}
             </span>
             <ToolBadge tool={tool} />
           </div>
@@ -116,14 +118,10 @@ export function ToolCard({
           <Toggle
             on={enabled}
             onClick={onToggle}
-            label={`${enabled ? "Disable" : "Enable"} ${tool.title}`}
+            label={`${enabled ? "Disable" : "Enable"} ${toolLabel(tool.title)}`}
           />
         )}
       </div>
-
-      <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
-        {tool.description}
-      </p>
     </div>
   );
 }

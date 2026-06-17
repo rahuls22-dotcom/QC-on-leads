@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import type { ToolConfig, ToolSettings } from "@/lib/tools-library";
+import { toolLabel } from "@/lib/tools-library";
 import { Button } from "@/components/ui/button";
 import { ModalShell, ModalHeader } from "./modal-shell";
 import { ToolIcon } from "./tool-icon";
@@ -43,7 +44,7 @@ export function BuiltInToolModal({
         <>
           <ModalHeader
             icon={<ToolIcon icon={tool.icon} size={17} />}
-            title={tool.title}
+            title={toolLabel(tool.title)}
             subtitle={
               <span className="inline-flex items-center gap-1.5">
                 <Lock size={11} strokeWidth={1.75} />

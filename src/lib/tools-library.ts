@@ -172,26 +172,6 @@ export const SYSTEM_TOOLS: ToolConfig[] = [
     created_by: null,
   },
   {
-    title: "calculate_budget",
-    description: "Work out an affordability or EMI estimate when the caller asks about pricing.",
-    type: "standard",
-    is_default: false,
-    icon: "budget",
-    whatItDoes: "Returns an estimated budget and EMI figure from the caller's inputs.",
-    infoCollected: "Budget band, loan preference, tenure.",
-    created_by: null,
-  },
-  {
-    title: "find_experience_center",
-    description: "Find the nearest experience centre and share its address when the caller asks.",
-    type: "standard",
-    is_default: false,
-    icon: "location",
-    whatItDoes: "Returns the nearest experience centre and its address.",
-    infoCollected: "The caller's city or area.",
-    created_by: null,
-  },
-  {
     title: "look_up_email",
     description: "Look up the caller's email from your records to send a follow-up.",
     type: "standard",
@@ -229,42 +209,23 @@ export const SEED_CUSTOM_TOOLS: ToolConfig[] = [
       },
     },
   },
-  {
-    title: "check_unit_availability",
-    description: "When the caller asks whether a specific configuration or tower has units left.",
-    type: "custom",
-    is_default: false,
-    icon: "webhook",
-    created_by: "ankit.purohit@guyjus.com",
-    config: {
-      kind: "webhook",
-      url: "https://api.godrejproperties.com/inventory/check",
-      method: "GET",
-      headers: {},
-      timeout: 20,
-      args: {
-        type: "object",
-        properties: {
-          configuration: { type: "string", description: "Unit type the caller wants, e.g. 3BHK" },
-        },
-        required: ["configuration"],
-      },
-    },
-  },
-  {
-    title: "give_booking_reference",
-    description: "Tell the caller their booking reference id when they ask for it.",
-    type: "custom",
-    is_default: false,
-    icon: "response",
-    created_by: "ankit.purohit@guyjus.com",
-    config: {
-      kind: "response",
-      response: "Your booking reference is {ref_id}, created on {created_at}.",
-      args: { type: "object", properties: {}, required: [] },
-    },
-  },
 ];
+
+/**
+ * Human-readable display name for a tool. Titles are lowercase_with_underscores
+ * ids (the backend contract), but underscores read like code — so cards and
+ * modals show this instead. A few names need explicit casing.
+ */
+const LABEL_OVERRIDES: Record<string, string> = {
+  send_whatsapp: "Send WhatsApp",
+  voice_mail_detection: "Detect voicemail",
+};
+
+export function toolLabel(title: string): string {
+  if (LABEL_OVERRIDES[title]) return LABEL_OVERRIDES[title];
+  const spaced = title.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Per-tool settings (Vapi-style predefined-tool configuration)

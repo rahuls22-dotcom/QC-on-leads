@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import type { Agent } from "@/lib/agents-data";
 import type { ToolConfig, ToolSettings } from "@/lib/tools-library";
 import {
   DEFAULT_TOOLS,
@@ -10,7 +9,6 @@ import {
   SEED_CUSTOM_TOOLS,
   DEFAULT_TOOL_SETTINGS,
 } from "@/lib/tools-library";
-import { Button } from "@/components/ui/button";
 import { ToolCard } from "./tool-card";
 import { BuiltInToolModal } from "./built-in-tool-modal";
 import { CustomToolModal } from "./custom-tool-modal";
@@ -19,17 +17,7 @@ import { DeleteToolModal } from "./delete-tool-modal";
 // Current logged-in user (mock — the app surfaces this elsewhere).
 const CURRENT_USER = "ankit.purohit@guyjus.com";
 
-// Map the agent's existing capability ids → system tool titles, so the tab
-// reflects what this agent already has switched on.
-const CAP_TO_TITLE: Record<string, string> = {
-  multilingual_detection: "detect_language",
-  transfer_to_human: "transfer_call",
-  budget_calculator: "calculate_budget",
-  experience_center_info: "find_experience_center",
-  email_capture: "look_up_email",
-};
-
-export function ToolsTab({ agent }: { agent: Agent }) {
+export function ToolsTab() {
   // Library state (mock of GET /tools). Standard tools are static; custom
   // tools are mutable via the CRUD modals.
   const [customTools, setCustomTools] = useState<ToolConfig[]>(SEED_CUSTOM_TOOLS);
@@ -40,18 +28,8 @@ export function ToolsTab({ agent }: { agent: Agent }) {
     () => structuredClone(DEFAULT_TOOL_SETTINGS),
   );
 
-  // Which non-default tools are attached to THIS agent (the "selection"),
-  // seeded from the agent's capabilities where they line up.
-  const [enabled, setEnabled] = useState<Set<string>>(() => {
-    const fromAgent = (agent.capabilities ?? [])
-      .map((c) => CAP_TO_TITLE[c])
-      .filter(Boolean);
-    return new Set(
-      fromAgent.length
-        ? fromAgent
-        : ["transfer_call", "detect_language", "send_whatsapp", "book_site_visit"],
-    );
-  });
+  // Non-default tools start switched OFF for this agent — the operator opts in.
+  const [enabled, setEnabled] = useState<Set<string>>(() => new Set());
 
   // Modal state
   const [builtInTool, setBuiltInTool] = useState<ToolConfig | null>(null);
@@ -85,6 +63,18 @@ export function ToolsTab({ agent }: { agent: Agent }) {
       else next.add(title);
       return next;
     });
+
+  // Toggling a system tool on opens its config modal so it can be set up.
+  const toggleSystem = (tool: ToolConfig) => {
+    const willEnable = !enabled.has(tool.title);
+    toggle(tool.title);
+    if (willEnable) setBuiltInTool(tool);
+  };
+
+  const openCreate = () => {
+    setEditingCustom(null);
+    setCustomOpen(true);
+  };
 
   const saveBuiltIn = (
     title: string,
@@ -126,24 +116,11 @@ export function ToolsTab({ agent }: { agent: Agent }) {
   /* ─── Render ───────────────────────────────────────────────────── */
   return (
     <div>
-      {/* Header */}
-      <div className="mb-5 flex items-center justify-end">
-        <Button
-          onClick={() => {
-            setEditingCustom(null);
-            setCustomOpen(true);
-          }}
-        >
-          <Plus size={15} strokeWidth={2} />
-          New tool
-        </Button>
-      </div>
-
-      {/* Default */}
+      {/* Default — always on, locked, click to configure */}
       <SectionHeader
         label="Default"
         count={defaultTools.length}
-        note="Always on · description editable"
+        note="Always on · click to configure"
       />
       <CardGrid>
         {defaultTools.map((t) => (
@@ -157,11 +134,11 @@ export function ToolsTab({ agent }: { agent: Agent }) {
         ))}
       </CardGrid>
 
-      {/* System */}
+      {/* System — off by default; switch on to configure */}
       <SectionHeader
         label="System"
         count={systemTools.length}
-        note="Maintained by the platform · switch on to use"
+        note="Switch on to use · configure each one"
       />
       <CardGrid>
         {systemTools.map((t) => (
@@ -170,45 +147,32 @@ export function ToolsTab({ agent }: { agent: Agent }) {
             tool={t}
             enabled={enabled.has(t.title)}
             onOpen={() => setBuiltInTool(t)}
-            onToggle={() => toggle(t.title)}
+            onToggle={() => toggleSystem(t)}
           />
         ))}
       </CardGrid>
 
-      {/* Custom */}
-      <SectionHeader label="Custom" count={customTools.length} note="Built by your team" />
-      {customTools.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
-          <p className="mb-3 text-[13px] text-muted-foreground">
-            No custom tools yet. Create one to connect your assistant to your
-            systems or give saved answers.
-          </p>
-          <Button
-            onClick={() => {
-              setEditingCustom(null);
+      {/* Custom — team-built tools + a create card */}
+      <SectionHeader
+        label="Custom"
+        count={customTools.length}
+        note="Built by your team"
+      />
+      <CardGrid>
+        {customTools.map((t) => (
+          <ToolCard
+            key={t.title}
+            tool={t}
+            enabled={enabled.has(t.title)}
+            onOpen={() => {
+              setEditingCustom(t);
               setCustomOpen(true);
             }}
-          >
-            <Plus size={15} strokeWidth={2} />
-            New tool
-          </Button>
-        </div>
-      ) : (
-        <CardGrid>
-          {customTools.map((t) => (
-            <ToolCard
-              key={t.title}
-              tool={t}
-              enabled={enabled.has(t.title)}
-              onOpen={() => {
-                setEditingCustom(t);
-                setCustomOpen(true);
-              }}
-              onToggle={() => toggle(t.title)}
-            />
-          ))}
-        </CardGrid>
-      )}
+            onToggle={() => toggle(t.title)}
+          />
+        ))}
+        <CreateToolCard onClick={openCreate} />
+      </CardGrid>
 
       {/* Modals */}
       <BuiltInToolModal
@@ -271,6 +235,23 @@ function SectionHeader({
 
 function CardGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>;
+}
+
+function CreateToolCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg border border-dashed border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-softer"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
+        <Plus size={16} strokeWidth={2} />
+      </span>
+      <span className="text-[13px] font-medium text-foreground">
+        Create a new custom tool
+      </span>
+    </button>
+  );
 }
 
 function applyOverrides(
