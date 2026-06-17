@@ -37,10 +37,12 @@ import {
   ScoreNumber,
 } from "@/components/agents/bits";
 import { useAgentsUI, useAgentStatus } from "@/components/agents/agents-ui";
+import { ToolsTab } from "@/components/agents/tools/tools-tab";
 
 type AgentTab =
   | "agent"
   | "configuration"
+  | "tools"
   | "knowledge"
   | "faqs"
   | "post-call"
@@ -50,6 +52,7 @@ type AgentTab =
 const AGENT_TABS: { key: AgentTab; label: string; locked?: boolean }[] = [
   { key: "agent", label: "Agent", locked: true },
   { key: "configuration", label: "Configuration" },
+  { key: "tools", label: "Tools" },
   { key: "knowledge", label: "Knowledge Base", locked: true },
   { key: "faqs", label: "FAQs", locked: true },
   { key: "post-call", label: "Post Call Metrics", locked: true },
@@ -106,6 +109,7 @@ export default function ScorecardPage({
 
       {tab === "agent" && <AgentTab agent={agent} />}
       {tab === "configuration" && <ConfigurationTab agent={agent} />}
+      {tab === "tools" && <ToolsTab agent={agent} />}
       {tab === "knowledge" && <KnowledgeBaseTab />}
       {tab === "faqs" && <FaqsTab />}
       {tab === "post-call" && <PostCallMetricsTab />}
