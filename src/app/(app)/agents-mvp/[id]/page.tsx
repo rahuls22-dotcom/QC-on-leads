@@ -185,6 +185,12 @@ export default function AgentMvpDetailPage() {
         {activeTab === "faqs" && <FaqsTab agent={agent} />}
         {activeTab === "qualification" && <QualificationCriteriaTab agent={agent} />}
       </div>
+
+      <TalkToAgentPanel
+        agent={agent}
+        open={talkOpen}
+        onClose={() => setTalkOpen(false)}
+      />
     </motion.div>
   );
 }

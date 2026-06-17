@@ -510,7 +510,7 @@ export interface QualificationCriteriaConfig {
   disqualified: QualificationRule[];
 }
 
-const defaultQualificationCriteria: QualificationCriteriaConfig = {
+export const defaultQualificationCriteria: QualificationCriteriaConfig = {
   qualified: [
     {
       id: "q-rule-1",
