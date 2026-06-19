@@ -72,11 +72,14 @@ export function ToolCard({
   enabled,
   onOpen,
   onToggle,
+  auto = false,
 }: {
   tool: ToolConfig;
   enabled: boolean;
   onOpen: () => void;
   onToggle: () => void;
+  /** Auto-controlled tools (Detect language) show state, not a manual switch. */
+  auto?: boolean;
 }) {
   return (
     <div
@@ -113,6 +116,21 @@ export function ToolCard({
         {tool.is_default ? (
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
             <Lock size={11} strokeWidth={1.75} />
+          </span>
+        ) : auto ? (
+          // Auto-controlled (Detect language): show state + an "Auto" tag, no
+          // manual switch.
+          <span className="inline-flex shrink-0 items-center gap-1.5">
+            <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+              Auto
+            </span>
+            <span
+              className={`text-[11px] font-medium ${
+                enabled ? "text-success" : "text-muted-foreground"
+              }`}
+            >
+              {enabled ? "On" : "Off"}
+            </span>
           </span>
         ) : (
           <Toggle

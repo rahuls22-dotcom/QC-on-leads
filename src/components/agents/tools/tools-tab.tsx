@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import type { Agent } from "@/lib/agents-data";
+import { DEFAULT_AGENT_CONFIG } from "@/lib/agents-data";
 import type { ToolConfig, ToolSettings } from "@/lib/tools-library";
 import {
   DEFAULT_TOOLS,
@@ -17,7 +19,11 @@ import { DeleteToolModal } from "./delete-tool-modal";
 // Current logged-in user (mock — the app surfaces this elsewhere).
 const CURRENT_USER = "ankit.purohit@guyjus.com";
 
-export function ToolsTab() {
+export function ToolsTab({ agent }: { agent: Agent }) {
+  // Detect language is auto-controlled: it's on when the agent is multilingual
+  // (a primary + at least one secondary language), using the agent's languages.
+  const agentLanguages = agent.languageConfig ?? DEFAULT_AGENT_CONFIG.languageConfig;
+  const multilingual = agentLanguages.additional.length > 0;
   // Library state (mock of GET /tools). Standard tools are static; custom
   // tools are mutable via the CRUD modals.
   const [customTools, setCustomTools] = useState<ToolConfig[]>(SEED_CUSTOM_TOOLS);
@@ -141,15 +147,21 @@ export function ToolsTab() {
         note="Switch on to use · configure each one"
       />
       <CardGrid>
-        {systemTools.map((t) => (
-          <ToolCard
-            key={t.title}
-            tool={t}
-            enabled={enabled.has(t.title)}
-            onOpen={() => setBuiltInTool(t)}
-            onToggle={() => toggleSystem(t)}
-          />
-        ))}
+        {systemTools.map((t) => {
+          // Detect language is auto: state comes from the agent's languages,
+          // not a manual toggle.
+          const isAuto = t.title === "detect_language";
+          return (
+            <ToolCard
+              key={t.title}
+              tool={t}
+              auto={isAuto}
+              enabled={isAuto ? multilingual : enabled.has(t.title)}
+              onOpen={() => setBuiltInTool(t)}
+              onToggle={() => (isAuto ? undefined : toggleSystem(t))}
+            />
+          );
+        })}
       </CardGrid>
 
       {/* Custom — team-built tools + a create card */}
@@ -178,6 +190,7 @@ export function ToolsTab() {
       <BuiltInToolModal
         tool={builtInTool}
         settings={builtInTool ? toolSettings[builtInTool.title] ?? {} : {}}
+        agentLanguages={agentLanguages}
         onClose={() => setBuiltInTool(null)}
         onSave={saveBuiltIn}
       />

@@ -109,7 +109,7 @@ export default function ScorecardPage({
 
       {tab === "agent" && <AgentTab agent={agent} />}
       {tab === "configuration" && <ConfigurationTab agent={agent} />}
-      {tab === "tools" && <ToolsTab />}
+      {tab === "tools" && <ToolsTab agent={agent} />}
       {tab === "knowledge" && <KnowledgeBaseTab />}
       {tab === "faqs" && <FaqsTab />}
       {tab === "post-call" && <PostCallMetricsTab />}

@@ -7,7 +7,13 @@ import { toolLabel } from "@/lib/tools-library";
 import { Button } from "@/components/ui/button";
 import { ModalShell, ModalHeader } from "./modal-shell";
 import { ToolIcon } from "./tool-icon";
-import { SystemToolSettings } from "./system-tool-settings";
+import { SystemToolSettings, type AgentLanguages } from "./system-tool-settings";
+
+// The trigger field reads differently per tool — Transfer Call's trigger IS
+// the "when to hand off" condition.
+const TRIGGER_LABELS: Record<string, string> = {
+  transfer_call: "When should the assistant hand off the call?",
+};
 
 /**
  * Detail / settings modal for a default or system tool. The platform owns the
@@ -19,11 +25,13 @@ import { SystemToolSettings } from "./system-tool-settings";
 export function BuiltInToolModal({
   tool,
   settings,
+  agentLanguages,
   onClose,
   onSave,
 }: {
   tool: ToolConfig | null;
   settings: ToolSettings;
+  agentLanguages?: AgentLanguages;
   onClose: () => void;
   onSave: (title: string, description: string, settings: ToolSettings) => void;
 }) {
@@ -66,7 +74,7 @@ export function BuiltInToolModal({
             {/* Trigger description */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">
-                When should the assistant use this?
+                {TRIGGER_LABELS[tool.title] ?? "When should the assistant use this?"}
               </label>
               <textarea
                 value={description}
@@ -85,7 +93,12 @@ export function BuiltInToolModal({
             <div className="border-t border-border-subtle" />
 
             {/* Tool-specific settings */}
-            <SystemToolSettings tool={tool} settings={draft} onChange={setDraft} />
+            <SystemToolSettings
+              tool={tool}
+              settings={draft}
+              onChange={setDraft}
+              agentLanguages={agentLanguages}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 border-t border-border-subtle px-5 py-3.5">

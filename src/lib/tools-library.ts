@@ -143,11 +143,11 @@ export const DEFAULT_TOOLS: ToolConfig[] = [
 export const SYSTEM_TOOLS: ToolConfig[] = [
   {
     title: "transfer_call",
-    description: "Hand the call to a human sales rep when the lead is hot or explicitly asks for one.",
+    description: "When the lead is hot or explicitly asks to speak to a person.",
     type: "standard",
     is_default: false,
     icon: "transfer",
-    whatItDoes: "Warm-transfers the live call to a configured destination.",
+    whatItDoes: "Hands the live call to a human.",
     infoCollected: "None visible to the caller.",
     created_by: null,
   },
@@ -157,8 +157,8 @@ export const SYSTEM_TOOLS: ToolConfig[] = [
     type: "standard",
     is_default: false,
     icon: "language",
-    whatItDoes: "Detects the spoken language and switches the assistant mid-call.",
-    infoCollected: "The language requested.",
+    whatItDoes: "Switches between the agent's languages during the call.",
+    infoCollected: "Uses the agent's primary + secondary languages.",
     created_by: null,
   },
   {
@@ -172,12 +172,12 @@ export const SYSTEM_TOOLS: ToolConfig[] = [
     created_by: null,
   },
   {
-    title: "look_up_email",
-    description: "Look up the caller's email from your records to send a follow-up.",
+    title: "capture_email",
+    description: "Capture the caller's email from your records so you can follow up.",
     type: "standard",
     is_default: false,
     icon: "email",
-    whatItDoes: "Fetches the caller's email from your CRM.",
+    whatItDoes: "Captures the caller's email from your CRM.",
     infoCollected: "The caller's phone number (already known).",
     created_by: null,
   },
@@ -219,6 +219,7 @@ export const SEED_CUSTOM_TOOLS: ToolConfig[] = [
 const LABEL_OVERRIDES: Record<string, string> = {
   send_whatsapp: "Send WhatsApp",
   voice_mail_detection: "Detect voicemail",
+  capture_email: "Capture Email",
 };
 
 export function toolLabel(title: string): string {
@@ -238,27 +239,6 @@ export function toolLabel(title: string): string {
 // trigger description. Fields are a flat superset keyed by tool; the
 // settings renderer switches on the tool title to show the right ones.
 
-/** Transfer Call destination — mirrors Vapi's destinations[] entries. */
-export interface TransferDestination {
-  id: string;
-  /** Friendly label, e.g. "Sales desk". */
-  label: string;
-  /** Where the call goes. */
-  destType: "number" | "sip" | "agent";
-  /** Phone number / SIP URI / agent id depending on destType. */
-  value: string;
-  /** How the handoff happens (Vapi transferPlan.mode, simplified). */
-  mode: "blind" | "warm-message" | "warm-summary";
-  /** What the assistant says to the caller before transferring (optional). */
-  message: string;
-}
-
-export const TRANSFER_MODES: { value: TransferDestination["mode"]; label: string; hint: string }[] = [
-  { value: "blind", label: "Blind transfer", hint: "Connects immediately without announcing the caller." },
-  { value: "warm-message", label: "Warm — announce caller", hint: "Speaks your message to the rep, then connects." },
-  { value: "warm-summary", label: "Warm — say summary", hint: "Reads an AI summary of the call to the rep first." },
-];
-
 /** Spoken status lines while an external tool runs (Vapi messages[] types). */
 export interface StatusMessages {
   start: string;
@@ -266,51 +246,26 @@ export interface StatusMessages {
   failed: string;
 }
 
-export interface ExperienceCentre {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-}
-
 /** Flat superset of settings across all standard tools. */
 export interface ToolSettings {
-  // transfer_call
-  destinations?: TransferDestination[];
+  // transfer_call — simple single-destination handoff
+  transferPhone?: string;
+  transferMessage?: string;
   // voice_mail_detection
-  voicemailBehavior?: "leave-message" | "use-assistant" | "hang-up";
+  voicemailBehavior?: "leave-message" | "hang-up";
   voicemailMessage?: string;
   // end_call
   closingMessage?: string;
-  // detect_language
-  allowedLanguages?: string[];
-  autoSwitch?: boolean;
   // send_whatsapp
   senderNumber?: string;
   whatsappTemplate?: string;
   attachBrochure?: boolean;
-  // calculate_budget
-  interestRate?: number;
-  tenureYears?: number;
-  downPaymentPct?: number;
-  // find_experience_center
-  centres?: ExperienceCentre[];
-  // look_up_email
+  // capture_email
   crmSource?: string;
   matchOn?: string;
   // shared (external-action tools)
   statusMessages?: StatusMessages;
 }
-
-export const LANGUAGE_OPTIONS = [
-  "English",
-  "Hindi",
-  "Kannada",
-  "Tamil",
-  "Telugu",
-  "Marathi",
-  "Bengali",
-];
 
 export const WHATSAPP_TEMPLATES = [
   "Project brochure",
@@ -324,9 +279,7 @@ export const CRM_SOURCES = ["Internal CRM", "Salesforce", "HubSpot", "Zoho"];
 /** Tools that perform an external action get a shared status-messages block. */
 export const STATUS_MESSAGE_TOOLS = new Set([
   "send_whatsapp",
-  "calculate_budget",
-  "find_experience_center",
-  "look_up_email",
+  "capture_email",
 ]);
 
 /** Seed settings per tool title. The modal edits a copy of these. */
@@ -340,20 +293,8 @@ export const DEFAULT_TOOL_SETTINGS: Record<string, ToolSettings> = {
       "Hi, this is {{project_name}} calling about your enquiry. We'll try you again shortly, or call us back at your convenience.",
   },
   transfer_call: {
-    destinations: [
-      {
-        id: "dest-1",
-        label: "Sales desk",
-        destType: "number",
-        value: "+918065481620",
-        mode: "warm-summary",
-        message: "Connecting you to a sales specialist now — one moment.",
-      },
-    ],
-  },
-  detect_language: {
-    allowedLanguages: ["English", "Hindi", "Kannada"],
-    autoSwitch: true,
+    transferPhone: "+918065481620",
+    transferMessage: "Connecting you to a sales specialist now — one moment.",
   },
   send_whatsapp: {
     senderNumber: "+918065481615",
@@ -365,28 +306,7 @@ export const DEFAULT_TOOL_SETTINGS: Record<string, ToolSettings> = {
       failed: "I couldn't send that just now; I'll have the team follow up.",
     },
   },
-  calculate_budget: {
-    interestRate: 8.5,
-    tenureYears: 20,
-    downPaymentPct: 20,
-    statusMessages: {
-      start: "Let me work that out for you.",
-      complete: "",
-      failed: "I couldn't calculate that right now.",
-    },
-  },
-  find_experience_center: {
-    centres: [
-      { id: "ec-1", name: "Godrej Experience Centre — Whitefield", address: "ITPL Main Rd, Whitefield", city: "Bengaluru" },
-      { id: "ec-2", name: "Godrej Experience Centre — Worli", address: "Dr. Annie Besant Rd, Worli", city: "Mumbai" },
-    ],
-    statusMessages: {
-      start: "Let me find the nearest one for you.",
-      complete: "",
-      failed: "I couldn't pull that up right now.",
-    },
-  },
-  look_up_email: {
+  capture_email: {
     crmSource: "Internal CRM",
     matchOn: "Phone number",
     statusMessages: {

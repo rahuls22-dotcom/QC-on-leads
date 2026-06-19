@@ -1,23 +1,18 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Languages } from "lucide-react";
 import type {
-  ExperienceCentre,
   StatusMessages,
   ToolConfig,
   ToolSettings,
-  TransferDestination,
 } from "@/lib/tools-library";
 import {
   CRM_SOURCES,
-  LANGUAGE_OPTIONS,
   STATUS_MESSAGE_TOOLS,
-  TRANSFER_MODES,
   WHATSAPP_TEMPLATES,
 } from "@/lib/tools-library";
 
-let _id = 0;
-const uid = (p: string) => `${p}-${++_id}`;
+export type AgentLanguages = { primary: string; additional: string[] };
 
 /* ─── Shared primitives ───────────────────────────────────────────── */
 
@@ -98,10 +93,12 @@ export function SystemToolSettings({
   tool,
   settings,
   onChange,
+  agentLanguages,
 }: {
   tool: ToolConfig;
   settings: ToolSettings;
   onChange: (next: ToolSettings) => void;
+  agentLanguages?: AgentLanguages;
 }) {
   const patch = (p: Partial<ToolSettings>) => onChange({ ...settings, ...p });
 
@@ -114,15 +111,11 @@ export function SystemToolSettings({
       case "end_call":
         return <EndCallSettings settings={settings} patch={patch} />;
       case "detect_language":
-        return <LanguageSettings settings={settings} patch={patch} />;
+        return <LanguageSettings languages={agentLanguages} />;
       case "send_whatsapp":
         return <WhatsappSettings settings={settings} patch={patch} />;
-      case "calculate_budget":
-        return <BudgetSettings settings={settings} patch={patch} />;
-      case "find_experience_center":
-        return <CentresSettings settings={settings} patch={patch} />;
-      case "look_up_email":
-        return <EmailLookupSettings settings={settings} patch={patch} />;
+      case "capture_email":
+        return <EmailCaptureSettings settings={settings} patch={patch} />;
       default:
         return null;
     }
@@ -148,137 +141,37 @@ type SettingsProps = {
   patch: (p: Partial<ToolSettings>) => void;
 };
 
-/* ─── Transfer Call — the destinations editor ─────────────────────── */
+/* ─── Transfer Call — phone + message (the "when" is the trigger) ──── */
 
 function TransferSettings({ settings, patch }: SettingsProps) {
-  const destinations = settings.destinations ?? [];
-
-  const update = (id: string, p: Partial<TransferDestination>) =>
-    patch({
-      destinations: destinations.map((d) => (d.id === id ? { ...d, ...p } : d)),
-    });
-  const remove = (id: string) =>
-    patch({ destinations: destinations.filter((d) => d.id !== id) });
-  const add = () =>
-    patch({
-      destinations: [
-        ...destinations,
-        {
-          id: uid("dest"),
-          label: "",
-          destType: "number",
-          value: "",
-          mode: "warm-summary",
-          message: "",
-        },
-      ],
-    });
-
   return (
-    <SettingsBlock title="Transfer destinations">
-      <p className="-mt-1 text-[12px] text-muted-foreground">
-        Where the assistant can hand off the call. It picks the right one from
-        the conversation.
-      </p>
-
-      {destinations.map((d) => (
-        <div key={d.id} className="space-y-3 rounded-lg border border-border p-3.5">
-          <div className="flex items-center gap-2">
-            <input
-              value={d.label}
-              onChange={(e) => update(d.id, { label: e.target.value })}
-              placeholder="Sales desk"
-              className={`${inputCls} font-medium`}
-            />
-            <button
-              type="button"
-              onClick={() => remove(d.id)}
-              aria-label="Remove destination"
-              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive-bg hover:text-destructive"
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-[120px_1fr] gap-2">
-            <select
-              value={d.destType}
-              onChange={(e) =>
-                update(d.id, {
-                  destType: e.target.value as TransferDestination["destType"],
-                })
-              }
-              className={`${inputCls} cursor-pointer appearance-none`}
-            >
-              <option value="number">Phone number</option>
-              <option value="sip">SIP address</option>
-              <option value="agent">Another agent</option>
-            </select>
-            <input
-              value={d.value}
-              onChange={(e) => update(d.id, { value: e.target.value })}
-              placeholder={
-                d.destType === "number"
-                  ? "+91 80 6548 1620"
-                  : d.destType === "sip"
-                  ? "sip:desk@company.com"
-                  : "agent id"
-              }
-              className={inputCls}
-            />
-          </div>
-
-          <Field label="Transfer style">
-            <select
-              value={d.mode}
-              onChange={(e) =>
-                update(d.id, {
-                  mode: e.target.value as TransferDestination["mode"],
-                })
-              }
-              className={`${inputCls} cursor-pointer appearance-none`}
-            >
-              {TRANSFER_MODES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-muted-foreground/70">
-              {TRANSFER_MODES.find((m) => m.value === d.mode)?.hint}
-            </p>
-          </Field>
-
-          <Field label="What the assistant says before transferring" hint="optional">
-            <input
-              value={d.message}
-              onChange={(e) => update(d.id, { message: e.target.value })}
-              placeholder="Connecting you to a specialist now…"
-              className={inputCls}
-            />
-          </Field>
-        </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={add}
-        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary transition-opacity hover:opacity-80"
-      >
-        <Plus size={15} strokeWidth={2} />
-        Add destination
-      </button>
+    <SettingsBlock title="Where to hand off">
+      <Field label="Phone number" hint="the human who takes the call">
+        <input
+          value={settings.transferPhone ?? ""}
+          onChange={(e) => patch({ transferPhone: e.target.value })}
+          placeholder="+91 80 6548 1620"
+          className={inputCls}
+        />
+      </Field>
+      <Field label="What the assistant says before handing off">
+        <input
+          value={settings.transferMessage ?? ""}
+          onChange={(e) => patch({ transferMessage: e.target.value })}
+          placeholder="Connecting you to a specialist now…"
+          className={inputCls}
+        />
+      </Field>
     </SettingsBlock>
   );
 }
 
-/* ─── Voicemail ───────────────────────────────────────────────────── */
+/* ─── Voicemail — two behaviours ──────────────────────────────────── */
 
 function VoicemailSettings({ settings, patch }: SettingsProps) {
   const behavior = settings.voicemailBehavior ?? "leave-message";
   const options: { value: NonNullable<ToolSettings["voicemailBehavior"]>; label: string; hint: string }[] = [
     { value: "leave-message", label: "Leave a message", hint: "Speaks the message below, then hangs up." },
-    { value: "use-assistant", label: "Use the agent's default message", hint: "Falls back to the assistant's voicemail line." },
     { value: "hang-up", label: "Hang up silently", hint: "Ends the call without leaving anything." },
   ];
 
@@ -327,54 +220,57 @@ function EndCallSettings({ settings, patch }: SettingsProps) {
   );
 }
 
-/* ─── Detect language ─────────────────────────────────────────────── */
+/* ─── Detect language — read-only, driven by the agent's languages ── */
 
-function LanguageSettings({ settings, patch }: SettingsProps) {
-  const allowed = settings.allowedLanguages ?? [];
-  const toggle = (lang: string) =>
-    patch({
-      allowedLanguages: allowed.includes(lang)
-        ? allowed.filter((l) => l !== lang)
-        : [...allowed, lang],
-    });
+function LanguageSettings({ languages }: { languages?: AgentLanguages }) {
+  const additional = languages?.additional ?? [];
+  const multilingual = additional.length > 0;
+  const all = languages ? [languages.primary, ...additional] : [];
 
   return (
-    <SettingsBlock title="Languages the assistant can switch to">
-      <div className="flex flex-wrap gap-1.5">
-        {LANGUAGE_OPTIONS.map((lang) => {
-          const on = allowed.includes(lang);
-          return (
-            <button
-              key={lang}
-              type="button"
-              onClick={() => toggle(lang)}
-              className={`rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors ${
-                on
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/40"
-              }`}
-            >
-              {lang}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <div className="text-[13px] font-medium text-foreground">
-            Switch automatically
-          </div>
-          <p className="text-[11px] text-muted-foreground/70">
-            On: switches as soon as the caller speaks another language. Off: only
-            when they ask.
-          </p>
+    <SettingsBlock title="Automatic language switching">
+      <div className="flex gap-2.5 rounded-lg border border-border-subtle bg-muted/50 px-3.5 py-3">
+        <Languages size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-muted-foreground" />
+        <div className="text-[12px] leading-relaxed text-muted-foreground">
+          {multilingual ? (
+            <>
+              This agent is multilingual, so language switching is{" "}
+              <span className="font-medium text-foreground">on automatically</span>.
+              The assistant detects which language the caller uses and switches
+              between the agent&rsquo;s languages.
+            </>
+          ) : (
+            <>
+              This agent uses a single language, so language switching is{" "}
+              <span className="font-medium text-foreground">off</span>. Add
+              secondary languages in the agent&rsquo;s Configuration to turn it on.
+            </>
+          )}
         </div>
-        <Toggle
-          on={settings.autoSwitch ?? true}
-          onClick={() => patch({ autoSwitch: !(settings.autoSwitch ?? true) })}
-          label="Switch automatically"
-        />
       </div>
+
+      {all.length > 0 && (
+        <div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">
+            Agent languages
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {all.map((lang, i) => (
+              <span
+                key={lang}
+                className="inline-flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1 text-[12px] font-medium text-secondary-foreground"
+              >
+                {lang}
+                {i === 0 && (
+                  <span className="text-[10px] font-normal text-muted-foreground/70">
+                    primary
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </SettingsBlock>
   );
 }
@@ -419,106 +315,9 @@ function WhatsappSettings({ settings, patch }: SettingsProps) {
   );
 }
 
-/* ─── Calculate budget ────────────────────────────────────────────── */
+/* ─── Capture email ───────────────────────────────────────────────── */
 
-function BudgetSettings({ settings, patch }: SettingsProps) {
-  return (
-    <SettingsBlock title="Estimate assumptions">
-      <div className="grid grid-cols-3 gap-3">
-        <Field label="Interest rate %">
-          <input
-            type="number"
-            step={0.1}
-            value={settings.interestRate ?? 8.5}
-            onChange={(e) => patch({ interestRate: parseFloat(e.target.value) })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Tenure (years)">
-          <input
-            type="number"
-            value={settings.tenureYears ?? 20}
-            onChange={(e) => patch({ tenureYears: parseInt(e.target.value) || 0 })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Down payment %">
-          <input
-            type="number"
-            value={settings.downPaymentPct ?? 20}
-            onChange={(e) => patch({ downPaymentPct: parseInt(e.target.value) || 0 })}
-            className={inputCls}
-          />
-        </Field>
-      </div>
-    </SettingsBlock>
-  );
-}
-
-/* ─── Experience centres ──────────────────────────────────────────── */
-
-function CentresSettings({ settings, patch }: SettingsProps) {
-  const centres = settings.centres ?? [];
-  const update = (id: string, p: Partial<ExperienceCentre>) =>
-    patch({ centres: centres.map((c) => (c.id === id ? { ...c, ...p } : c)) });
-  const remove = (id: string) =>
-    patch({ centres: centres.filter((c) => c.id !== id) });
-  const add = () =>
-    patch({
-      centres: [...centres, { id: uid("ec"), name: "", address: "", city: "" }],
-    });
-
-  return (
-    <SettingsBlock title="Experience centres">
-      {centres.map((c) => (
-        <div key={c.id} className="space-y-2 rounded-lg border border-border p-3.5">
-          <div className="flex items-center gap-2">
-            <input
-              value={c.name}
-              onChange={(e) => update(c.id, { name: e.target.value })}
-              placeholder="Centre name"
-              className={`${inputCls} font-medium`}
-            />
-            <button
-              type="button"
-              onClick={() => remove(c.id)}
-              aria-label="Remove centre"
-              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive-bg hover:text-destructive"
-            >
-              <Trash2 size={14} strokeWidth={1.75} />
-            </button>
-          </div>
-          <div className="grid grid-cols-[1fr_140px] gap-2">
-            <input
-              value={c.address}
-              onChange={(e) => update(c.id, { address: e.target.value })}
-              placeholder="Street address"
-              className={inputCls}
-            />
-            <input
-              value={c.city}
-              onChange={(e) => update(c.id, { city: e.target.value })}
-              placeholder="City"
-              className={inputCls}
-            />
-          </div>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={add}
-        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary transition-opacity hover:opacity-80"
-      >
-        <Plus size={15} strokeWidth={2} />
-        Add centre
-      </button>
-    </SettingsBlock>
-  );
-}
-
-/* ─── Email lookup ────────────────────────────────────────────────── */
-
-function EmailLookupSettings({ settings, patch }: SettingsProps) {
+function EmailCaptureSettings({ settings, patch }: SettingsProps) {
   return (
     <SettingsBlock title="Where to look">
       <Field label="Source">
