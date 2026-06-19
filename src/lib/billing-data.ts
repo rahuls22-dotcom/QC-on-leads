@@ -33,39 +33,222 @@ export const BUCKET_DESCRIPTIONS: Record<string, string> = {
 };
 
 // ── Product catalogue ────────────────────────────────────────────────────
+/**
+ * Two-meter rate card per the Revspot Pricing Strategy doc (June 2026).
+ *
+ *   Meter 1 — Platform actions: enrichment, marketing actions, AI gen.
+ *             Driven by compute + third-party data APIs.
+ *   Meter 2 — Voice minutes: AI voice calls, rated by destination.
+ *
+ * Rupees are the unit throughout — no separate "credit" denomination. The
+ * customer's wallet draws against either meter at the appropriate rate.
+ */
 export const PRODUCT_CATALOGUE: Product[] = [
-  // Contact Enrichment — pulling email / phone for a contact
-  { id: "feat_email",    category: "Features", bucket: "Contact Enrichment", name: "Email",     unit: "per email",   internalCostRupees: 1.53, description: "Cheap operation, high volume." },
-  { id: "feat_phone",    category: "Features", bucket: "Contact Enrichment", name: "Phone",     unit: "per phone",   internalCostRupees: 3.70, description: "More expensive data source." },
-  // Data Enrichment — adding context (profile / financial) to a contact
-  { id: "feat_profile",  category: "Features", bucket: "Data Enrichment",    name: "Profile",   unit: "per profile", internalCostRupees: 2.00, description: "Based on complexity / fields." },
-  { id: "feat_finance",  category: "Features", bucket: "Data Enrichment",    name: "Financial", unit: "per profile", internalCostRupees: 10.0, description: "Financial data overlay." },
-  // Agents — only Voice Agent is live today.
-  { id: "agent_voice",   category: "Agents",   bucket: "Agents", name: "Voice Agent", unit: "per minute", internalCostRupees: 4.5, description: "$0.10–$0.30/min cost base." },
+  // Contact Enrichment — pull email or phone for a known contact.
+  { id: "feat_email",         category: "Features", bucket: "Contact Enrichment", name: "Email",              unit: "per contact",    internalCostRupees: 1.60, description: "Cheap, high volume." },
+  { id: "feat_phone",         category: "Features", bucket: "Contact Enrichment", name: "Phone",              unit: "per contact",    internalCostRupees: 1.80, description: "Mobile + landline lookups." },
+  // Data Enrichment — add context to a known contact.
+  { id: "feat_profile",       category: "Features", bucket: "Data Enrichment",    name: "Profile",            unit: "per profile",    internalCostRupees: 0.80, description: "Firmographic + role data." },
+  { id: "feat_finance",       category: "Features", bucket: "Data Enrichment",    name: "Financial",          unit: "per profile",    internalCostRupees: 4.00, description: "Revenue, funding, capital structure." },
+  // Marketing — automation primitives.
+  { id: "act_mktg_workflow",  category: "Features", bucket: "Marketing",          name: "Workflow action",    unit: "per action",     internalCostRupees: 0.15, description: "Sends, automation steps." },
+  { id: "act_ai_personalize", category: "Features", bucket: "Marketing",          name: "AI personalization", unit: "per generation", internalCostRupees: 0.40, description: "LLM inference." },
+  // Voice Agent — rates split by destination (doc § 5.2).
+  { id: "voice_in_landline",  category: "Agents",   bucket: "Voice Agent",        name: "India — Landline",   unit: "per minute",     internalCostRupees: 5.0,  description: "Indian landline destinations." },
+  { id: "voice_in_mobile",    category: "Agents",   bucket: "Voice Agent",        name: "India — Mobile",     unit: "per minute",     internalCostRupees: 7.5,  description: "Indian mobile destinations." },
+  { id: "voice_us_ca",        category: "Agents",   bucket: "Voice Agent",        name: "US / Canada",        unit: "per minute",     internalCostRupees: 9.0,  description: "North American destinations." },
+  { id: "voice_row",          category: "Agents",   bucket: "Voice Agent",        name: "Rest of world",      unit: "per minute",     internalCostRupees: 12.0, description: "All other destinations." },
 ];
 
-// ── Default rate card ────────────────────────────────────────────────────
-//
-// Single pay-as-you-go pricing model — no plan templates, no volume tiers,
-// no seat fees. Admins set one ₹/credit rate and one overage rate per
-// client, then configure how many credits each product consumes.
-//
-// Default per-product credit consumption (matches the Confluence pricing
-// page; admins can override on a per-client basis in Step 2).
-// Default credits/unit = internal cost in ₹ (1 credit ≈ ₹1 baseline). Admin
-// can override per client in Step 2.
-const DEFAULT_CREDIT_RATES: Record<string, number> = {
-  feat_email:    1.53,
-  feat_phone:    3.70,
-  feat_profile:  2.00,
-  feat_finance:  10.0,
-  agent_voice:   4.5,
+/**
+ * Module → Feature model. A *module* is the bracket an operator enables for a
+ * customer; enabling it turns on its *features*. Most features carry metered
+ * pricing — the meters reuse the product catalogue above, so pricing still
+ * flows through `rateCard`. Outreach is the exception: no metered pricing,
+ * navigation is just switched on.
+ */
+// How a feature is configured in the Pricing tab:
+//   "meters" → priced per-unit meter rows
+//   "voice"  → one blended per-minute rate + pulse billing
+//   "auto"   → navigation only; enabled in Modules but never priced
+export type FeatureKind = "meters" | "voice" | "auto";
+
+export interface ModuleFeature {
+  id: string;
+  name: string;
+  description: string;
+  kind: FeatureKind;
+  meterIds: string[]; // product ids whose ₹/unit price configures this feature
+  toggleable?: boolean; // can be turned on/off independently in the Modules tab
+}
+
+export interface ModuleDef {
+  id: string;
+  name: string;
+  enables: string; // one-line "what enabling this turns on"
+  features: ModuleFeature[];
+  // Meters used only to track on/off + drive creation when none of the
+  // module's features carry their own meters (Marketing is navigation-only).
+  enableMeterIds?: string[];
+}
+
+// Modules are fully flat — every capability is its own top-level module the
+// operator enables individually. No bundles or sub-grouping.
+export const MODULE_CATALOG: ModuleDef[] = [
+  {
+    id: "ai_calling",
+    name: "AI Calling",
+    enables: "Outbound AI voice calling.",
+    features: [
+      {
+        id: "voice_ai",
+        name: "AI Calling",
+        description: "Outbound voice minutes across all agents.",
+        kind: "voice",
+        meterIds: ["voice_in_landline", "voice_in_mobile", "voice_us_ca", "voice_row"],
+        toggleable: true,
+      },
+    ],
+  },
+  {
+    id: "outreach",
+    name: "Outreach",
+    enables: "Multi-channel outreach sequences. Navigation only.",
+    features: [
+      { id: "outreach", name: "Outreach", description: "Multi-channel outreach sequences.", kind: "auto", meterIds: [], toggleable: true },
+    ],
+  },
+  {
+    id: "extraction",
+    name: "Extraction",
+    enables: "Verified emails & phone numbers from leads.",
+    features: [
+      { id: "extraction", name: "Extraction", description: "Pull verified emails and phone numbers from leads.", kind: "meters", meterIds: ["feat_email", "feat_phone"], toggleable: true },
+    ],
+  },
+  {
+    id: "enrichment",
+    name: "Enrichment",
+    enables: "Professional & financial profile lookups.",
+    features: [
+      { id: "enrichment", name: "Enrichment", description: "Professional and financial profile lookups per lead.", kind: "meters", meterIds: ["feat_profile", "feat_finance"], toggleable: true },
+    ],
+  },
+  {
+    id: "marketing",
+    name: "Marketing",
+    // Single module — enabling it turns on Projects, Campaigns & Creatives
+    // together. They are not exposed as separate options. Tracked via the
+    // marketing meters so the choice persists through creation.
+    enables: "Enables Projects, Campaigns & Creatives.",
+    enableMeterIds: ["act_mktg_workflow", "act_ai_personalize"],
+    features: [
+      {
+        id: "marketing",
+        name: "Marketing",
+        description: "Projects, Campaigns & Creatives.",
+        kind: "auto",
+        meterIds: [],
+        toggleable: true,
+      },
+    ],
+  },
+  {
+    id: "spot",
+    name: "Spot",
+    enables: "AI assistant across the workspace. No metered pricing.",
+    features: [
+      {
+        id: "spot",
+        name: "Spot",
+        description: "AI assistant across the workspace.",
+        kind: "auto",
+        meterIds: [],
+        toggleable: true,
+      },
+    ],
+  },
+];
+
+export const moduleMeterIds = (mod: ModuleDef): string[] =>
+  mod.enableMeterIds ?? mod.features.flatMap((f) => f.meterIds);
+
+/** One-line summary of what a module turns on, for compact lists. */
+export const moduleSummary = (mod: ModuleDef): string => mod.enables;
+
+/**
+ * Industry-standard per-unit rates (the numbers agreed earlier). These are
+ * BOTH the default rate seeded into every meter AND the floor — an operator
+ * can raise a price but never set it below this minimum.
+ */
+export const DEFAULT_RATES: Record<string, number> = {
+  feat_email:         4.0,
+  feat_phone:         4.0,
+  feat_profile:       2.0,
+  feat_finance:      10.0,
+  act_mktg_workflow:  0.5,
+  act_ai_personalize: 1.0,
+  voice_in_landline: 12.0,
+  voice_in_mobile:   18.0,
+  voice_us_ca:       22.0,
+  voice_row:         30.0,
+};
+// Back-compat alias — existing call sites still reference this name.
+export const DEFAULT_CREDIT_RATES = DEFAULT_RATES;
+
+/**
+ * Voice minute rates by destination — meter 2 of the rate card. All values
+ * are ₹/minute. Calls are charged per second of connected time. Disconnects,
+ * voicemails picked up by detection, and ring-no-answer events get a flat
+ * attempt fee instead.
+ */
+export interface VoiceRates {
+  indiaLandline: number;
+  indiaMobile: number;
+  usCanada: number;
+  restOfWorld: number;
+  /** Flat ₹ per failed attempt (RNA / voicemail / disconnect). */
+  attemptFee: number;
+}
+
+export const DEFAULT_VOICE_RATES: VoiceRates = {
+  indiaLandline: 12,
+  indiaMobile:   18,
+  usCanada:      22,
+  restOfWorld:   30,
+  attemptFee:    0.5,
 };
 
-/** Default ₹/credit when a client is first created. */
-export const DEFAULT_RUPEES_PER_CREDIT = 3.0;
-/** Default overage ₹/credit (≥ rate; charged on usage beyond the cap). */
-export const DEFAULT_OVERAGE_RUPEES_PER_CREDIT = 4.5;
+/**
+ * Commit tiers per the doc § 6. Each tier has a monthly commit floor and a
+ * percentage discount on the rate card. PAYG is the no-commit default.
+ */
+export type CommitTier = "PAYG" | "Starter" | "Growth" | "Scale" | "Enterprise";
+
+export interface CommitTierDef {
+  id: CommitTier;
+  label: string;
+  /** Monthly committed spend that unlocks this tier (₹). 0 for PAYG. */
+  monthlyCommit: number;
+  /** Discount applied to all rate-card lines, as a fraction (0.20 = 20%). */
+  discount: number;
+  bestFor: string;
+}
+
+export const COMMIT_TIERS: CommitTierDef[] = [
+  { id: "PAYG",       label: "Pay-as-you-go", monthlyCommit: 0,       discount: 0.00, bestFor: "Trial, first-time buyers, intermittent users" },
+  { id: "Starter",    label: "Starter",       monthlyCommit: 25_000,  discount: 0.10, bestFor: "Small teams with consistent usage" },
+  { id: "Growth",     label: "Growth",        monthlyCommit: 100_000, discount: 0.20, bestFor: "Established outbound teams" },
+  { id: "Scale",      label: "Scale",         monthlyCommit: 300_000, discount: 0.30, bestFor: "High-volume / multi-team customers" },
+  { id: "Enterprise", label: "Enterprise",    monthlyCommit: 500_000, discount: 0.35, bestFor: "Custom SLAs, advanced compliance, dedicated support" },
+];
+
+/** Threshold above which postpaid billing unlocks (₹/month). */
+export const POSTPAID_THRESHOLD = 50_000;
+/** Threshold above which hybrid (commit prepaid + overage postpaid) unlocks. */
+export const HYBRID_THRESHOLD = 300_000;
+/** Free-trial wallet credit issued on signup (₹). */
+export const FREE_TRIAL_TOPUP = 500;
 
 // ── Client model ─────────────────────────────────────────────────────────
 /**
@@ -73,7 +256,13 @@ export const DEFAULT_OVERAGE_RUPEES_PER_CREDIT = 4.5;
  * support quarterly / annual cycles yet. The type stays a string union so
  * adding cycles later is non-breaking, but the UI shows it as read-only.
  */
-export type BillingCycle = "Monthly";
+export type BillingCycle = "Monthly" | "Quarterly" | "Yearly";
+
+/** Prepaid sub-mode — subscription = recurring monthly credit; payg = ad-hoc top-ups. */
+export type PrepaidMode = "subscription" | "payg";
+
+/** Postpaid invoice generation cadence. */
+export type InvoiceGeneration = "auto" | "manual";
 export type BillingType = "Postpaid" | "Prepaid";
 
 /** Plain-language labels for the BillingType dropdown. */
@@ -139,45 +328,79 @@ export function makeWorkspaceId(): string {
   return `ws_${Date.now().toString(36)}_${_workspaceCounter}`;
 }
 
+/**
+ * Billing model per the doc § 7.
+ *
+ *   prepaid — wallet top-up + real-time draws (default below ₹50K/mo).
+ *   postpaid — itemized monthly invoice, Net-15/30.
+ *   hybrid — commit prepaid, overage postpaid (only above ₹3L/mo).
+ */
+export type BillingMode = "prepaid" | "postpaid" | "hybrid";
+
+export interface AutoRechargeConfig {
+  enabled: boolean;
+  /** Trigger top-up when wallet drops below this amount (₹). */
+  triggerAt: number;
+  /** Amount to top up when triggered (₹). */
+  rechargeAmount: number;
+}
+
 export interface ClientBilling {
-  // About the client — Step 1
+  // Step 1 — Organization details
   clientName: string;
   industry: Industry;
-  // Account ownership (Revspot side) — Step 1
   kam: KeyAccountManager;
-  // Contract & billing — Step 1
-  accountType: AccountType;
-  billingCycle: BillingCycle;   // always "Monthly" for now
-  billingType: BillingType;
   contractMonths: number;
+  billingCycle: BillingCycle;
+  // Step 2 — Plan & commitment
+  commitTier: CommitTier;
+  /** Monthly committed spend in ₹ (overrideable for Enterprise). */
+  monthlyCommit: number;
+  /** Discount fraction applied to all rate-card lines (0.20 = 20%). */
+  discountPct: number;
+  /** Months of rollover for unused commit (doc § 6.1 — 3). */
+  rolloverMonths: number;
+  // Step 3 — Rate card (two meters)
+  /** Per-platform-action retail rates in ₹ (admin overrideable per org). */
+  rateCard: Record<string, { enabled: boolean; creditsPerUnit: number }>;
+  /** Voice destination rates + attempt fee. */
+  voiceRates: VoiceRates;
+  /** Configurable maximum call duration in minutes (doc § 8.4 default 10). */
+  perCallDurationCap: number;
+  /** Minimum inbound wallet floor in ₹ (doc § 8.3 default 2000). */
+  inboundReserve: number;
+  // Step 4 — Wallet & billing
+  billingMode: BillingMode;
+  /** When billingMode === "prepaid", which sub-mode is active. */
+  prepaidMode: PrepaidMode;
+  /** When billingMode === "postpaid", how invoices are generated. */
+  invoiceGeneration: InvoiceGeneration;
+  /** Initial wallet top-up amount on activation (₹). */
+  walletInitialTopUp: number;
+  autoRecharge: AutoRechargeConfig;
+  /** ISO date of the last invoice this org received. */
+  lastInvoiceDate?: string;
+  // Step 5 — Workspaces + Members
+  workspaces: Workspace[];
+  members: OrgMember[];
+  /** Seats derived from members count (unlimited, free). */
+  seatCount: number;
+  /** ISO date — when the wallet goes live. */
+  activationDate: string;
+  // Legacy / vestigial — referenced by existing wizard step UI until the
+  // 5-step rebuild lands. Defaulted in defaultBilling() so the new tier
+  // model still works while old summary rows + Step inputs keep compiling.
+  billingType: BillingType;
   initialCreditsPerCycle: number;
   globalDailyLimit: number;
-  // Seats (derived from members in Step 3 of the wizard)
-  seatCount: number;
-  // Rate card — credits per unit of each product, plus enabled flag
-  rateCard: Record<string, { enabled: boolean; creditsPerUnit: number }>;
-  // Flat pay-as-you-go rate + overage (editable copies of the plan defaults)
   rupeesPerCredit: number;
   overageRupeesPerCredit: number;
-  // Alerts + auto-recharge + expiry
-  alertThresholdsPct: number[];
-  autoRechargeAtPct: number | null;
   rolloverEnabled: boolean;
   rolloverCapCredits: number;
-  /**
-   * When true, finance generates an invoice automatically on the 1st of
-   * each month for the previous cycle. When false, an admin must trigger
-   * "Generate invoice now" manually from the active-client view.
-   */
+  alertThresholdsPct: number[];
+  autoRechargeAtPct: number | null;
   autoInvoiceMonthly: boolean;
-  /** ISO date of the last invoice this client received (manual or auto). */
-  lastInvoiceDate?: string;
-  // Step 3 — workspaces (sub-tenants under this organization)
-  workspaces: Workspace[];
-  // Step 4 — organisation members + activation
-  members: OrgMember[];
-  /** ISO date — when the credit account goes live. */
-  activationDate: string;
+  accountType: AccountType;
 }
 
 export interface Client {
@@ -205,22 +428,20 @@ export function makeMemberId(): string {
 // Helper — build a fully-configured ClientBilling for the seed Godrej client
 // so the listing has at least one "Active" row with real data to show.
 function godrejBilling(): ClientBilling {
+  const growth = COMMIT_TIERS.find((t) => t.id === "Growth")!;
   const b = defaultBilling({
     clientName: "Godrej Properties",
     industry: "Real Estate",
-    accountType: "Sales & Outreach",
-    billingType: "Postpaid",
     contractMonths: 24,
-    initialCreditsPerCycle: 10000,
-    globalDailyLimit: 7500,
-    rupeesPerCredit: 2.5,
-    overageRupeesPerCredit: 4.0,
-    rolloverEnabled: true,
+    commitTier: growth.id,
+    monthlyCommit: growth.monthlyCommit,
+    discountPct: growth.discount,
+    billingMode: "postpaid",
+    walletInitialTopUp: 100_000,
+    autoRecharge: { enabled: true, triggerAt: 25_000, rechargeAmount: 100_000 },
+    inboundReserve: 5_000,
+    perCallDurationCap: 12,
   });
-  // Enable a realistic working set of products
-  for (const id of ["feat_email", "feat_phone", "feat_profile", "agent_voice"]) {
-    b.rateCard[id] = { ...b.rateCard[id], enabled: true };
-  }
   b.kam = {
     name: "Neha Sharma",
     phone: "+91 98765 43210",
@@ -228,19 +449,16 @@ function godrejBilling(): ClientBilling {
     notifyOnActivation: false,
   };
   b.members = [
-    { id: makeMemberId(), name: "Rohit Mehta",   email: "demo@godrejproperties.com",  role: "Admin",   sendInvite: false },
-    { id: makeMemberId(), name: "Sanjana Kapur", email: "sanjana@godrejproperties.com", role: "Manager", sendInvite: false },
-    { id: makeMemberId(), name: "Vikram Reddy",  email: "vikram@godrejproperties.com",  role: "Member",  sendInvite: false },
+    { id: makeMemberId(), name: "Rohit Mehta",   email: "demo@godrejproperties.com",     role: "Admin",   sendInvite: false },
+    { id: makeMemberId(), name: "Sanjana Kapur", email: "sanjana@godrejproperties.com",  role: "Manager", sendInvite: false },
+    { id: makeMemberId(), name: "Vikram Reddy",  email: "vikram@godrejproperties.com",   role: "Member",  sendInvite: false },
   ];
   b.seatCount = b.members.length;
   b.activationDate = "2025-09-12";
-  // Active client — auto-invoicing on, last invoice was the start of this
-  // billing cycle (1st of last month).
-  b.autoInvoiceMonthly = true;
   b.lastInvoiceDate = "2026-05-01";
   b.workspaces = [
-    { id: makeWorkspaceId(), name: "Godrej Properties — Mumbai", description: "Western region sales" },
-    { id: makeWorkspaceId(), name: "Godrej Properties — Bengaluru", description: "South region sales" },
+    { id: makeWorkspaceId(), name: "Godrej Properties — Mumbai",      description: "Western region sales" },
+    { id: makeWorkspaceId(), name: "Godrej Properties — Bengaluru",   description: "South region sales" },
     { id: makeWorkspaceId(), name: "Godrej Reflections — Pre-launch", description: "Brand-specific outreach" },
   ];
   return b;
@@ -274,52 +492,114 @@ export function findClient(id: string): Client | undefined {
 }
 
 /**
+ * Create a brand-new organization from the Create Organization modal:
+ * name + industry + the modules to enable upfront. Only the chosen modules'
+ * meters are enabled in the rate card; the org starts with one default
+ * workspace and no members. Prepends it to the in-memory list so it lands at
+ * the top of the listing, and returns it so the caller can route to it.
+ */
+export function createClient(input: {
+  name: string;
+  industry: Industry;
+  moduleIds: string[];
+}): Client {
+  const name = input.name.trim();
+  const slug =
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org";
+  const rand = (n: number) => Math.random().toString(36).slice(2, 2 + n);
+  const id = `${slug}-${rand(8)}`;
+  const orgId = `org_${rand(16)}`;
+
+  // Which meters belong to the selected modules.
+  const enabledMeters = new Set(
+    input.moduleIds.flatMap((mid) => {
+      const mod = MODULE_CATALOG.find((m) => m.id === mid);
+      return mod ? moduleMeterIds(mod) : [];
+    }),
+  );
+
+  const billing = defaultBilling({
+    clientName: name,
+    industry: input.industry,
+    workspaces: [
+      { id: makeWorkspaceId(), name: `${name} — Default`, description: "Default workspace" },
+    ],
+    members: [],
+  });
+  // defaultBilling enables every meter; pare back to the chosen modules.
+  for (const pid of Object.keys(billing.rateCard)) {
+    billing.rateCard[pid] = {
+      ...billing.rateCard[pid],
+      enabled: enabledMeters.has(pid),
+    };
+  }
+
+  const client: Client = {
+    id,
+    orgId,
+    name,
+    status: "Active",
+    contractStart: new Date().toISOString().slice(0, 10),
+    billing,
+  };
+  clients.unshift(client);
+  return client;
+}
+
+/**
  * Initialise a fresh ClientBilling with pay-as-you-go defaults. Called when
  * the wizard opens for a client that hasn't been activated yet.
  */
 export function defaultBilling(seed?: Partial<ClientBilling>): ClientBilling {
+  const payg = COMMIT_TIERS.find((t) => t.id === "PAYG")!;
   return {
+    // Step 1
     clientName: "",
     industry: "Real Estate",
     kam: { name: "", phone: "", email: "", notifyOnActivation: true },
-    accountType: "Sales & Outreach",
-    billingCycle: "Monthly",
-    billingType: "Postpaid",
     contractMonths: 12,
-    initialCreditsPerCycle: 2500,
-    globalDailyLimit: 5000,
-    seatCount: 1,
+    billingCycle: "Monthly",
+    // Step 2 — start every org on PAYG; admin upgrades to a commit tier.
+    commitTier: payg.id,
+    monthlyCommit: payg.monthlyCommit,
+    discountPct: payg.discount,
+    rolloverMonths: 3,
+    // Step 3 — every action enabled at retail rate. Voice rates default
+    // to the doc's destination table.
     rateCard: Object.fromEntries(
       PRODUCT_CATALOGUE.map((p) => [
         p.id,
-        {
-          // Start every product OFF. Admin opts in product-by-product (or by
-          // bucket) on Step 2. Step-2 validation gates Next until at least
-          // one is on — forces a deliberate choice rather than accepting the
-          // default catalogue.
-          enabled: false,
-          creditsPerUnit: DEFAULT_CREDIT_RATES[p.id] ?? 0,
-        },
+        { enabled: true, creditsPerUnit: DEFAULT_RATES[p.id] ?? 0 },
       ]),
     ),
-    rupeesPerCredit: DEFAULT_RUPEES_PER_CREDIT,
-    overageRupeesPerCredit: DEFAULT_OVERAGE_RUPEES_PER_CREDIT,
-    alertThresholdsPct: [75, 90],
-    autoRechargeAtPct: 80,
-    rolloverEnabled: true,
-    rolloverCapCredits: 2500,
-    // Default behaviour for new clients: auto-generate at month-end. Admin
-    // can opt out per-client and fall back to the manual button.
-    autoInvoiceMonthly: true,
-    // Start with one blank workspace — orgs need at least one to activate.
-    workspaces: [
-      { id: makeWorkspaceId(), name: "", description: "" },
-    ],
-    members: [
-      { id: makeMemberId(), name: "", email: "", role: "Admin", sendInvite: true },
-    ],
+    voiceRates: { ...DEFAULT_VOICE_RATES },
+    perCallDurationCap: 10,
+    inboundReserve: 2_000,
+    // Step 4 — prepaid wallet, subscription sub-mode by default.
+    billingMode: "prepaid",
+    prepaidMode: "subscription",
+    invoiceGeneration: "auto",
+    walletInitialTopUp: FREE_TRIAL_TOPUP,
+    autoRecharge: { enabled: false, triggerAt: 5_000, rechargeAmount: 25_000 },
+    // Step 5 — start blank for new orgs; KAM adds the first workspace +
+    // member from empty-state CTAs.
+    workspaces: [],
+    members: [],
+    seatCount: 0,
     activationDate: defaultActivationDate(),
-    // Seed overrides — e.g. pre-fill clientName from Client record on new flows.
+    // Legacy — defaulted here so the existing step UI compiles. Will be
+    // dropped once the 5-step rebuild fully replaces the old surfaces.
+    billingType: "Postpaid",
+    initialCreditsPerCycle: 25_000,
+    globalDailyLimit: 5_000,
+    rupeesPerCredit: 1,
+    overageRupeesPerCredit: 1,
+    rolloverEnabled: true,
+    rolloverCapCredits: 0,
+    alertThresholdsPct: [75, 90],
+    autoRechargeAtPct: null,
+    autoInvoiceMonthly: true,
+    accountType: "Sales & Outreach",
     ...seed,
   };
 }

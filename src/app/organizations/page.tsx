@@ -12,6 +12,7 @@ import {
   type Client,
 } from "@/lib/billing-data";
 import { cn } from "@/lib/utils";
+import { CreateOrgModal } from "@/components/organizations/create-org-modal";
 
 const statusStyles: Record<Client["status"], string> = {
   Active:     "bg-success-bg text-success border-success-bg",
@@ -40,6 +41,7 @@ export default function ClientsListPage() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const filtersBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // KAM options derived from the actual client data so the popover only
@@ -86,14 +88,16 @@ export default function ClientsListPage() {
             billing configuration.
           </p>
         </div>
-        <Link
-          href="/clients/new"
+        <button
+          onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-primary text-primary-foreground text-[13px] font-medium hover:brightness-110 transition-[filter] shrink-0"
         >
           <Plus size={14} strokeWidth={2.25} />
           Create organization
-        </Link>
+        </button>
       </header>
+
+      {createOpen && <CreateOrgModal onClose={() => setCreateOpen(false)} />}
 
       {/* Filter bar — search + single Filters popover */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -379,7 +383,7 @@ function ClientRow({ client }: { client: Client }) {
   return (
     <tr className="border-t border-border hover:bg-secondary/30 transition-colors">
       <td className="px-4 py-3">
-        <Link href={`/clients/${client.id}`} className="block group">
+        <Link href={`/organizations/${client.id}`} className="block group">
           <div className="font-medium text-foreground group-hover:text-primary transition-colors">
             {client.name}
           </div>
@@ -423,7 +427,7 @@ function ClientRow({ client }: { client: Client }) {
       </td>
       <td className="px-4 py-3 text-right whitespace-nowrap">
         <Link
-          href={`/clients/${client.id}`}
+          href={`/organizations/${client.id}`}
           className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary hover:underline underline-offset-2"
         >
           {b ? "Manage" : "Onboard"}

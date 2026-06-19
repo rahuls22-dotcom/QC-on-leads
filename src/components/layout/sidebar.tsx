@@ -36,7 +36,7 @@ const sections: NavSection[] = [
   {
     items: [
       { name: "Projects", href: "/", icon: FolderKanban },
-      { name: "Organization", href: "/clients", icon: Users },
+      { name: "Organization", href: "/organizations", icon: Users },
     ],
   },
   {
@@ -73,7 +73,7 @@ export function Sidebar() {
   const isActiveItem = (label: string) => {
     if (pathname.startsWith("/agents")) return label === "Agents";
     if (pathname === "/" || pathname.startsWith("/leads")) return label === "Sequences";
-    if (pathname.startsWith("/clients")) return label === "Organization";
+    if (pathname.startsWith("/organizations")) return label === "Organization";
     return false;
   };
 

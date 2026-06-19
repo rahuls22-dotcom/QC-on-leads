@@ -30,10 +30,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { OrgDetail } from "@/components/organizations/org-detail";
 import {
   BILLING_TYPE_DESCRIPTIONS,
+  COMMIT_TIERS,
+  FREE_TRIAL_TOPUP,
+  HYBRID_THRESHOLD,
   INDUSTRIES,
   PRODUCT_CATALOGUE,
+  POSTPAID_THRESHOLD,
   MEMBER_ROLES,
   defaultBilling,
   estimateMonthlyCost,
@@ -44,9 +49,15 @@ import {
   makeMemberId,
   makeWorkspaceId,
   type AccountType,
+  type AutoRechargeConfig,
+  type BillingCycle,
+  type BillingMode,
   type BillingType,
+  type InvoiceGeneration,
+  type PrepaidMode,
   type Client,
   type ClientBilling,
+  type CommitTier,
   type Industry,
   type MemberRole,
   type OrgMember,
@@ -56,20 +67,19 @@ import {
 } from "@/lib/billing-data";
 
 const STEPS = [
-  { id: 1, label: "Organization details" },
-  { id: 2, label: "Configuration & feature pricing" },
-  { id: 3, label: "Workspaces" },
-  { id: 4, label: "Members" },
+  { id: 1, label: "Organization & plan" },
+  { id: 2, label: "Rate card" },
+  { id: 3, label: "Workspaces & members" },
 ] as const;
 
-type StepId = 1 | 2 | 3 | 4;
+type StepId = 1 | 2 | 3;
 
 export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
 
   // Three modes:
-  //   isNew  — /clients/new   → create flow, navigate to list on confirm
+  //   isNew  — /organizations/new → create flow, navigate to list on confirm
   //   onboarding — existing client with `billing: undefined` → activation flow
   //   editing — existing client with billing already configured → edit flow
   const isNew = id === "new";
@@ -89,6 +99,12 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   // Confirmation modal open-state. Null when closed.
   const [pendingStatus, setPendingStatus] = useState<null | "Active" | "Suspended">(null);
 
+  // Existing, activated orgs open the tabbed management view (Workspaces ·
+  // Products & Pricing · Members). New + onboarding orgs use the wizard.
+  if (isEdit && client) {
+    return <OrgDetail client={client} />;
+  }
+
   // Header copy adapts to the mode.
   const headerDescription = isNew
     ? "Walk through the three steps. We'll create the organization on activation."
@@ -101,8 +117,8 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
       {/* Header */}
       <div className="flex items-start gap-3 mb-1.5">
         <Link
-          href="/clients"
-          aria-label="Back to clients"
+          href="/organizations"
+          aria-label="Back to organizations"
           className="w-8 h-8 mt-0.5 rounded-md hover:bg-secondary text-foreground flex items-center justify-center"
         >
           <ChevronLeft size={18} strokeWidth={2} />
@@ -177,7 +193,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
             setSavedToast(`${created}account activated · ${parts.join(" · ")}.`);
             setTimeout(() => setSavedToast(null), 3500);
             if (isNew) {
-              setTimeout(() => router.push("/clients"), 1700);
+              setTimeout(() => router.push("/organizations"), 1700);
             }
           }}
         />
@@ -318,7 +334,7 @@ function BillingWizard({
   // In edit mode, the user already saw all three steps once during onboarding,
   // so let them jump freely instead of being forced to walk through linearly.
   const [step, setStep] = useState<StepId>(1);
-  const [maxStep, setMaxStep] = useState<StepId>(mode === "edit" ? 4 : 1);
+  const [maxStep, setMaxStep] = useState<StepId>(mode === "edit" ? 3 : 1);
   const advance = (next: StepId) => {
     setStep(next);
     if (next > maxStep) setMaxStep(next);
@@ -335,8 +351,12 @@ function BillingWizard({
       <div className="mt-6 space-y-6 pb-32">
         {step === 1 && <Step1 billing={billing} onChange={onChange} mode={mode} />}
         {step === 2 && <Step2 billing={billing} onChange={onChange} />}
-        {step === 3 && <Step3 billing={billing} onChange={onChange} />}
-        {step === 4 && <Step4 billing={billing} onChange={onChange} />}
+        {step === 3 && (
+          <>
+            <Step3 billing={billing} onChange={onChange} />
+            <Step4 billing={billing} onChange={onChange} />
+          </>
+        )}
       </div>
 
       {/* Sticky nav bar */}
@@ -352,7 +372,7 @@ function BillingWizard({
             Back
           </Button>
           <div className="flex-1" />
-          {step < 4 ? (
+          {step < 3 ? (
             <Button
               size="default"
               onClick={() => stepValid && advance((step + 1) as StepId)}
@@ -379,35 +399,38 @@ function BillingWizard({
 
 function isStepValid(step: StepId, b: ClientBilling): boolean {
   if (step === 1) {
-    return (
+    // Org details + Plan & commitment: name, industry, KAM, contract,
+    // tier with valid monthly commit, billing model coherent with tier.
+    const orgOk =
       b.clientName.trim() !== "" &&
       !!b.industry &&
       b.kam.name.trim() !== "" &&
       /.+@.+\..+/.test(b.kam.email) &&
-      b.contractMonths > 0 &&
-      b.initialCreditsPerCycle >= 0 &&
-      b.globalDailyLimit >= 0
-    );
+      b.contractMonths > 0;
+    if (!orgOk) return false;
+    const tier = COMMIT_TIERS.find((t) => t.id === b.commitTier);
+    if (!tier) return false;
+    const commitOk =
+      tier.id === "Enterprise"
+        ? b.monthlyCommit >= tier.monthlyCommit
+        : b.monthlyCommit === tier.monthlyCommit;
+    return commitOk;
   }
   if (step === 2) {
-    // At least one product enabled with credits/unit > 0, AND no enabled
-    // product is priced below its internal cost (margin protection).
+    // Rate card — margin-protection check + per-call cap + inbound reserve.
     const enabled = PRODUCT_CATALOGUE.filter((p) => b.rateCard[p.id]?.enabled);
     if (enabled.length === 0) return false;
     if (!enabled.some((p) => b.rateCard[p.id].creditsPerUnit > 0)) return false;
-    return enabled.every((p) => {
+    const ratesOk = enabled.every((p) => {
       const cost = p.internalCostRupees ?? 0;
       return b.rateCard[p.id].creditsPerUnit >= cost;
     });
+    return ratesOk && b.perCallDurationCap > 0 && b.inboundReserve >= 0;
   }
-  if (step === 3) {
-    // Workspaces — require at least one named workspace.
-    return b.workspaces.some((w) => w.name.trim() !== "");
-  }
-  // Step 4: at least one valid org member + an activation date.
-  // (KAM moved to Step 1; validated there.)
+  // Step 3: at least one named workspace + one valid org member + activation date.
   return (
     !!b.activationDate &&
+    b.workspaces.some((w) => w.name.trim() !== "") &&
     b.members.some((m) => m.name.trim() !== "" && /.+@.+\..+/.test(m.email))
   );
 }
@@ -494,11 +517,8 @@ function Step1({
 
   return (
     <div className="space-y-4">
-      {/* No in-page step badge — the stepper above the wizard already
-          tells the user which step they're on. */}
-
-      {/* ─── Organization information — identity fields only ──────────── */}
-      <SectionCard title="Organization information" icon={Building2}>
+      {/* ─── Organization — identity, KAM, contract length in one card. */}
+      <SectionCard title="Organization" icon={Building2}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextField
             required
@@ -514,97 +534,225 @@ function Step1({
             onChange={(v) => upd("industry", v as Industry)}
           />
         </div>
-      </SectionCard>
 
-      {/* ─── Account ownership — Revspot side (KAM) ───────────────────── */}
-      <SectionCard title="Account ownership" icon={UserCheck}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <TextField
-            required
-            label="Key Account Manager"
-            value={billing.kam.name}
-            onChange={(v) => upd("kam", { ...billing.kam, name: v })}
-            placeholder="e.g. Neha Sharma"
-          />
-          <TextField
-            label="Phone"
-            value={billing.kam.phone}
-            onChange={(v) => upd("kam", { ...billing.kam, phone: v })}
-            placeholder="+91 98xxxxxxxx"
-          />
-          <TextField
-            required
-            label="Work email"
-            value={billing.kam.email}
-            onChange={(v) => upd("kam", { ...billing.kam, email: v })}
-            placeholder="neha@revspot.ai"
-            type="email"
-          />
-        </div>
-        <CheckboxRow
-          checked={billing.kam.notifyOnActivation}
-          onChange={(v) => upd("kam", { ...billing.kam, notifyOnActivation: v })}
-          label="Send assignment email on activation"
-        />
-      </SectionCard>
-
-      {/* ─── Contract & billing ───────────────────────────────────────── */}
-      <SectionCard
-        title="Contract & billing"
-        description="Billing cycle is anchored to the activation date — invoices are generated one month from activation and every month thereafter."
-        icon={Receipt}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SelectField
-            label="Billing type"
-            value={billing.billingType}
-            options={["Postpaid", "Prepaid"]}
-            renderOption={(v) => `${v} — ${BILLING_TYPE_DESCRIPTIONS[v as BillingType]}`}
-            onChange={(v) => upd("billingType", v as BillingType)}
-          />
-          <NumberField
-            required
-            label="Contract duration (months)"
-            value={billing.contractMonths}
-            min={1}
-            onChange={(v) => upd("contractMonths", v)}
-          />
-          <NumberField
-            required
-            label="Initial budget per cycle (₹)"
-            value={billing.initialCreditsPerCycle}
-            onChange={(v) => upd("initialCreditsPerCycle", v)}
-          />
-          <NumberField
-            required
-            label="Daily spend limit (₹)"
-            value={billing.globalDailyLimit}
-            min={0}
-            step={500}
-            onChange={(v) => upd("globalDailyLimit", v)}
+        <div className="mt-5 pt-5 border-t border-border-subtle">
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground mb-3">
+            Key Account Manager
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <TextField
+              required
+              label="Name"
+              value={billing.kam.name}
+              onChange={(v) => upd("kam", { ...billing.kam, name: v })}
+              placeholder="e.g. Neha Sharma"
+            />
+            <TextField
+              label="Phone"
+              value={billing.kam.phone}
+              onChange={(v) => upd("kam", { ...billing.kam, phone: v })}
+              placeholder="+91 98xxxxxxxx"
+            />
+            <TextField
+              required
+              label="Work email"
+              value={billing.kam.email}
+              onChange={(v) => upd("kam", { ...billing.kam, email: v })}
+              placeholder="neha@revspot.ai"
+              type="email"
+            />
+          </div>
+          <CheckboxRow
+            checked={billing.kam.notifyOnActivation}
+            onChange={(v) => upd("kam", { ...billing.kam, notifyOnActivation: v })}
+            label="Send assignment email on activation"
           />
         </div>
 
-        <CheckboxRow
-          checked={billing.rolloverEnabled}
-          onChange={(v) => upd("rolloverEnabled", v)}
-          label="Carry forward unused balance"
-        />
-
-        {/* Edit mode only — manual generate-invoice button. Auto-billing is
-            implicit (activation + 1 month, then rolling); the button is
-            just for off-cycle pulls. Onboarding orgs haven't activated
-            yet, so the button is hidden until the account exists. */}
-        {mode === "edit" && (
-          <InvoiceActionRow
-            activationDate={billing.activationDate}
-            lastInvoiceDate={billing.lastInvoiceDate}
-            onGenerate={(date) => onChange({ ...billing, lastInvoiceDate: date })}
-          />
-        )}
+        <div className="mt-5 pt-5 border-t border-border-subtle">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <NumberField
+              required
+              label="Contract duration (months)"
+              value={billing.contractMonths}
+              min={1}
+              onChange={(v) => upd("contractMonths", v)}
+              help="Anchors the activation date and billing cycle."
+            />
+          </div>
+        </div>
       </SectionCard>
+
+      {/* ─── Subscription — single configurable plan. */}
+      <SubscriptionSection billing={billing} onChange={onChange} />
     </div>
   );
+}
+
+/**
+ * Conditional subscription card. First choice is the billing model:
+ *
+ *   Prepaid  → choose Subscription (recurring monthly credit) or PAYG
+ *              (ad-hoc top-ups). Subscription reveals the monthly amount
+ *              + rollover toggle; PAYG hides both.
+ *   Postpaid → choose the billing cycle (Monthly / Quarterly / Yearly)
+ *              and how invoices are generated (Auto / Manual).
+ */
+function SubscriptionSection({
+  billing,
+  onChange,
+}: {
+  billing: ClientBilling;
+  onChange: (b: ClientBilling) => void;
+}) {
+  const setMode = (m: BillingMode) => onChange({ ...billing, billingMode: m });
+  const setPrepaidMode = (m: PrepaidMode) => {
+    // PAYG has no recurring credit — clear the monthly amount + rollover.
+    const next: ClientBilling = { ...billing, prepaidMode: m };
+    if (m === "payg") {
+      next.monthlyCommit = 0;
+      next.rolloverMonths = 0;
+    } else if (next.monthlyCommit === 0) {
+      next.monthlyCommit = 25_000;
+    }
+    onChange(next);
+  };
+  const setMonthly = (v: number) => onChange({ ...billing, monthlyCommit: v });
+  const setRollover = (on: boolean) =>
+    onChange({ ...billing, rolloverMonths: on ? 3 : 0 });
+  const setCycle = (c: BillingCycle) => onChange({ ...billing, billingCycle: c });
+  const setInvoiceGen = (g: InvoiceGeneration) =>
+    onChange({ ...billing, invoiceGeneration: g });
+
+  return (
+    <SectionCard
+      title="Subscription"
+      description="Pick the billing model first — the rest of the controls follow."
+      icon={Receipt}
+    >
+      {/* Step A — Billing model */}
+      <FieldLabel label="Billing model" />
+      <div className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-secondary/40 p-1 h-9">
+        {(
+          [
+            { id: "prepaid", label: "Prepaid" },
+            { id: "postpaid", label: "Postpaid" },
+          ] as { id: BillingMode; label: string }[]
+        ).map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setMode(id)}
+            className={cn(
+              "h-7 px-4 rounded text-[12.5px] font-medium transition-colors",
+              billing.billingMode === id
+                ? "bg-card text-foreground border border-primary/40 shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Step B — Conditional branch */}
+      {billing.billingMode === "prepaid" ? (
+        <div className="mt-5 pt-5 border-t border-border-subtle space-y-4">
+          <div>
+            <FieldLabel label="Prepaid type" />
+            <div className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-secondary/40 p-1 h-9">
+              {(
+                [
+                  { id: "subscription", label: "Subscription" },
+                  { id: "payg", label: "Pay-as-you-go" },
+                ] as { id: PrepaidMode; label: string }[]
+              ).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPrepaidMode(id)}
+                  className={cn(
+                    "h-7 px-4 rounded text-[12.5px] font-medium transition-colors",
+                    billing.prepaidMode === id
+                      ? "bg-card text-foreground border border-primary/40 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11.5px] text-muted-foreground mt-1.5 leading-snug">
+              {billing.prepaidMode === "subscription"
+                ? "Wallet is topped up automatically each month for a fixed amount."
+                : "Customer tops up the wallet manually whenever they want — no recurring charge."}
+            </p>
+          </div>
+
+          {billing.prepaidMode === "subscription" && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <NumberField
+                  required
+                  label="Monthly subscription (₹)"
+                  value={billing.monthlyCommit}
+                  min={1_000}
+                  step={5_000}
+                  onChange={setMonthly}
+                  help={`Added to the wallet on the ${ordinalSuffix(new Date(billing.activationDate).getDate())} of each month.`}
+                />
+              </div>
+              <CheckboxRow
+                checked={billing.rolloverMonths > 0}
+                onChange={setRollover}
+                label="Allow rollover of unused credit (3 months)"
+              />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mt-5 pt-5 border-t border-border-subtle">
+          <FieldLabel label="Invoice generation" />
+          <div className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-secondary/40 p-1 h-9">
+            {(
+              [
+                { id: "auto", label: "Auto at month end" },
+                { id: "manual", label: "Manual" },
+              ] as { id: InvoiceGeneration; label: string }[]
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setInvoiceGen(id)}
+                className={cn(
+                  "h-7 px-3 rounded text-[12.5px] font-medium transition-colors",
+                  billing.invoiceGeneration === id
+                    ? "bg-card text-foreground border border-primary/40 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-muted-foreground mt-2 leading-snug">
+            {billing.invoiceGeneration === "auto"
+              ? "Invoices are generated automatically at the end of every month, Net-15 / Net-30 terms."
+              : "Invoices are generated only when the KAM triggers them from the active organization view."}
+          </p>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function ordinalSuffix(d: number): string {
+  if (d >= 11 && d <= 13) return `${d}th`;
+  const last = d % 10;
+  if (last === 1) return `${d}st`;
+  if (last === 2) return `${d}nd`;
+  if (last === 3) return `${d}rd`;
+  return `${d}th`;
 }
 
 // ── Invoice action row (edit mode) ──────────────────────────────────────
@@ -740,6 +888,191 @@ function ConfirmInvoiceModal({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Step 2 — Plan & commitment ───────────────────────────────────────────
+
+/**
+ * Tier picker. Selecting a tier auto-fills monthly commit + discount %.
+ * Enterprise leaves the commit editable so sales can dial in a custom number.
+ */
+function StepPlan({
+  billing,
+  onChange,
+}: {
+  billing: ClientBilling;
+  onChange: (b: ClientBilling) => void;
+}) {
+  const selectTier = (tierId: CommitTier) => {
+    const tier = COMMIT_TIERS.find((t) => t.id === tierId);
+    if (!tier) return;
+    onChange({
+      ...billing,
+      commitTier: tier.id,
+      monthlyCommit: tier.monthlyCommit,
+      discountPct: tier.discount,
+    });
+  };
+
+  return (
+    <Section
+      title="Plan & commitment"
+      icon={Receipt}
+      description="Pick the monthly commitment level. Higher commits unlock a percentage off the rate card. Unused commit rolls forward for up to 3 months."
+    >
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {COMMIT_TIERS.map((tier) => {
+          const active = billing.commitTier === tier.id;
+          return (
+            <button
+              key={tier.id}
+              type="button"
+              onClick={() => selectTier(tier.id)}
+              className={cn(
+                "text-left rounded-lg border p-4 transition-colors h-full",
+                active
+                  ? "border-primary bg-primary-soft/30 ring-1 ring-primary/30"
+                  : "border-border-subtle bg-card hover:border-border",
+              )}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[13px] font-semibold text-foreground">
+                  {tier.label}
+                </div>
+                {tier.discount > 0 && (
+                  <span className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-primary tabular">
+                    {Math.round(tier.discount * 100)}% off
+                  </span>
+                )}
+              </div>
+              <div className="text-[18px] font-bold text-foreground tabular">
+                {tier.id === "PAYG"
+                  ? "₹0"
+                  : tier.id === "Enterprise"
+                  ? `₹${(tier.monthlyCommit / 100_000).toFixed(1)}L+`
+                  : `₹${(tier.monthlyCommit / 1_000).toFixed(0)}K`}
+                <span className="text-[11px] font-medium text-muted-foreground ml-1">/mo</span>
+              </div>
+              <p className="text-[11.5px] text-muted-foreground mt-2 leading-snug">
+                {tier.bestFor}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      {billing.commitTier === "Enterprise" && (
+        <div className="mt-4 max-w-sm">
+          <NumberField
+            required
+            label="Custom monthly commit (₹)"
+            value={billing.monthlyCommit}
+            min={500_000}
+            step={50_000}
+            onChange={(v) => onChange({ ...billing, monthlyCommit: v })}
+            help="Enterprise tier minimum is ₹5,00,000/mo."
+          />
+        </div>
+      )}
+
+      <div className="mt-4 rounded-md bg-secondary/40 border border-border-subtle px-4 py-3 text-[12px] text-muted-foreground leading-relaxed">
+        <span className="text-foreground font-medium">Rollover policy:</span>{" "}
+        Unused committed amounts roll forward for {billing.rolloverMonths} months,
+        then expire. No annual lock-in — switch tiers or downgrade any time.
+      </div>
+    </Section>
+  );
+}
+
+// ── Step 4 — Wallet & billing ───────────────────────────────────────────
+
+/**
+ * Wallet top-up + auto-recharge + billing-mode selector. Billing mode is
+ * gated by the monthly commit per the doc § 7.3:
+ *   < ₹50K — prepaid only
+ *   ₹50K – ₹3L — prepaid or postpaid
+ *   > ₹3L — also hybrid
+ */
+function StepWallet({
+  billing,
+  onChange,
+  mode,
+}: {
+  billing: ClientBilling;
+  onChange: (b: ClientBilling) => void;
+  mode: "create" | "edit";
+}) {
+  const updAuto = (patch: Partial<AutoRechargeConfig>) =>
+    onChange({ ...billing, autoRecharge: { ...billing.autoRecharge, ...patch } });
+
+  // Friendly label for the billing model picked back in Step 1.
+  const modeLabel =
+    billing.billingMode === "prepaid"
+      ? "Prepaid"
+      : billing.billingMode === "postpaid"
+      ? "Postpaid"
+      : "Hybrid";
+
+  return (
+    <div className="space-y-6">
+      <Section
+        title="Wallet"
+        icon={Coins}
+        description={`The wallet is a single rupee balance that draws against both meters. This org is set up on ${modeLabel} (chosen in Step 1).`}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <NumberField
+            required
+            label="Initial wallet top-up (₹)"
+            value={billing.walletInitialTopUp}
+            min={0}
+            step={500}
+            onChange={(v) => onChange({ ...billing, walletInitialTopUp: v })}
+            help={mode === "edit" ? undefined : `Free trial credit of ₹${FREE_TRIAL_TOPUP} included on activation.`}
+          />
+        </div>
+      </Section>
+
+      <Section title="Auto-recharge" icon={RefreshCw} description="Optional — keep the wallet from hitting zero by topping it up automatically when it crosses a threshold.">
+        <CheckboxRow
+          checked={billing.autoRecharge.enabled}
+          onChange={(v) => updAuto({ enabled: v })}
+          label="Enable auto-recharge"
+        />
+        {billing.autoRecharge.enabled && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+            <NumberField
+              required
+              label="Trigger when wallet drops below (₹)"
+              value={billing.autoRecharge.triggerAt}
+              min={0}
+              step={500}
+              onChange={(v) => updAuto({ triggerAt: v })}
+            />
+            <NumberField
+              required
+              label="Top up by (₹)"
+              value={billing.autoRecharge.rechargeAmount}
+              min={500}
+              step={500}
+              onChange={(v) => updAuto({ rechargeAmount: v })}
+            />
+          </div>
+        )}
+      </Section>
+
+      {/* Edit-mode only — generate invoice (postpaid clients). */}
+      {mode === "edit" && billing.billingMode !== "prepaid" && (
+        <Section title="Invoices" icon={FileText} description="Billing cycle is anchored to the activation date. Invoices are generated one month from activation, then rolling monthly.">
+          <InvoiceActionRow
+            activationDate={billing.activationDate}
+            lastInvoiceDate={billing.lastInvoiceDate}
+            onGenerate={(date) => onChange({ ...billing, lastInvoiceDate: date })}
+          />
+        </Section>
+      )}
     </div>
   );
 }
