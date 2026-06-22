@@ -303,7 +303,7 @@ function VoicePricing({ config }: { config: ModuleConfig }) {
       <div className="flex items-center gap-3 px-3 py-2.5">
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium text-foreground">Price per minute</div>
-          <div className="text-[11px] text-muted-foreground">one rate, all destinations</div>
+          <div className="text-[11px] text-muted-foreground">charged per connected minute</div>
         </div>
         <CreditsInput
           value={config.voicePricePerMin}

@@ -57,7 +57,7 @@ export default function OrganizationsListPage() {
         <div className="min-w-0">
           <h1 className="text-[22px] font-bold text-foreground">Organizations</h1>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Manage root-level orgs, workspaces, and user access.
+            Manage organizations, workspaces, modules, pricing, and users.
           </p>
         </div>
         <button
@@ -84,7 +84,7 @@ export default function OrganizationsListPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search orgs…"
+              placeholder="Search organization"
               className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-3 text-[13px] placeholder:text-muted-foreground outline-none focus-visible:border-foreground"
             />
           </div>
