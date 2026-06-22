@@ -238,27 +238,28 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
           </div>
         </div>
       ) : (
-        <div className="space-y-7">
+        <div className="space-y-3">
           {priced.map(({ mod, feats }) => (
-            <div key={mod.id}>
-              <div className="mb-1 flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
-                    accentOf(mod.id),
-                  )}
-                >
-                  <Layers size={15} strokeWidth={1.75} />
-                </div>
+            <div key={mod.id} className="rounded-xl border border-border-subtle bg-card">
+              {/* Light, per-module tinted header */}
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-t-xl border-b border-border-subtle px-4 py-3",
+                  accentOf(mod.id),
+                )}
+              >
+                <Layers size={16} strokeWidth={1.75} />
                 <div className="text-[13.5px] font-semibold text-foreground">{mod.name}</div>
               </div>
-              {feats.map((f) =>
-                f.kind === "voice" ? (
-                  <VoicePricing key={f.id} config={config} />
-                ) : (
-                  <MeterPricing key={f.id} meterIds={f.meterIds} config={config} />
-                ),
-              )}
+              <div className="px-4">
+                {feats.map((f) =>
+                  f.kind === "voice" ? (
+                    <VoicePricing key={f.id} config={config} />
+                  ) : (
+                    <MeterPricing key={f.id} meterIds={f.meterIds} config={config} />
+                  ),
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -269,7 +270,7 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
 
 function MeterPricing({ meterIds, config }: { meterIds: string[]; config: ModuleConfig }) {
   return (
-    <div>
+    <div className="divide-y divide-border-subtle">
       {meterIds.map((id) => {
         const p = byId[id];
         if (!p) return null;

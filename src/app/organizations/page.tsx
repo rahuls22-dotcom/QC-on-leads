@@ -54,27 +54,15 @@ export default function OrganizationsListPage() {
     <div className="mx-auto max-w-[1400px] px-8 py-6">
       <header className="mb-6 flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <h1 className="text-[22px] font-bold text-foreground">Organizations</h1>
+          <h1 className="text-[22px] font-bold text-foreground">
+            Organizations <span className="text-muted-foreground">({filtered.length})</span>
+          </h1>
           <p className="mt-1 text-[13px] text-muted-foreground">
             Manage organizations, workspaces, modules, pricing, and users.
           </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-[filter] hover:brightness-110"
-        >
-          <Plus size={14} strokeWidth={2.25} />
-          New Organization
-        </button>
-      </header>
-
-      <div className="rounded-xl border border-border-subtle bg-card">
-        {/* Card header — count + search */}
-        <div className="flex items-center justify-between gap-4 px-5 py-4">
-          <span className="text-[15px] font-semibold text-foreground">
-            Organizations <span className="text-muted-foreground">({filtered.length})</span>
-          </span>
-          <div className="relative w-full max-w-[300px]">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <div className="relative w-[260px]">
             <Search
               size={14}
               strokeWidth={2}
@@ -87,8 +75,17 @@ export default function OrganizationsListPage() {
               className="h-9 w-full rounded-md border border-border bg-transparent pl-9 pr-3 text-[13px] placeholder:text-muted-foreground outline-none focus-visible:border-foreground"
             />
           </div>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-[filter] hover:brightness-110"
+          >
+            <Plus size={14} strokeWidth={2.25} />
+            New Organization
+          </button>
         </div>
+      </header>
 
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
         {/* Table */}
         <table className="w-full text-[13px]">
           <thead className="border-y border-border-subtle bg-muted/30">

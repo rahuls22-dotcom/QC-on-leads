@@ -156,43 +156,45 @@ function WorkspacesTab({ client }: { client: Client }) {
     ]);
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-card">
-      <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
-        <div className="flex items-center gap-2">
+    <div>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
           <h2 className="text-[15px] font-semibold text-foreground">Workspaces</h2>
-          <span className="rounded px-1.5 text-[11px] text-muted-foreground tabular">
-            {workspaces.length}
-          </span>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            Client workspaces under this organization.
+          </p>
         </div>
         <PrimaryButton onClick={() => setAdding(true)}>
           <Plus size={14} strokeWidth={2.25} /> Create workspace
         </PrimaryButton>
       </div>
-      {workspaces.length === 0 ? (
-        <Empty
-          icon={<Building2 size={18} strokeWidth={1.75} />}
-          text="No workspaces yet."
-          actionLabel="Create workspace"
-          onAction={() => setAdding(true)}
-        />
-      ) : (
-        <table className="w-full text-[13px]">
-          <thead className="bg-muted/30">
-            <tr>
-              <Th>Name</Th>
-              <Th>Description</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {workspaces.map((w) => (
-              <tr key={w.id} className="border-t border-border">
-                <td className="px-5 py-3 font-medium text-foreground">{w.name}</td>
-                <td className="px-5 py-3 text-muted-foreground">{w.description ?? "—"}</td>
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
+        {workspaces.length === 0 ? (
+          <Empty
+            icon={<Building2 size={18} strokeWidth={1.75} />}
+            text="No workspaces yet."
+            actionLabel="Create workspace"
+            onAction={() => setAdding(true)}
+          />
+        ) : (
+          <table className="w-full text-[13px]">
+            <thead className="bg-muted/30">
+              <tr>
+                <Th>Name</Th>
+                <Th>Description</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {workspaces.map((w) => (
+                <tr key={w.id} className="border-t border-border">
+                  <td className="px-5 py-3 font-medium text-foreground">{w.name}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{w.description ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {adding && (
         <AddWorkspaceDialog
@@ -217,45 +219,47 @@ function MembersTab({ client }: { client: Client }) {
     ]);
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-card">
-      <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
-        <div className="flex items-center gap-2">
+    <div>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
           <h2 className="text-[15px] font-semibold text-foreground">Members</h2>
-          <span className="rounded px-1.5 text-[11px] text-muted-foreground tabular">
-            {members.length}
-          </span>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            People with access to this organization.
+          </p>
         </div>
         <PrimaryButton onClick={() => setAdding(true)}>
           <Plus size={14} strokeWidth={2.25} /> Add member
         </PrimaryButton>
       </div>
-      {members.length === 0 ? (
-        <Empty
-          icon={<Users size={18} strokeWidth={1.75} />}
-          text="No members yet."
-          actionLabel="Add member"
-          onAction={() => setAdding(true)}
-        />
-      ) : (
-        <table className="w-full text-[13px]">
-          <thead className="bg-muted/30">
-            <tr>
-              <Th>Name</Th>
-              <Th>Email</Th>
-              <Th>Role</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id} className="border-t border-border">
-                <td className="px-5 py-3 font-medium text-foreground">{m.name}</td>
-                <td className="px-5 py-3 text-muted-foreground">{m.email}</td>
-                <td className="px-5 py-3 text-muted-foreground">{m.role}</td>
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
+        {members.length === 0 ? (
+          <Empty
+            icon={<Users size={18} strokeWidth={1.75} />}
+            text="No members yet."
+            actionLabel="Add member"
+            onAction={() => setAdding(true)}
+          />
+        ) : (
+          <table className="w-full text-[13px]">
+            <thead className="bg-muted/30">
+              <tr>
+                <Th>Name</Th>
+                <Th>Email</Th>
+                <Th>Role</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id} className="border-t border-border">
+                  <td className="px-5 py-3 font-medium text-foreground">{m.name}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{m.email}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{m.role}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {adding && (
         <AddMemberDialog
