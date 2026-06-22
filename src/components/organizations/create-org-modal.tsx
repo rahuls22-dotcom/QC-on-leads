@@ -281,7 +281,7 @@ function ModuleMultiSelect({
                 <span className="text-[13px] font-medium text-foreground">{mod.name}</span>
                 {mod.requires && (
                   <span className="text-[11px] text-muted-foreground">
-                    · needs {MODULE_CATALOG.find((m) => m.id === mod.requires)?.name}
+                    · Needs {MODULE_CATALOG.find((m) => m.id === mod.requires)?.name}
                   </span>
                 )}
               </button>

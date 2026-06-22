@@ -238,10 +238,10 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-7">
           {priced.map(({ mod, feats }) => (
-            <div key={mod.id} className="rounded-xl border border-border-subtle bg-card">
-              <div className="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
+            <div key={mod.id}>
+              <div className="mb-1 flex items-center gap-2.5">
                 <div
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
@@ -252,20 +252,13 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
                 </div>
                 <div className="text-[13.5px] font-semibold text-foreground">{mod.name}</div>
               </div>
-              <div className="space-y-4 px-4 py-4">
-                {feats.map((f, i) => (
-                  <div key={f.id} className={cn(i > 0 && "border-t border-border-subtle pt-4")}>
-                    {feats.length > 1 && (
-                      <div className="text-[12.5px] font-semibold text-foreground">{f.name}</div>
-                    )}
-                    {f.kind === "voice" ? (
-                      <VoicePricing config={config} />
-                    ) : (
-                      <MeterPricing meterIds={f.meterIds} config={config} />
-                    )}
-                  </div>
-                ))}
-              </div>
+              {feats.map((f) =>
+                f.kind === "voice" ? (
+                  <VoicePricing key={f.id} config={config} />
+                ) : (
+                  <MeterPricing key={f.id} meterIds={f.meterIds} config={config} />
+                ),
+              )}
             </div>
           ))}
         </div>
@@ -276,17 +269,14 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
 
 function MeterPricing({ meterIds, config }: { meterIds: string[]; config: ModuleConfig }) {
   return (
-    <div className="mt-2 rounded-lg border border-border-subtle">
-      {meterIds.map((id, i) => {
+    <div>
+      {meterIds.map((id) => {
         const p = byId[id];
         if (!p) return null;
         return (
-          <div
-            key={id}
-            className={cn("flex items-center gap-3 px-3 py-2.5", i > 0 && "border-t border-border-subtle")}
-          >
+          <div key={id} className="flex items-center gap-3 py-3">
             <div className="min-w-0 flex-1">
-              <div className="text-[12.5px] font-medium text-foreground">{p.name}</div>
+              <div className="text-[13px] font-medium text-foreground">{p.name}</div>
               <div className="text-[11px] text-muted-foreground">{p.unit}</div>
             </div>
             <CreditsInput
@@ -303,10 +293,10 @@ function MeterPricing({ meterIds, config }: { meterIds: string[]; config: Module
 
 function VoicePricing({ config }: { config: ModuleConfig }) {
   return (
-    <div className="mt-2 rounded-lg border border-border-subtle">
-      <div className="flex items-center gap-3 px-3 py-2.5">
+    <div>
+      <div className="flex items-center gap-3 py-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] font-medium text-foreground">Price per minute</div>
+          <div className="text-[13px] font-medium text-foreground">Price per minute</div>
           <div className="text-[11px] text-muted-foreground">charged per connected minute</div>
         </div>
         <CreditsInput
@@ -316,9 +306,9 @@ function VoicePricing({ config }: { config: ModuleConfig }) {
           onChange={config.setVoicePricePerMin}
         />
       </div>
-      <div className="border-t border-border-subtle px-3 py-2.5">
+      <div className="py-3">
         <div className="flex items-center gap-2">
-          <span className="text-[12.5px] font-medium text-foreground">Pulse billing</span>
+          <span className="text-[13px] font-medium text-foreground">Pulse billing</span>
           <InfoTip text="Calls are billed in fixed time blocks, rounded up — not by the exact second. 60s bills to the next full minute; 30s bills to the next half-minute." />
           <div className="flex-1" />
           <Toggle checked={config.pulseEnabled} onClick={() => config.setPulseEnabled(!config.pulseEnabled)} />
