@@ -73,7 +73,7 @@ export default function OrganizationsListPage() {
         {/* Card header — count + search */}
         <div className="flex items-center justify-between gap-4 px-5 py-4">
           <span className="text-[15px] font-semibold text-foreground">
-            {filtered.length} {filtered.length === 1 ? "Organization" : "Organizations"}
+            {filtered.length} total
           </span>
           <div className="relative w-full max-w-[300px]">
             <Search
