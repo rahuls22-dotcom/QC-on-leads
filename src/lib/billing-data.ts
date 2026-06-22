@@ -369,6 +369,13 @@ export interface ClientBilling {
   // Step 3 — Rate card (two meters)
   /** Per-platform-action retail rates in ₹ (admin overrideable per org). */
   rateCard: Record<string, { enabled: boolean; creditsPerUnit: number }>;
+  /**
+   * Modules explicitly enabled for this org. Needed because navigation-only
+   * modules (Outreach, Spot, Marketing) have no meters, so their on/off can't
+   * be inferred from the rate card. When set, it is the source of truth for
+   * module enablement; when absent (seed orgs) we fall back to the rate card.
+   */
+  enabledModuleIds?: string[];
   /** Voice destination rates + attempt fee. */
   voiceRates: VoiceRates;
   /** Configurable maximum call duration in minutes (doc § 8.4 default 10). */
@@ -522,9 +529,18 @@ export function createClient(input: {
   const id = `${slug}-${rand(8)}`;
   const orgId = `org_${rand(16)}`;
 
+  // Resolve dependencies — selecting a module pulls in what it requires
+  // (Outreach ⇒ AI Calling), so the saved set is always consistent.
+  const moduleIds = new Set(input.moduleIds);
+  for (const mid of input.moduleIds) {
+    const mod = MODULE_CATALOG.find((m) => m.id === mid);
+    if (mod?.requires) moduleIds.add(mod.requires);
+  }
+  const enabledModuleIds = [...moduleIds];
+
   // Which meters belong to the selected modules.
   const enabledMeters = new Set(
-    input.moduleIds.flatMap((mid) => {
+    enabledModuleIds.flatMap((mid) => {
       const mod = MODULE_CATALOG.find((m) => m.id === mid);
       return mod ? moduleMeterIds(mod) : [];
     }),
@@ -533,6 +549,9 @@ export function createClient(input: {
   const billing = defaultBilling({
     clientName: name,
     industry: input.industry,
+    // Explicit enablement is the source of truth — covers meterless modules
+    // (Outreach, Spot, Marketing) that the rate card can't represent.
+    enabledModuleIds,
     workspaces: [
       { id: makeWorkspaceId(), name: `${name} — Default`, description: "Default workspace" },
     ],

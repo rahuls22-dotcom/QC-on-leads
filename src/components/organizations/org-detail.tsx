@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Building2, Users, Layers, Coins, Plus, X, ArrowRight } from "lucide-react";
+import { ChevronLeft, Building2, Users, Layers, Coins, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   MEMBER_ROLES,
+  MODULE_CATALOG,
   makeWorkspaceId,
   makeMemberId,
   type Client,
@@ -31,23 +31,21 @@ const STATUS_PILL: Record<Client["status"], string> = {
 export function OrgDetail({ client }: { client: Client }) {
   const billing = client.billing!;
   const [tab, setTab] = useState<OrgTab>("workspaces");
+  const [savedToast, setSavedToast] = useState<string | null>(null);
   const config = useModuleConfig(billing);
-  const router = useRouter();
 
   const TABS: { key: OrgTab; label: string; badge?: number }[] = [
     { key: "workspaces", label: "Workspaces", badge: billing.workspaces.length },
-    { key: "modules", label: "Modules" },
+    { key: "modules", label: "Modules", badge: MODULE_CATALOG.filter(config.isModuleOn).length },
     { key: "pricing", label: "Pricing" },
     { key: "members", label: "Members", badge: billing.members.length },
   ];
 
-  // Changes auto-save, so the footer button is pure navigation — advance to
-  // the next tab, or finish (back to the list) on the last one.
-  const curIdx = TABS.findIndex((t) => t.key === tab);
-  const nextTab = TABS[curIdx + 1];
-  const goNext = () => {
-    if (nextTab) setTab(nextTab.key);
-    else router.push("/organizations");
+  // Save the current tab. Navigation between tabs is manual — the user
+  // clicks a tab to move on; Save does not advance.
+  const save = () => {
+    setSavedToast("Saved");
+    window.setTimeout(() => setSavedToast((s) => (s === "Saved" ? null : s)), 1900);
   };
 
   return (
@@ -126,22 +124,21 @@ export function OrgDetail({ client }: { client: Client }) {
       {tab === "pricing" && <PricingTab config={config} />}
       {tab === "members" && <MembersTab client={client} />}
 
-      {/* Changes auto-save — this button only moves to the next step. */}
+      {/* Save the current tab. Switch tabs by clicking them above. */}
       <div className="mt-5 flex justify-end">
         <button
-          onClick={goNext}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-5 text-[13px] font-medium text-primary-foreground transition hover:brightness-110"
+          onClick={save}
+          className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-[13px] font-medium text-primary-foreground transition hover:brightness-110"
         >
-          {nextTab ? (
-            <>
-              Next
-              <ArrowRight size={14} strokeWidth={2} />
-            </>
-          ) : (
-            "Done"
-          )}
+          Save
         </button>
       </div>
+
+      {savedToast && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-md bg-foreground px-4 py-2.5 text-[13px] font-medium text-background shadow-lg">
+          {savedToast}
+        </div>
+      )}
     </div>
   );
 }

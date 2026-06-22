@@ -68,11 +68,15 @@ export function useModuleConfig(billing: ClientBilling): ModuleConfig {
 
   const [featureOn, setFeatureOn] = useState<Record<string, boolean>>(() => {
     const out: Record<string, boolean> = {};
+    // Prefer the explicit enabled-module list (set at creation) — it covers
+    // meterless modules like Outreach/Spot. Fall back to the rate card for
+    // seed orgs that predate that field.
+    const explicit = billing.enabledModuleIds;
     for (const mod of MODULE_CATALOG) {
-      const anyMeter = moduleMeterIds(mod).some((id) => rc[id]?.enabled);
-      for (const f of mod.features) {
-        out[f.id] = f.meterIds.length ? f.meterIds.some((id) => rc[id]?.enabled) : anyMeter;
-      }
+      const on = explicit
+        ? explicit.includes(mod.id)
+        : moduleMeterIds(mod).some((id) => rc[id]?.enabled);
+      for (const f of mod.features) out[f.id] = on;
     }
     return out;
   });

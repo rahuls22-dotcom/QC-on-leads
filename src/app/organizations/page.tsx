@@ -22,9 +22,14 @@ function formatDate(iso?: string): string {
 // Modules enabled for an org, derived from its rate card (a module counts as
 // on when any of its tracked meters is enabled).
 function enabledModuleNames(c: Client): string[] {
-  const rc = c.billing?.rateCard;
-  if (!rc) return [];
-  return MODULE_CATALOG.filter((m) => moduleMeterIds(m).some((id) => rc[id]?.enabled)).map(
+  const b = c.billing;
+  if (!b) return [];
+  // Explicit list is the source of truth (covers meterless modules); seed
+  // orgs without it fall back to the rate card.
+  if (b.enabledModuleIds) {
+    return MODULE_CATALOG.filter((m) => b.enabledModuleIds!.includes(m.id)).map((m) => m.name);
+  }
+  return MODULE_CATALOG.filter((m) => moduleMeterIds(m).some((id) => b.rateCard[id]?.enabled)).map(
     (m) => m.name,
   );
 }
