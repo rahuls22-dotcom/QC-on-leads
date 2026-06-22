@@ -360,7 +360,7 @@ function CreditsInput({
           type="number"
           value={value}
           min={floor}
-          step={0.05}
+          step={0.5}
           onChange={(e) => onChange(Number(e.target.value))}
           className={cn(
             "h-8 w-[72px] rounded-md border bg-transparent px-2 text-right text-[13px] tabular outline-none transition-colors",

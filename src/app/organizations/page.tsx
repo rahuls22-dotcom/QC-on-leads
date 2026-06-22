@@ -12,12 +12,6 @@ import {
 import { cn } from "@/lib/utils";
 import { CreateOrgModal } from "@/components/organizations/create-org-modal";
 
-const statusStyles: Record<Client["status"], string> = {
-  Active: "bg-success-bg text-success",
-  Onboarding: "bg-warning-bg text-warning",
-  Suspended: "bg-destructive-bg text-destructive",
-};
-
 function formatDate(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -73,7 +67,7 @@ export default function OrganizationsListPage() {
         {/* Card header — count + search */}
         <div className="flex items-center justify-between gap-4 px-5 py-4">
           <span className="text-[15px] font-semibold text-foreground">
-            {filtered.length} total
+            Organizations <span className="text-muted-foreground">({filtered.length})</span>
           </span>
           <div className="relative w-full max-w-[300px]">
             <Search
@@ -159,13 +153,9 @@ function OrgRow({ client: c }: { client: Client }) {
         )}
       </td>
       <td className="px-5 py-3.5 text-right">
-        <span
-          className={cn(
-            "inline-flex items-center rounded-md px-2 py-[3px] text-[11.5px] font-medium",
-            statusStyles[c.status],
-          )}
-        >
-          {c.status}
+        {/* Statuses arrive later — every org reads as Active for now. */}
+        <span className="inline-flex items-center rounded-md bg-success-bg px-2 py-[3px] text-[11.5px] font-medium text-success">
+          Active
         </span>
       </td>
     </tr>

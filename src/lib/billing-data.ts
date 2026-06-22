@@ -475,10 +475,16 @@ export const clients: Client[] = [
     id: "t_and_t_motors",
     orgId: "org_JaPQnr1iadWymMKl",
     name: "T&T Motors",
-    status: "Onboarding",
+    status: "Active",
     contractStart: "2026-05-26",
     primaryContact: "anita@tandtmotors.com",
-    billing: undefined, // not activated yet — this is the onboarding flow
+    billing: defaultBilling({
+      clientName: "T&T Motors",
+      industry: "Manufacturing",
+      workspaces: [
+        { id: makeWorkspaceId(), name: "T&T Motors — Default", description: "Default workspace" },
+      ],
+    }),
   },
   {
     id: "godrej_properties",
