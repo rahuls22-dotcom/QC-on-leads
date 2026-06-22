@@ -48,7 +48,7 @@ export const PRODUCT_CATALOGUE: Product[] = [
   { id: "feat_email",         category: "Features", bucket: "Contact Enrichment", name: "Email",              unit: "per contact",    internalCostRupees: 1.60, description: "Cheap, high volume." },
   { id: "feat_phone",         category: "Features", bucket: "Contact Enrichment", name: "Phone",              unit: "per contact",    internalCostRupees: 1.80, description: "Mobile + landline lookups." },
   // Data Enrichment — add context to a known contact.
-  { id: "feat_profile",       category: "Features", bucket: "Data Enrichment",    name: "Profile",            unit: "per profile",    internalCostRupees: 0.80, description: "Firmographic + role data." },
+  { id: "feat_profile",       category: "Features", bucket: "Data Enrichment",    name: "Professional",       unit: "per profile",    internalCostRupees: 0.80, description: "Firmographic + role data." },
   { id: "feat_finance",       category: "Features", bucket: "Data Enrichment",    name: "Financial",          unit: "per profile",    internalCostRupees: 4.00, description: "Revenue, funding, capital structure." },
   // Marketing — automation primitives.
   { id: "act_mktg_workflow",  category: "Features", bucket: "Marketing",          name: "Workflow action",    unit: "per action",     internalCostRupees: 0.15, description: "Sends, automation steps." },
@@ -90,6 +90,9 @@ export interface ModuleDef {
   // Meters used only to track on/off + drive creation when none of the
   // module's features carry their own meters (Marketing is navigation-only).
   enableMeterIds?: string[];
+  // Another module that must be enabled before this one can be turned on.
+  // Disabling the required module cascades this one off (Outreach ⇒ AI Calling).
+  requires?: string;
 }
 
 // Modules are fully flat — every capability is its own top-level module the
@@ -114,6 +117,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
     id: "outreach",
     name: "Outreach",
     enables: "Multi-channel outreach sequences. Navigation only.",
+    requires: "ai_calling",
     features: [
       { id: "outreach", name: "Outreach", description: "Multi-channel outreach sequences.", kind: "auto", meterIds: [], toggleable: true },
     ],
@@ -182,16 +186,18 @@ export const moduleSummary = (mod: ModuleDef): string => mod.enables;
  * can raise a price but never set it below this minimum.
  */
 export const DEFAULT_RATES: Record<string, number> = {
-  feat_email:         4.0,
+  feat_email:         2.0,
   feat_phone:         4.0,
-  feat_profile:       2.0,
-  feat_finance:      10.0,
+  feat_profile:       1.5,
+  feat_finance:       7.0,
   act_mktg_workflow:  0.5,
   act_ai_personalize: 1.0,
-  voice_in_landline: 12.0,
-  voice_in_mobile:   18.0,
-  voice_us_ca:       22.0,
-  voice_row:         30.0,
+  // AI Calling is one blended per-minute rate now; all destinations share the
+  // same floor/default of ₹5 so VOICE_FLOOR (the min) resolves to 5.
+  voice_in_landline:  5.0,
+  voice_in_mobile:    5.0,
+  voice_us_ca:        5.0,
+  voice_row:          5.0,
 };
 // Back-compat alias — existing call sites still reference this name.
 export const DEFAULT_CREDIT_RATES = DEFAULT_RATES;

@@ -27,6 +27,18 @@ const floorRate = (meterId: string): number => DEFAULT_RATES[meterId] ?? 0;
 // is the lowest of the standard destination rates.
 const VOICE_FLOOR = Math.min(...VOICE.meterIds.map((id) => floorRate(id)));
 
+// Soft per-module accent — a gentle tint for the module icon so the surface
+// isn't all black-and-white. Kept minimal: a -50 bg with a -600 icon.
+const MODULE_ACCENT: Record<string, string> = {
+  ai_calling: "bg-sky-50 text-sky-600",
+  outreach: "bg-indigo-50 text-indigo-600",
+  extraction: "bg-emerald-50 text-emerald-600",
+  enrichment: "bg-teal-50 text-teal-600",
+  marketing: "bg-amber-50 text-amber-600",
+  spot: "bg-violet-50 text-violet-600",
+};
+const accentOf = (id: string): string => MODULE_ACCENT[id] ?? "bg-primary-soft text-primary";
+
 /* ─── Shared config ───────────────────────────────────────────────────────
  *
  * Lifted to the org-detail level and shared by the Modules and Pricing tabs
@@ -84,7 +96,21 @@ export function useModuleConfig(billing: ClientBilling): ModuleConfig {
     setModule: (mod, on) =>
       setFeatureOn((p) => {
         const next = { ...p };
-        for (const f of mod.features) next[f.id] = on;
+        const apply = (m: ModuleDef, val: boolean) => {
+          for (const f of m.features) next[f.id] = val;
+        };
+        apply(mod, on);
+        if (on && mod.requires) {
+          // Enabling a module auto-enables what it depends on
+          // (turning on Outreach turns on AI Calling).
+          const req = MODULE_CATALOG.find((m) => m.id === mod.requires);
+          if (req) apply(req, true);
+        }
+        if (!on) {
+          // Turning a module off cascades off anything that requires it
+          // (disabling AI Calling also disables Outreach).
+          for (const dep of MODULE_CATALOG) if (dep.requires === mod.id) apply(dep, false);
+        }
         return next;
       }),
     isModuleOn: (mod) => mod.features.some((f) => featureOn[f.id]),
@@ -99,24 +125,9 @@ export function useModuleConfig(billing: ClientBilling): ModuleConfig {
   };
 }
 
-function useToast() {
-  const [toast, setToast] = useState<string | null>(null);
-  const flash = (msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 1900);
-  };
-  const node = toast ? (
-    <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-md bg-foreground px-4 py-2.5 text-[13px] font-medium text-background shadow-lg">
-      {toast}
-    </div>
-  ) : null;
-  return { flash, node };
-}
-
 /* ─── Tab 1 · Modules — enable modules & features ─────────────────────── */
 
 export function ModulesTab({ config }: { config: ModuleConfig }) {
-  const { flash, node } = useToast();
   const enabledCount = MODULE_CATALOG.filter(config.isModuleOn).length;
 
   return (
@@ -134,38 +145,40 @@ export function ModulesTab({ config }: { config: ModuleConfig }) {
         ))}
       </div>
 
-      <div className="mt-5 flex items-center justify-between">
-        <span className="text-[12px] text-muted-foreground tabular">
-          {enabledCount} of {MODULE_CATALOG.length} modules enabled
-        </span>
-        <button
-          onClick={() => flash("Modules saved")}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-[13px] font-medium text-primary-foreground transition hover:brightness-110"
-        >
-          Save modules
-        </button>
+      <div className="mt-4 text-[12px] text-muted-foreground tabular">
+        {enabledCount} of {MODULE_CATALOG.length} modules enabled
       </div>
-      {node}
     </div>
   );
 }
 
 function ModuleEnableCard({ module: mod, config }: { module: ModuleDef; config: ModuleConfig }) {
   const on = config.isModuleOn(mod);
+  const requiredMod = mod.requires ? MODULE_CATALOG.find((m) => m.id === mod.requires) : undefined;
   return (
     <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
       <div className="flex items-center gap-3 px-4 py-3.5">
         <div
           className={cn(
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            on ? "bg-primary-soft text-primary" : "bg-secondary text-muted-foreground",
+            on ? accentOf(mod.id) : "bg-secondary text-muted-foreground",
           )}
         >
           <Layers size={18} strokeWidth={1.75} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold text-foreground">{mod.name}</div>
-          <div className="text-[11.5px] leading-snug text-muted-foreground">{mod.enables}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] font-semibold text-foreground">{mod.name}</span>
+            {requiredMod && (
+              <span className="rounded bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium text-warning">
+                Requires {requiredMod.name}
+              </span>
+            )}
+          </div>
+          <div className="text-[11.5px] leading-snug text-muted-foreground">
+            {mod.enables}
+            {requiredMod && <span> Turning this on enables {requiredMod.name} too.</span>}
+          </div>
         </div>
         <Toggle checked={on} onClick={() => config.setModule(mod, !on)} />
       </div>
@@ -195,8 +208,6 @@ function ModuleEnableCard({ module: mod, config }: { module: ModuleDef; config: 
 /* ─── Tab 2 · Pricing — unit prices for enabled priced features ───────── */
 
 export function PricingTab({ config }: { config: ModuleConfig }) {
-  const { flash, node } = useToast();
-
   const priced = MODULE_CATALOG.map((mod) => ({
     mod,
     feats: mod.features.filter(
@@ -226,7 +237,15 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
         <div className="space-y-3">
           {priced.map(({ mod, feats }) => (
             <div key={mod.id} className="rounded-xl border border-border-subtle bg-card">
-              <div className="border-b border-border-subtle px-4 py-3">
+              <div className="flex items-center gap-2.5 border-b border-border-subtle px-4 py-3">
+                <div
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+                    accentOf(mod.id),
+                  )}
+                >
+                  <Layers size={15} strokeWidth={1.75} />
+                </div>
                 <div className="text-[13.5px] font-semibold text-foreground">{mod.name}</div>
               </div>
               <div className="space-y-4 px-4 py-4">
@@ -247,18 +266,6 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
           ))}
         </div>
       )}
-
-      {priced.length > 0 && (
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={() => flash("Pricing saved")}
-            className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-[13px] font-medium text-primary-foreground transition hover:brightness-110"
-          >
-            Save pricing
-          </button>
-        </div>
-      )}
-      {node}
     </div>
   );
 }
@@ -308,7 +315,7 @@ function VoicePricing({ config }: { config: ModuleConfig }) {
       <div className="border-t border-border-subtle px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="text-[12.5px] font-medium text-foreground">Pulse billing</span>
-          <InfoTip text="Voice is billed in pulses — fixed time blocks rounded up rather than by the exact second. A 60-second pulse rounds each call up to the next full minute; switch to 30 seconds to round to the nearest half-minute." />
+          <InfoTip text="Calls are billed in fixed time blocks, rounded up — not by the exact second. 60s bills to the next full minute; 30s bills to the next half-minute." />
           <div className="flex-1" />
           <Toggle checked={config.pulseEnabled} onClick={() => config.setPulseEnabled(!config.pulseEnabled)} />
         </div>
@@ -399,16 +406,26 @@ function Segmented<T extends string>({
   );
 }
 
-function Toggle({ checked, onClick }: { checked: boolean; onClick: (e: React.MouseEvent) => void }) {
+function Toggle({
+  checked,
+  onClick,
+  disabled,
+}: {
+  checked: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
         "relative h-5 w-9 shrink-0 rounded-full transition-colors",
         checked ? "bg-primary" : "bg-secondary",
+        disabled && "cursor-not-allowed opacity-50",
       )}
     >
       <span

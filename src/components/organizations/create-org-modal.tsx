@@ -26,9 +26,24 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
   const canCreate = name.trim().length > 0;
 
   const toggleModule = (id: string) =>
-    setModuleIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setModuleIds((prev) => {
+      if (prev.includes(id)) {
+        // Removing a module also removes anything that depends on it
+        // (drop AI Calling ⇒ Outreach goes too).
+        let next = prev.filter((x) => x !== id);
+        next = next.filter((x) => {
+          const m = MODULE_CATALOG.find((mm) => mm.id === x);
+          return !m?.requires || next.includes(m.requires);
+        });
+        return next;
+      }
+      // Adding a module also pulls in its requirement (pick Outreach ⇒
+      // AI Calling turns on automatically).
+      const next = [...prev, id];
+      const mod = MODULE_CATALOG.find((m) => m.id === id);
+      if (mod?.requires && !next.includes(mod.requires)) next.push(mod.requires);
+      return next;
+    });
 
   const create = () => {
     if (!canCreate) return;
@@ -71,27 +86,10 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
             />
           </label>
 
-          <label className="block">
+          <div>
             <span className="mb-1.5 block text-[12px] font-medium text-foreground">Industry</span>
-            <div className="relative">
-              <select
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value as Industry)}
-                className={cn(inputClass, "appearance-none pr-8")}
-              >
-                {INDUSTRIES.map((i) => (
-                  <option key={i} value={i}>
-                    {i}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                strokeWidth={2}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-            </div>
-          </label>
+            <IndustrySelect value={industry} onChange={setIndustry} />
+          </div>
 
           <div>
             <span className="mb-1.5 block text-[12px] font-medium text-foreground">Modules</span>
@@ -146,6 +144,72 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
 
 const inputClass =
   "h-9 w-full rounded-md border border-border bg-transparent px-2.5 text-[13px] text-foreground outline-none transition-colors focus-visible:border-foreground";
+
+/* ─── Single-select dropdown for industry (same style as modules) ─────── */
+
+function IndustrySelect({
+  value,
+  onChange,
+}: {
+  value: Industry;
+  onChange: (v: Industry) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(inputClass, "flex items-center justify-between gap-2 text-left")}
+      >
+        <span className="text-foreground">{value}</span>
+        <ChevronDown
+          size={14}
+          strokeWidth={2}
+          className={cn("shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[260px] overflow-y-auto rounded-md border border-border bg-card py-1 shadow-[0_8px_24px_rgba(0,0,0,0.10)]">
+          {INDUSTRIES.map((ind) => {
+            const selected = ind === value;
+            return (
+              <button
+                key={ind}
+                type="button"
+                onClick={() => {
+                  onChange(ind);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left transition-colors hover:bg-secondary/60"
+              >
+                <span className={cn("text-[13px] text-foreground", selected && "font-medium")}>{ind}</span>
+                {selected && <Check size={14} strokeWidth={2.5} className="shrink-0 text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── Compact multi-select dropdown for modules ───────────────────────── */
 
@@ -210,6 +274,11 @@ function ModuleMultiSelect({
                   {on && <Check size={11} strokeWidth={3} />}
                 </span>
                 <span className="text-[13px] font-medium text-foreground">{mod.name}</span>
+                {mod.requires && (
+                  <span className="text-[11px] text-muted-foreground">
+                    · needs {MODULE_CATALOG.find((m) => m.id === mod.requires)?.name}
+                  </span>
+                )}
               </button>
             );
           })}

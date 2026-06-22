@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Building2, Users, Layers, Coins, Plus, X } from "lucide-react";
+import { ChevronLeft, Building2, Users, Layers, Coins, Plus, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   MEMBER_ROLES,
@@ -30,6 +30,7 @@ const STATUS_PILL: Record<Client["status"], string> = {
 export function OrgDetail({ client }: { client: Client }) {
   const billing = client.billing!;
   const [tab, setTab] = useState<OrgTab>("workspaces");
+  const [savedToast, setSavedToast] = useState<string | null>(null);
   const config = useModuleConfig(billing);
 
   const TABS: { key: OrgTab; label: string; badge?: number }[] = [
@@ -38,6 +39,17 @@ export function OrgDetail({ client }: { client: Client }) {
     { key: "pricing", label: "Pricing" },
     { key: "members", label: "Members", badge: billing.members.length },
   ];
+
+  // Each tab's footer saves the current step and advances to the next, like a
+  // wizard. The last tab just saves.
+  const curIdx = TABS.findIndex((t) => t.key === tab);
+  const nextTab = TABS[curIdx + 1];
+  const saveAndContinue = () => {
+    const msg = `${TABS[curIdx].label} saved`;
+    setSavedToast(msg);
+    window.setTimeout(() => setSavedToast((s) => (s === msg ? null : s)), 1900);
+    if (nextTab) setTab(nextTab.key);
+  };
 
   return (
     <div className="mx-auto max-w-[1100px] px-8 py-6">
@@ -114,6 +126,29 @@ export function OrgDetail({ client }: { client: Client }) {
       {tab === "modules" && <ModulesTab config={config} />}
       {tab === "pricing" && <PricingTab config={config} />}
       {tab === "members" && <MembersTab client={client} />}
+
+      {/* Save & Continue — saves the current tab and advances to the next */}
+      <div className="mt-5 flex justify-end border-t border-border-subtle pt-4">
+        <button
+          onClick={saveAndContinue}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-5 text-[13px] font-medium text-primary-foreground transition hover:brightness-110"
+        >
+          {nextTab ? (
+            <>
+              Save &amp; Continue to {nextTab.label}
+              <ArrowRight size={14} strokeWidth={2} />
+            </>
+          ) : (
+            "Save"
+          )}
+        </button>
+      </div>
+
+      {savedToast && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-md bg-foreground px-4 py-2.5 text-[13px] font-medium text-background shadow-lg">
+          {savedToast}
+        </div>
+      )}
     </div>
   );
 }
