@@ -23,7 +23,8 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
   const [industry, setIndustry] = useState<Industry>(INDUSTRIES[0]);
   const [moduleIds, setModuleIds] = useState<string[]>([]);
 
-  const canCreate = name.trim().length > 0;
+  // Name and at least one module are required.
+  const canCreate = name.trim().length > 0 && moduleIds.length > 0;
 
   const toggleModule = (id: string) =>
     setModuleIds((prev) => {
@@ -76,7 +77,9 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
         {/* Body */}
         <div className="space-y-4 px-5 py-4">
           <label className="block">
-            <span className="mb-1.5 block text-[12px] font-medium text-foreground">Organization name</span>
+            <span className="mb-1.5 block text-[12px] font-medium text-foreground">
+              Organization name <span className="text-destructive">*</span>
+            </span>
             <input
               autoFocus
               value={name}
@@ -92,7 +95,9 @@ export function CreateOrgModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <span className="mb-1.5 block text-[12px] font-medium text-foreground">Modules</span>
+            <span className="mb-1.5 block text-[12px] font-medium text-foreground">
+              Modules <span className="text-destructive">*</span>
+            </span>
             <ModuleMultiSelect selected={moduleIds} onToggle={toggleModule} />
             {moduleIds.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
