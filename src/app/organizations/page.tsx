@@ -7,10 +7,41 @@ import {
   clients,
   MODULE_CATALOG,
   moduleMeterIds,
+  displayStatus,
+  activeCreditAccount,
   type Client,
+  type CreditAccountType,
+  type OrgDisplayStatus,
 } from "@/lib/billing-data";
 import { cn } from "@/lib/utils";
 import { CreateOrgModal } from "@/components/organizations/create-org-modal";
+
+const STATUS_PILL: Record<OrgDisplayStatus, string> = {
+  Active: "bg-success-bg text-success",
+  Sandbox: "bg-primary-soft text-primary",
+  "Expiring soon": "bg-warning-bg text-warning",
+  Expired: "bg-destructive-bg text-destructive",
+  Draft: "bg-secondary text-muted-foreground",
+};
+
+const ACCOUNT_PILL: Record<CreditAccountType, string> = {
+  trial: "bg-primary-soft text-primary",
+  paid: "bg-secondary text-foreground",
+};
+const ACCOUNT_LABEL: Record<CreditAccountType, string> = {
+  trial: "Trial",
+  paid: "Paid",
+};
+
+// The org's account type = its active credit account's type, or the latest
+// account's type when none is active (e.g. an expired paid org still reads "Paid").
+function accountType(c: Client): CreditAccountType | null {
+  const active = activeCreditAccount(c);
+  if (active) return active.type;
+  const accts = c.creditAccounts ?? [];
+  if (!accts.length) return null;
+  return accts.reduce((m, x) => (x.index > m.index ? x : m)).type;
+}
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
@@ -22,10 +53,13 @@ function formatDate(iso?: string): string {
 // Modules enabled for an org, derived from its rate card (a module counts as
 // on when any of its tracked meters is enabled).
 function enabledModuleNames(c: Client): string[] {
+  // The active credit account is the source of truth for modules.
+  const active = activeCreditAccount(c);
+  if (active) {
+    return MODULE_CATALOG.filter((m) => active.enabledModuleIds.includes(m.id)).map((m) => m.name);
+  }
   const b = c.billing;
   if (!b) return [];
-  // Explicit list is the source of truth (covers meterless modules); seed
-  // orgs without it fall back to the rate card.
   if (b.enabledModuleIds) {
     return MODULE_CATALOG.filter((m) => b.enabledModuleIds!.includes(m.id)).map((m) => m.name);
   }
@@ -34,21 +68,38 @@ function enabledModuleNames(c: Client): string[] {
   );
 }
 
+type OrgKind = "all" | "paid" | "trial";
+
+const isTrial = (c: Client) => accountType(c) === "trial" || c.status === "Sandbox";
+
 export default function OrganizationsListPage() {
   const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<OrgKind>("all");
   const [createOpen, setCreateOpen] = useState(false);
+
+  const counts = useMemo(
+    () => ({
+      all: clients.length,
+      paid: clients.filter((c) => !isTrial(c)).length,
+      trial: clients.filter(isTrial).length,
+    }),
+    [],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter(
-      (c) =>
+    return clients.filter((c) => {
+      if (kind === "paid" && isTrial(c)) return false;
+      if (kind === "trial" && !isTrial(c)) return false;
+      if (!q) return true;
+      return (
         c.name.toLowerCase().includes(q) ||
         c.id.toLowerCase().includes(q) ||
         c.orgId.toLowerCase().includes(q) ||
-        (c.billing?.industry ?? "").toLowerCase().includes(q),
-    );
-  }, [search]);
+        (c.billing?.industry ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [search, kind]);
 
   return (
     <div className="mx-auto max-w-[1400px] px-8 py-6">
@@ -85,6 +136,36 @@ export default function OrganizationsListPage() {
         </div>
       </header>
 
+      {/* Account-type filter */}
+      <div className="mb-4 inline-flex items-center rounded-lg border border-border-subtle bg-secondary/40 p-1">
+        {([
+          { key: "all", label: "All", n: counts.all },
+          { key: "paid", label: "Paid", n: counts.paid },
+          { key: "trial", label: "Trial", n: counts.trial },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setKind(t.key)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors",
+              kind === t.key
+                ? "border border-primary/40 bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+            <span
+              className={cn(
+                "rounded px-1.5 text-[11px] tabular",
+                kind === t.key ? "bg-secondary text-foreground" : "bg-secondary/70 text-muted-foreground",
+              )}
+            >
+              {t.n}
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
         {/* Table */}
         <table className="w-full text-[13px]">
@@ -94,6 +175,7 @@ export default function OrganizationsListPage() {
               <Th>Org ID</Th>
               <Th>Created</Th>
               <Th>Industry</Th>
+              <Th>Account</Th>
               <Th>Modules</Th>
               <Th align="right">Status</Th>
             </tr>
@@ -101,7 +183,7 @@ export default function OrganizationsListPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-[13px] text-muted-foreground">
+                <td colSpan={7} className="px-5 py-12 text-center text-[13px] text-muted-foreground">
                   No organizations match “{search}”.
                 </td>
               </tr>
@@ -119,6 +201,7 @@ export default function OrganizationsListPage() {
 
 function OrgRow({ client: c }: { client: Client }) {
   const modules = enabledModuleNames(c);
+  const at = accountType(c);
   return (
     <tr className="border-t border-border transition-colors hover:bg-secondary/30">
       <td className="px-5 py-3.5">
@@ -139,6 +222,20 @@ function OrgRow({ client: c }: { client: Client }) {
         {c.billing?.industry || <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-5 py-3.5">
+        {at ? (
+          <span
+            className={cn(
+              "inline-flex items-center whitespace-nowrap rounded-md px-2 py-[3px] text-[11.5px] font-medium",
+              ACCOUNT_PILL[at],
+            )}
+          >
+            {ACCOUNT_LABEL[at]}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3.5">
         {modules.length === 0 ? (
           <span className="text-muted-foreground">—</span>
         ) : (
@@ -155,9 +252,13 @@ function OrgRow({ client: c }: { client: Client }) {
         )}
       </td>
       <td className="px-5 py-3.5 text-right">
-        {/* Statuses arrive later — every org reads as Active for now. */}
-        <span className="inline-flex items-center rounded-md bg-success-bg px-2 py-[3px] text-[11.5px] font-medium text-success">
-          Active
+        <span
+          className={cn(
+            "inline-flex items-center whitespace-nowrap rounded-md px-2 py-[3px] text-[11.5px] font-medium",
+            STATUS_PILL[displayStatus(c)],
+          )}
+        >
+          {displayStatus(c)}
         </span>
       </td>
     </tr>

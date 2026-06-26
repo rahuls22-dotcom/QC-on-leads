@@ -63,7 +63,11 @@ export type ModuleConfig = {
   setPulse: (p: Pulse) => void;
 };
 
-export function useModuleConfig(billing: ClientBilling): ModuleConfig {
+// Accepts a full ClientBilling or just a credit account's pricing slice — both
+// expose `rateCard` and (optionally) `enabledModuleIds`.
+type ModuleConfigSource = { enabledModuleIds?: string[]; rateCard: ClientBilling["rateCard"] };
+
+export function useModuleConfig(billing: ModuleConfigSource): ModuleConfig {
   const rc = billing.rateCard;
 
   const [featureOn, setFeatureOn] = useState<Record<string, boolean>>(() => {
@@ -211,13 +215,56 @@ function ModuleEnableCard({ module: mod, config }: { module: ModuleDef; config: 
 
 /* ─── Tab 2 · Pricing — unit prices for enabled priced features ───────── */
 
-export function PricingTab({ config }: { config: ModuleConfig }) {
+export function PricingTab({ config, trial = false }: { config: ModuleConfig; trial?: boolean }) {
   const priced = MODULE_CATALOG.map((mod) => ({
     mod,
     feats: mod.features.filter(
       (f) => config.featureOn[f.id] && (f.kind === "meters" || f.kind === "voice"),
     ),
   })).filter((g) => g.feats.length > 0);
+
+  if (trial) {
+    return (
+      <div>
+        <div className="mb-4">
+          <h2 className="text-[15px] font-semibold text-foreground">Pricing</h2>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            Standard rates applied during the trial — usage draws these from the free credits. Adjust them when you convert to a contract.
+          </p>
+        </div>
+        <div className="space-y-3">
+          {priced.map(({ mod, feats }) => (
+            <div key={mod.id} className="rounded-xl border border-border-subtle bg-card">
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-t-xl border-b border-border-subtle px-4 py-3",
+                  accentOf(mod.id),
+                )}
+              >
+                <Layers size={16} strokeWidth={1.75} />
+                <div className="text-[13.5px] font-semibold text-foreground">{mod.name}</div>
+                <span className="ml-auto rounded bg-card/70 px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+                  default
+                </span>
+              </div>
+              <div className="divide-y divide-border-subtle px-4">
+                {feats.flatMap((f) =>
+                  f.kind === "voice"
+                    ? [<ReadOnlyRate key={f.id} name="Price per minute" sub="charged per connected minute" value={VOICE_FLOOR} unit="min" />]
+                    : f.meterIds.map((id) => {
+                        const p = byId[id];
+                        return p ? (
+                          <ReadOnlyRate key={id} name={p.name} sub={p.unit} value={floorRate(id)} unit="unit" />
+                        ) : null;
+                      }),
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -262,6 +309,109 @@ export function PricingTab({ config }: { config: ModuleConfig }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Combined Modules + Pricing — enable a module, price it inline ───── */
+
+export function ModulesPricing({
+  config,
+  trial = false,
+  embedded = false,
+  disabled = false,
+}: {
+  config: ModuleConfig;
+  trial?: boolean;
+  embedded?: boolean;
+  disabled?: boolean;
+}) {
+  const enabledCount = MODULE_CATALOG.filter(config.isModuleOn).length;
+  // Read-only when it's a trial (fixed) or the account's pricing is locked.
+  const readOnly = trial || disabled;
+  return (
+    <div>
+      {!embedded && (
+        <div className="mb-4">
+          <h2 className="text-[15px] font-semibold text-foreground">Modules &amp; pricing</h2>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
+            {trial
+              ? "All modules are on for the trial, at standard rates."
+              : "Turn on a module to set its per-unit pricing below it. Each rate defaults to the standard rate and can’t go lower."}
+          </p>
+        </div>
+      )}
+      <div className="space-y-3">
+        {MODULE_CATALOG.map((mod) => (
+          <ModulePricingCard key={mod.id} module={mod} config={config} readOnly={readOnly} />
+        ))}
+      </div>
+      <div className="mt-4 text-[12px] text-muted-foreground tabular">
+        {enabledCount} of {MODULE_CATALOG.length} modules enabled
+      </div>
+    </div>
+  );
+}
+
+function ModulePricingCard({
+  module: mod,
+  config,
+  readOnly,
+}: {
+  module: ModuleDef;
+  config: ModuleConfig;
+  readOnly: boolean;
+}) {
+  const on = config.isModuleOn(mod);
+  const requiredMod = mod.requires ? MODULE_CATALOG.find((m) => m.id === mod.requires) : undefined;
+  const pricedFeats = mod.features.filter((f) => f.kind === "meters" || f.kind === "voice");
+  return (
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            on ? accentOf(mod.id) : "bg-secondary text-muted-foreground",
+          )}
+        >
+          <Layers size={18} strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] font-semibold text-foreground">{mod.name}</span>
+            {requiredMod && (
+              <span className="rounded bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium text-warning">
+                Requires {requiredMod.name}
+              </span>
+            )}
+          </div>
+          <div className="text-[11.5px] leading-snug text-muted-foreground">{mod.enables}</div>
+        </div>
+        <Toggle checked={on} disabled={readOnly} onClick={() => config.setModule(mod, !on)} />
+      </div>
+
+      {on && pricedFeats.length > 0 && (
+        <div className="border-t border-border-subtle bg-secondary/20 px-4">
+          {pricedFeats.map((f) =>
+            f.kind === "voice" ? (
+              readOnly ? (
+                <ReadOnlyRate key={f.id} name="Price per minute" sub="charged per connected minute" value={config.voicePricePerMin} unit="min" />
+              ) : (
+                <VoicePricing key={f.id} config={config} />
+              )
+            ) : readOnly ? (
+              <div key={f.id} className="divide-y divide-border-subtle">
+                {f.meterIds.map((id) => {
+                  const p = byId[id];
+                  return p ? <ReadOnlyRate key={id} name={p.name} sub={p.unit} value={config.rate(id)} unit="unit" /> : null;
+                })}
+              </div>
+            ) : (
+              <MeterPricing key={f.id} meterIds={f.meterIds} config={config} />
+            ),
+          )}
         </div>
       )}
     </div>
@@ -333,6 +483,30 @@ function VoicePricing({ config }: { config: ModuleConfig }) {
 }
 
 /* ─── Primitives ──────────────────────────────────────────────────────── */
+
+function ReadOnlyRate({
+  name,
+  sub,
+  value,
+  unit,
+}: {
+  name: string;
+  sub: string;
+  value: number;
+  unit: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium text-foreground">{name}</div>
+        <div className="text-[11px] text-muted-foreground">{sub}</div>
+      </div>
+      <div className="shrink-0 text-[13px] tabular text-foreground">
+        ₹{value.toFixed(2)} <span className="text-[11.5px] text-muted-foreground">/ {unit}</span>
+      </div>
+    </div>
+  );
+}
 
 function CreditsInput({
   value,
