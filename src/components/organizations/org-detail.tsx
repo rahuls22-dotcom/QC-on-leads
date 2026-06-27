@@ -21,6 +21,7 @@ import {
   Wallet,
   Lock,
   Download,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,12 +35,12 @@ import {
   nextAccountType,
   nextBillingDate,
   billingCycles,
+  setCycleInvoice,
   extendCreditAccount,
   addCreditAccountCredits,
   MAX_CREDITS,
   clampCredits,
   type CreditAccountStatus,
-  type BillingCycleRow,
   type TrialUsage,
   EMPTY_TRIAL_USAGE,
   type Client,
@@ -455,7 +456,16 @@ function CreditAccountView({
           </Section>
           {cycles.length > 0 && (
             <Section title="Invoices" flush>
-              <BillingCyclesTable account={account} embedded onDownload={(cy) => downloadInvoice(client, account, cy, flash)} />
+              <BillingCyclesTable
+                account={account}
+                embedded
+                onUpload={(cycleIndex, file) => {
+                  const url = URL.createObjectURL(file);
+                  setCycleInvoice(client.id, account.id, cycleIndex, { name: file.name, url });
+                  onChanged();
+                  flash(`Invoice uploaded for Cycle ${cycleIndex}`);
+                }}
+              />
             </Section>
           )}
           <Section title="Modules & pricing" action={modulesAction}>
@@ -759,44 +769,22 @@ function PaidCreditPanel({
 
 /* ─── Billing cycles (paid) — money used per cycle + invoice download ──── */
 
-function downloadInvoice(
-  client: Client,
-  account: CreditAccount,
-  cy: BillingCycleRow,
-  flash: (m: string) => void,
-) {
-  const lines = [
-    `INVOICE  ${cy.invoiceId}`,
-    `Organization:  ${client.name} (${client.id})`,
-    `Credit Account ${account.index} — ${account.consumptionModel ?? ""}`,
-    `Billing period:  ${cy.start} to ${cy.end}`,
-    `Amount due:  ₹${cy.creditsUsed.toLocaleString("en-IN")}`,
-    ``,
-    `Generated ${new Date().toISOString().slice(0, 10)}`,
-  ].join("\n");
-  const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${cy.invoiceId}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  flash(`Downloaded ${cy.invoiceId}`);
-}
-
 function BillingCyclesTable({
   account,
-  onDownload,
+  onUpload,
   embedded = false,
 }: {
   account: CreditAccount;
-  onDownload: (cy: BillingCycleRow) => void;
+  onUpload: (cycleIndex: number, file: File) => void;
   embedded?: boolean;
 }) {
   const cycles = billingCycles(account);
   if (!cycles.length) return null;
+  const pick = (cycleIndex: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) onUpload(cycleIndex, f);
+    e.currentTarget.value = "";
+  };
   return (
     <div className={cn(!embedded && "overflow-hidden rounded-xl border border-border-subtle bg-card")}>
       {!embedded && (
@@ -804,6 +792,9 @@ function BillingCyclesTable({
           Billing cycles
         </div>
       )}
+      <p className="px-5 pt-3 text-[11.5px] text-muted-foreground">
+        Invoicing runs in Zoho — upload each cycle&apos;s invoice (PDF) here.
+      </p>
       <table className="w-full text-[13px]">
         <thead className="bg-muted/30">
           <tr>
@@ -814,36 +805,49 @@ function BillingCyclesTable({
           </tr>
         </thead>
         <tbody>
-          {cycles.map((cy) => (
-            <tr key={cy.index} className="border-t border-border">
-              <td className="px-5 py-3">
-                <span className="font-medium text-foreground">Cycle {cy.index}</span>
-                {cy.status === "current" && (
-                  <span className="ml-2 rounded bg-primary-soft px-1.5 py-0.5 text-[10.5px] font-medium text-primary">
-                    Current
-                  </span>
-                )}
-              </td>
-              <td className="px-5 py-3 tabular text-muted-foreground">
-                {fmtDate(cy.start)} – {fmtDate(cy.end)}
-              </td>
-              <td className="px-5 py-3 tabular text-foreground">₹{cy.creditsUsed.toLocaleString("en-IN")}</td>
-              <td className="px-5 py-3">
-                {cy.invoiceId ? (
-                  <button
-                    type="button"
-                    onClick={() => onDownload(cy)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] font-medium text-foreground transition hover:bg-secondary"
-                  >
-                    <Download size={13} strokeWidth={2} />
-                    Invoice
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-muted-foreground">Not billed yet</span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {cycles.map((cy) => {
+            const inv = account.invoices?.[cy.index];
+            return (
+              <tr key={cy.index} className="border-t border-border">
+                <td className="px-5 py-3">
+                  <span className="font-medium text-foreground">Cycle {cy.index}</span>
+                  {cy.status === "current" && (
+                    <span className="ml-2 rounded bg-primary-soft px-1.5 py-0.5 text-[10.5px] font-medium text-primary">
+                      Current
+                    </span>
+                  )}
+                </td>
+                <td className="px-5 py-3 tabular text-muted-foreground">
+                  {fmtDate(cy.start)} – {fmtDate(cy.end)}
+                </td>
+                <td className="px-5 py-3 tabular text-foreground">₹{cy.creditsUsed.toLocaleString("en-IN")}</td>
+                <td className="px-5 py-3">
+                  {inv ? (
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={inv.url}
+                        download={inv.name}
+                        className="inline-flex max-w-[200px] items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] font-medium text-foreground transition hover:bg-secondary"
+                      >
+                        <Download size={13} strokeWidth={2} className="shrink-0" />
+                        <span className="truncate">{inv.name}</span>
+                      </a>
+                      <label className="cursor-pointer text-[11.5px] text-muted-foreground transition-colors hover:text-foreground">
+                        Replace
+                        <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={pick(cy.index)} />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] font-medium text-foreground transition hover:bg-secondary">
+                      <Upload size={13} strokeWidth={2} />
+                      Upload invoice
+                      <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={pick(cy.index)} />
+                    </label>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -951,10 +955,43 @@ function TopUpForm({ onTopUp }: { onTopUp: (n: number) => void }) {
   );
 }
 
-function UsageBar({ pct, barClass }: { pct: number; barClass: string }) {
+// Self-explanatory meter: total on top, a bar (filled = used), and a legend
+// tying the filled colour to "used" and the empty track to "remaining".
+function UsageMeter({
+  total,
+  totalLabel,
+  used,
+  remaining,
+  barClass,
+}: {
+  total: number;
+  totalLabel: string;
+  used: number;
+  remaining: number;
+  barClass: string;
+}) {
+  const pct = total > 0 ? Math.min(100, Math.round((Math.min(used, total) / total) * 100)) : 0;
   return (
-    <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-      <div className={cn("h-full rounded-full", barClass)} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="text-[12px] text-muted-foreground">{totalLabel}</span>
+        <span className="text-[13.5px] font-semibold tabular text-foreground">₹{total.toLocaleString("en-IN")}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+        <div className={cn("h-full rounded-full", barClass)} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn("h-2.5 w-2.5 rounded-sm", barClass)} />
+          <span className="font-semibold tabular text-foreground">₹{used.toLocaleString("en-IN")}</span>
+          <span className="text-muted-foreground">used</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-secondary ring-1 ring-inset ring-border" />
+          <span className="font-semibold tabular text-foreground">₹{remaining.toLocaleString("en-IN")}</span>
+          <span className="text-muted-foreground">remaining</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -976,18 +1013,13 @@ function CreditUsageContent({
   if (isPrepaid) {
     const o = creditAccountOverview(client, account);
     usage = (
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-x-10 gap-y-3">
-          <Stat label="Credit balance" value={`₹${o.creditsTotal.toLocaleString("en-IN")}`} />
-          <Stat label="Used" value={`₹${o.creditsUsed.toLocaleString("en-IN")}`} />
-          <Stat
-            label="Remaining"
-            value={`₹${o.creditsLeft.toLocaleString("en-IN")}`}
-            accent={o.creditsPct <= 15 ? "text-warning" : undefined}
-          />
-        </div>
-        <UsageBar pct={o.usedPct} barClass={o.creditsPct <= 15 ? "bg-warning" : "bg-primary"} />
-      </div>
+      <UsageMeter
+        totalLabel="Credit balance"
+        total={o.creditsTotal}
+        used={o.creditsUsed}
+        remaining={o.creditsLeft}
+        barClass={o.creditsPct <= 15 ? "bg-warning" : "bg-primary"}
+      />
     );
   } else {
     const cycles = billingCycles(account);
@@ -999,19 +1031,23 @@ function CreditUsageContent({
       const within = Math.min(used, quota);
       const remaining = Math.max(0, quota - used);
       const overage = Math.max(0, used - quota);
-      const pct = quota > 0 ? Math.round((within / quota) * 100) : 0;
       usage = (
         <div className="space-y-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{cycleLabel}</div>
-          <div className="flex flex-wrap gap-x-10 gap-y-3">
-            <Stat label="Pre-credited" value={`₹${quota.toLocaleString("en-IN")}`} />
-            <Stat label="Used this cycle" value={`₹${within.toLocaleString("en-IN")}`} />
-            <Stat label="Remaining" value={`₹${remaining.toLocaleString("en-IN")}`} />
-            {overage > 0 && <Stat label="Overage" value={`+₹${overage.toLocaleString("en-IN")}`} accent="text-warning" />}
+          <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            {cycleLabel} · pre-credited
           </div>
-          <UsageBar pct={pct} barClass={overage > 0 || remaining === 0 ? "bg-warning" : "bg-primary"} />
+          <UsageMeter
+            totalLabel="Pre-credited this cycle"
+            total={quota}
+            used={within}
+            remaining={remaining}
+            barClass={overage > 0 || remaining === 0 ? "bg-warning" : "bg-primary"}
+          />
           {overage > 0 && (
-            <p className="text-[11.5px] text-warning">Overage is billed on top of the subscription.</p>
+            <div className="flex items-center justify-between gap-2 rounded-md bg-warning-bg px-3 py-2">
+              <span className="text-[12px] font-medium text-warning">Overage (beyond pre-credit)</span>
+              <span className="text-[13px] font-semibold tabular text-warning">+ ₹{overage.toLocaleString("en-IN")} billed on top</span>
+            </div>
           )}
         </div>
       );
@@ -1391,10 +1427,22 @@ function WorkspacesTab({ client }: { client: Client }) {
 function MembersTab({ client, flash }: { client: Client; flash: (m: string) => void }) {
   const [members, setMembers] = useState<OrgMember[]>(client.billing!.members);
   const [adding, setAdding] = useState(false);
+  const workspaces = client.billing!.workspaces;
 
-  const addMember = (name: string, email: string, role: OrgMember["role"]) => {
-    setMembers((prev) => [...prev, { id: makeMemberId(), name, email, role, sendInvite: true }]);
+  const addMember = (
+    name: string,
+    email: string,
+    role: OrgMember["role"],
+    workspaceAccess: "all" | string[],
+  ) => {
+    setMembers((prev) => [...prev, { id: makeMemberId(), name, email, role, sendInvite: true, workspaceAccess }]);
     flash(`Invite link sent by email to ${email}`);
+  };
+
+  const accessLabel = (m: OrgMember): string => {
+    if (!m.workspaceAccess || m.workspaceAccess === "all") return "All workspaces";
+    const names = workspaces.filter((w) => (m.workspaceAccess as string[]).includes(w.id)).map((w) => w.name);
+    return names.length ? names.join(", ") : "—";
   };
 
   return (
@@ -1425,6 +1473,7 @@ function MembersTab({ client, flash }: { client: Client; flash: (m: string) => v
                 <Th>Name</Th>
                 <Th>Email</Th>
                 <Th>Role</Th>
+                <Th>Workspace access</Th>
               </tr>
             </thead>
             <tbody>
@@ -1433,6 +1482,7 @@ function MembersTab({ client, flash }: { client: Client; flash: (m: string) => v
                   <td className="px-5 py-3 font-medium text-foreground">{m.name}</td>
                   <td className="px-5 py-3 text-muted-foreground">{m.email}</td>
                   <td className="px-5 py-3 text-muted-foreground">{m.role}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{accessLabel(m)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1442,7 +1492,8 @@ function MembersTab({ client, flash }: { client: Client; flash: (m: string) => v
 
       {adding && (
         <AddMemberDialog
-          onAdd={(name, email, role) => addMember(name, email, role)}
+          workspaces={workspaces}
+          onAdd={addMember}
           onClose={() => setAdding(false)}
         />
       )}
@@ -1496,20 +1547,29 @@ function AddWorkspaceDialog({
 }
 
 function AddMemberDialog({
+  workspaces,
   onAdd,
   onClose,
 }: {
-  onAdd: (name: string, email: string, role: OrgMember["role"]) => void;
+  workspaces: Workspace[];
+  onAdd: (name: string, email: string, role: OrgMember["role"], workspaceAccess: "all" | string[]) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgMember["role"]>("Member");
-  const canAdd = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email);
+  const [allWorkspaces, setAllWorkspaces] = useState(true);
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const toggleWs = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const accessOk = allWorkspaces || selected.length > 0;
+  const canAdd = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email) && accessOk;
 
   const submit = () => {
     if (!canAdd) return;
-    onAdd(name.trim(), email.trim(), role);
+    onAdd(name.trim(), email.trim(), role, allWorkspaces ? "all" : selected);
     onClose();
   };
 
@@ -1547,6 +1607,54 @@ function AddMemberDialog({
             ))}
           </select>
         </Field>
+        <div>
+          <span className="mb-1.5 block text-[12px] font-medium text-foreground">Workspace access</span>
+          <div className="inline-flex h-9 w-full items-center rounded-md border border-border p-0.5">
+            {([
+              { v: true, l: "All workspaces" },
+              { v: false, l: "Specific" },
+            ] as const).map((o) => (
+              <button
+                key={o.l}
+                type="button"
+                onClick={() => setAllWorkspaces(o.v)}
+                className={cn(
+                  "h-full flex-1 rounded text-[12.5px] font-medium transition-colors",
+                  allWorkspaces === o.v
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {o.l}
+              </button>
+            ))}
+          </div>
+          {!allWorkspaces && (
+            <div className="mt-2 space-y-1 rounded-md border border-border-subtle p-1.5">
+              {workspaces.map((w) => {
+                const on = selected.includes(w.id);
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => toggleWs(w.id)}
+                    className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left transition-colors hover:bg-secondary/60"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        on ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                      )}
+                    >
+                      {on && <Check size={11} strokeWidth={3} />}
+                    </span>
+                    <span className="text-[13px] text-foreground">{w.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <DialogFooter onClose={onClose} onSubmit={submit} submitLabel="Add member" disabled={!canAdd} />
     </Dialog>

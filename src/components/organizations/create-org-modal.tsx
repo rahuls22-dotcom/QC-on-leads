@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   INDUSTRIES,
   ALL_MODULE_IDS,
+  MODULE_CATALOG,
   createOrgWithCreditAccount,
   addCreditAccount,
   activeCreditAccount,
@@ -32,6 +33,53 @@ import {
 } from "@/lib/billing-data";
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Toggle a module id, resolving dependencies (Outreach ⇒ AI Calling; turning a
+// required module off cascades its dependents off).
+function toggleModuleId(prev: string[], id: string): string[] {
+  if (prev.includes(id)) {
+    let next = prev.filter((x) => x !== id);
+    next = next.filter((x) => {
+      const m = MODULE_CATALOG.find((mm) => mm.id === x);
+      return !m?.requires || next.includes(m.requires);
+    });
+    return next;
+  }
+  const next = [...prev, id];
+  const mod = MODULE_CATALOG.find((m) => m.id === id);
+  if (mod?.requires && !next.includes(mod.requires)) next.push(mod.requires);
+  return next;
+}
+
+function ModuleChecklist({ selected, onToggle }: { selected: string[]; onToggle: (id: string) => void }) {
+  return (
+    <div className="space-y-0.5 rounded-md border border-border-subtle p-1.5">
+      {MODULE_CATALOG.map((mod) => {
+        const on = selected.includes(mod.id);
+        const req = mod.requires ? MODULE_CATALOG.find((m) => m.id === mod.requires) : undefined;
+        return (
+          <button
+            key={mod.id}
+            type="button"
+            onClick={() => onToggle(mod.id)}
+            className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left transition-colors hover:bg-secondary/60"
+          >
+            <span
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                on ? "border-primary bg-primary text-primary-foreground" : "border-border",
+              )}
+            >
+              {on && <Check size={11} strokeWidth={3} />}
+            </span>
+            <span className="text-[13px] font-medium text-foreground">{mod.name}</span>
+            {req && <span className="text-[11px] text-muted-foreground">· Needs {req.name}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ─── Entry points ────────────────────────────────────────────────────── */
 
@@ -91,9 +139,11 @@ function NewOrgForm({ onClose }: { onClose: () => void }) {
   const [hasSubscriptionFee, setHasSubscriptionFee] = useState(false);
   const [months, setMonths] = useState(12);
   const [paidPerCycle, setPaidPerCycle] = useState(0);
+  const [moduleIds, setModuleIds] = useState<string[]>([]);
+  const toggleModule = (id: string) => setModuleIds((p) => toggleModuleId(p, id));
 
   const isSubscription = consumption === "Postpaid" && hasSubscriptionFee;
-  const canCreate = name.trim().length > 0;
+  const canCreate = name.trim().length > 0 && (!paid || moduleIds.length > 0);
 
   const create = () => {
     if (!canCreate) return;
@@ -116,7 +166,7 @@ function NewOrgForm({ onClose }: { onClose: () => void }) {
             ? { contractMonths: months, postpaidModel: hasSubscriptionFee ? "subscription" : "payg" }
             : {}),
           // Modules + pricing are defined on the credit account next.
-          enabledModuleIds: [],
+          enabledModuleIds: moduleIds,
         }
       : {
           type: "trial",
@@ -306,8 +356,14 @@ function NewOrgForm({ onClose }: { onClose: () => void }) {
                 )}
               </>
             )}
+            <div>
+              <span className="mb-1.5 flex items-baseline gap-1.5 text-[12px] font-medium text-foreground">
+                Modules to enable <span className="text-destructive">*</span>
+              </span>
+              <ModuleChecklist selected={moduleIds} onToggle={toggleModule} />
+            </div>
             <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-              Next: enable modules and set their per-unit pricing on the credit account.
+              Set per-unit pricing for these modules on the credit account next.
             </p>
           </div>
         )}
@@ -369,13 +425,16 @@ function AccountForm({
   const [hasSubscriptionFee, setHasSubscriptionFee] = useState(false);
   const [months, setMonths] = useState(PAID_DEFAULT_MONTHS);
   const [paidPerCycle, setPaidPerCycle] = useState(0);
+  const [moduleIds, setModuleIds] = useState<string[]>([]);
+  const toggleModule = (id: string) => setModuleIds((p) => toggleModuleId(p, id));
   const isSubscription = consumption === "Postpaid" && hasSubscriptionFee;
 
   const [done, setDone] = useState<{ id: string; link: string } | null>(null);
 
   // In add-account mode the org already exists, so name/industry aren't asked.
   const nameOk = addMode || name.trim().length > 0;
-  const canCreate = account === "trial" ? nameOk && /\S+@\S+\.\S+/.test(email) : nameOk;
+  const canCreate =
+    account === "trial" ? nameOk && /\S+@\S+\.\S+/.test(email) : nameOk && moduleIds.length > 0;
 
   const buildInput = (): CreditAccountInput =>
     account === "trial"
@@ -406,7 +465,7 @@ function AccountForm({
             ? { contractMonths: months, postpaidModel: hasSubscriptionFee ? "subscription" : "payg" }
             : {}),
           // Modules + pricing are defined on the account after creation.
-          enabledModuleIds: [],
+          enabledModuleIds: moduleIds,
         };
 
   const create = () => {
@@ -643,8 +702,14 @@ function AccountForm({
                 )}
               </>
             )}
+            <div>
+              <span className="mb-1.5 flex items-baseline gap-1.5 text-[12px] font-medium text-foreground">
+                Modules to enable <span className="text-destructive">*</span>
+              </span>
+              <ModuleChecklist selected={moduleIds} onToggle={toggleModule} />
+            </div>
             <div className="rounded-md bg-card px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
-              Modules and per-unit pricing are defined on this credit account after it's created.
+              Set per-unit pricing for these modules on the credit account next.
             </div>
           </div>
         )}

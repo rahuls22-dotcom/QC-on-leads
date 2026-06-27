@@ -304,6 +304,9 @@ export interface OrgMember {
   role: MemberRole;
   /** Send an invitation email when the account is activated. */
   sendInvite: boolean;
+  /** Workspace access — "all" (every workspace, the default) or specific
+   *  workspace ids the member is scoped to. */
+  workspaceAccess?: "all" | string[];
 }
 
 /**
@@ -474,6 +477,9 @@ export interface CreditAccount {
   // Modules + pricing for THIS account
   enabledModuleIds: string[];
   rateCard: RateCard;
+  /** Manually-uploaded invoices (invoicing runs in Zoho), keyed by billing-cycle
+   *  index. Stores the file name + an in-memory object URL for download. */
+  invoices?: Record<number, { name: string; url: string }>;
   /** Tier pricing can't change mid-contract. Set true once a paid/renewal
    *  account's pricing is locked in; further rate edits are rejected. */
   pricingLocked?: boolean;
@@ -677,19 +683,22 @@ function godrejBilling(): ClientBilling {
     email: "neha@revspot.ai",
     notifyOnActivation: false,
   };
+  const wsMumbai = makeWorkspaceId();
+  const wsBlr = makeWorkspaceId();
+  const wsPrelaunch = makeWorkspaceId();
+  b.workspaces = [
+    { id: wsMumbai, name: "Godrej Properties — Mumbai", description: "Western region sales" },
+    { id: wsBlr, name: "Godrej Properties — Bengaluru", description: "South region sales" },
+    { id: wsPrelaunch, name: "Godrej Reflections — Pre-launch", description: "Brand-specific outreach" },
+  ];
   b.members = [
-    { id: makeMemberId(), name: "Rohit Mehta",   email: "demo@godrejproperties.com",     role: "Admin",   sendInvite: false },
-    { id: makeMemberId(), name: "Sanjana Kapur", email: "sanjana@godrejproperties.com",  role: "Manager", sendInvite: false },
-    { id: makeMemberId(), name: "Vikram Reddy",  email: "vikram@godrejproperties.com",   role: "Member",  sendInvite: false },
+    { id: makeMemberId(), name: "Rohit Mehta",   email: "demo@godrejproperties.com",    role: "Admin",   sendInvite: false, workspaceAccess: "all" },
+    { id: makeMemberId(), name: "Sanjana Kapur", email: "sanjana@godrejproperties.com", role: "Manager", sendInvite: false, workspaceAccess: [wsMumbai] },
+    { id: makeMemberId(), name: "Vikram Reddy",  email: "vikram@godrejproperties.com",   role: "Member",  sendInvite: false, workspaceAccess: [wsBlr, wsPrelaunch] },
   ];
   b.seatCount = b.members.length;
   b.activationDate = "2025-09-12";
   b.lastInvoiceDate = "2026-05-01";
-  b.workspaces = [
-    { id: makeWorkspaceId(), name: "Godrej Properties — Mumbai",      description: "Western region sales" },
-    { id: makeWorkspaceId(), name: "Godrej Properties — Bengaluru",   description: "South region sales" },
-    { id: makeWorkspaceId(), name: "Godrej Reflections — Pre-launch", description: "Brand-specific outreach" },
-  ];
   return b;
 }
 
@@ -1372,6 +1381,24 @@ export function extendCreditAccount(orgId: string, accountId: string, addDays: n
 export function addCreditAccountCredits(orgId: string, accountId: string, amount: number): void {
   const a = findClient(orgId)?.creditAccounts?.find((x) => x.id === accountId);
   if (a) a.totalCredits += amount;
+}
+
+/** Attach a manually-uploaded invoice (from Zoho) to a billing cycle. */
+export function setCycleInvoice(
+  orgId: string,
+  accountId: string,
+  cycleIndex: number,
+  file: { name: string; url: string },
+): void {
+  const a = findClient(orgId)?.creditAccounts?.find((x) => x.id === accountId);
+  if (!a) return;
+  (a.invoices ??= {})[cycleIndex] = file;
+}
+
+/** Remove a manually-uploaded invoice from a billing cycle. */
+export function removeCycleInvoice(orgId: string, accountId: string, cycleIndex: number): void {
+  const a = findClient(orgId)?.creditAccounts?.find((x) => x.id === accountId);
+  if (a?.invoices) delete a.invoices[cycleIndex];
 }
 
 /**
